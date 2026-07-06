@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0;background:#e9ebef;font-family:Manrope,system-ui,sans-serif}.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}.dv-tname{font:600 13px/1.2 system-ui,sans-serif;color:#1a1a1a}.dv-opts{display:flex;flex-wrap:wrap;gap:36px;align-items:flex-start}.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 system-ui,sans-serif;color:rgba(0,0,0,.55)}.dv-card{max-width:100%;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}.dv-opt:target .dv-oid{background:#2a78d6;color:#fff}.dv-next{margin:22px 0 0;font:12px/1.5 system-ui,sans-serif;color:rgba(0,0,0,.5)}</style>
+</helmet>
+
+<section class="dv-turn" id="t2">
+<div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">Full build-out of <a class="dv-oid" href="#1a">1a</a> — working header nav + tweakable page, CTA label &amp; featured tier</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="2a">
+<div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>Multi-page site — click the header links, or use Tweaks to switch page</div>
+<div class="dv-card" style="width:1240px">
+
+  <!-- shared header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 64px;border-bottom:1px solid rgba(15,31,61,0.08)">
+    <img src="assets/launchpoint-logo.png" alt="LaunchPoint" style="height:42px;display:block;cursor:pointer" onClick="{{ goHome }}"/>
+    <div style="display:flex;align-items:center;gap:36px;font-size:15px;font-weight:600">
+      <span style="cursor:pointer;color:{{ navServices }}" style-hover="color:#1f66d6" onClick="{{ goServices }}">Services</span>
+      <span style="cursor:pointer;color:{{ navProcess }}" style-hover="color:#1f66d6" onClick="{{ goProcess }}">How it works</span>
+      <span style="cursor:pointer;color:{{ navPricing }}" style-hover="color:#1f66d6" onClick="{{ goPricing }}">Pricing</span>
+      <span style="cursor:pointer;color:{{ navFaq }}" style-hover="color:#1f66d6" onClick="{{ goFaq }}">FAQ</span>
+      <span style="background:#1f66d6;color:#fff;padding:12px 24px;border-radius:8px;font-weight:700;cursor:pointer" style-hover="background:#1a56b5" onClick="{{ goBook }}">{{ ctaLabel }}</span>
+    </div>
+  </div>
+
+  <!-- ===== HOME ===== -->
+  <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+  <div data-screen-label="2a Home">
+    <div style="padding:104px 160px 88px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:24px">
+      <div style="font-size:14px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#1f66d6">Web design &amp; management · Dublin, Ireland</div>
+      <div style="font-size:58px;line-height:1.08;font-weight:800;color:#0f1f3d;max-width:820px;text-wrap:balance">Affordable websites. Ongoing support. Zero hassle.</div>
+      <div style="font-size:20px;line-height:1.6;color:#4a5670;max-width:640px;text-wrap:pretty">We design, launch and manage professional websites for Irish small businesses — then keep them up to date for you, every month. No jargon, no hourly fees.</div>
+      <div style="display:flex;gap:14px;margin-top:8px">
+        <span style="background:#1f66d6;color:#fff;padding:17px 34px;border-radius:9px;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(31,102,214,0.28)" style-hover="background:#1a56b5" onClick="{{ goBook }}">{{ ctaLabel }}</span>
+        <span style="background:#fff;color:#0f1f3d;border:1.5px solid rgba(15,31,61,0.18);padding:17px 34px;border-radius:9px;font-size:17px;font-weight:700;cursor:pointer" style-hover="border-color:#1f66d6;color:#1f66d6" onClick="{{ goPricing }}">See pricing</span>
+      </div>
+      <div style="font-size:14.5px;font-weight:600;color:#7a8499;display:flex;gap:22px;margin-top:6px">
+        <span>✓ From €349</span><span>✓ Live within days</span><span>✓ Updates included</span>
+      </div>
+    </div>
+
+    <div style="background:#f4f6f9;padding:80px 64px;display:flex;flex-direction:column;gap:44px;align-items:center">
+      <div style="font-size:36px;font-weight:800;color:#0f1f3d;text-align:center;max-width:700px;line-height:1.2;text-wrap:balance">No website is costing you customers — every single week.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;width:100%">
+        <div style="background:#fff;border:1px solid rgba(15,31,61,0.08);border-radius:12px;padding:32px">
+          <div style="font-size:19px;font-weight:800;color:#0f1f3d;margin-bottom:10px">They're Googling you</div>
+          <div style="font-size:15.5px;line-height:1.65;color:#4a5670">When someone needs a plumber, a salon or an accountant, the first thing they do is search. If you're not there, your competitor is.</div>
+        </div>
+        <div style="background:#fff;border:1px solid rgba(15,31,61,0.08);border-radius:12px;padding:32px">
+          <div style="font-size:19px;font-weight:800;color:#0f1f3d;margin-bottom:10px">A Facebook page isn't enough</div>
+          <div style="font-size:15.5px;line-height:1.65;color:#4a5670">Social pages get buried and look unprofessional on their own. A proper website makes people trust you before they ever pick up the phone.</div>
+        </div>
+        <div style="background:#fff;border:1px solid rgba(15,31,61,0.08);border-radius:12px;padding:32px">
+          <div style="font-size:19px;font-weight:800;color:#0f1f3d;margin-bottom:10px">Out-of-date is worse than nothing</div>
+          <div style="font-size:15.5px;line-height:1.65;color:#4a5670">Wrong opening hours and old prices send customers straight to the competition. We keep everything current for you.</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:88px 64px;display:flex;flex-direction:column;gap:44px">
+      <div style="text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center">
+        <div style="font-size:13.5px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#1f66d6">What we do</div>
+        <div style="font-size:36px;font-weight:800;color:#0f1f3d">Everything your business needs online</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+        <div style="border:1px solid rgba(15,31,61,0.1);border-radius:12px;padding:36px;display:flex;flex-direction:column;gap:12px">
+          <div style="width:44px;height:44px;border-radius:10px;background:#e6effc;color:#1f66d6;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">01</div>
+          <div style="font-size:21px;font-weight:800;color:#0f1f3d">Website design</div>
+          <div style="font-size:15.5px;line-height:1.65;color:#4a5670">A bespoke, modern website built for your business. Mobile-friendly, fast-loading, with contact forms, Google Maps, your own domain and SSL security.</div>
+        </div>
+        <div style="border:1px solid rgba(15,31,61,0.1);border-radius:12px;padding:36px;display:flex;flex-direction:column;gap:12px">
+          <div style="width:44px;height:44px;border-radius:10px;background:#e6effc;color:#1f66d6;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">02</div>
+          <div style="font-size:21px;font-weight:800;color:#0f1f3d">Online booking</div>
+          <div style="font-size:15.5px;line-height:1.65;color:#4a5670">Let customers book appointments straight from your website, with calendar integration. Perfect for salons, barbers, therapists, tutors and tradespeople.</div>
+        </div>
+        <div style="border:1px solid rgba(15,31,61,0.1);border-radius:12px;padding:36px;display:flex;flex-direction:column;gap:12px">
+          <div style="width:44px;height:44px;border-radius:10px;background:#e6effc;color:#1f66d6;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">03</div>
+          <div style="font-size:21px;font-weight:800;color:#0f1f3d">Website management</div>
+          <div style="font-size:15.5px;line-height:1.65;color:#4a5670">Opening hours, prices, photos, new services — just tell us and it's done. Plus maintenance, security monitoring and backups. Included in every plan.</div>
+        </div>
+        <div style="border:1px solid rgba(15,31,61,0.1);border-radius:12px;padding:36px;display:flex;flex-direction:column;gap:12px">
+          <div style="width:44px;height:44px;border-radius:10px;background:#e6effc;color:#1f66d6;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">04</div>
+          <div style="font-size:21px;font-weight:800;color:#0f1f3d">Digital growth</div>
+          <div style="font-size:15.5px;line-height:1.65;color:#4a5670">Optional add-ons when you're ready: Google Business Profile, Google &amp; social ads, SEO and analytics — so more local customers find you.</div>
+        </div>
+      </div>
+      <span style="align-self:center;font-size:16px;font-weight:700;color:#1f66d6;cursor:pointer" style-hover="text-decoration:underline" onClick="{{ goServices }}">See everything included →</span>
+    </div>
+
+    <div style="background:#f4f6f9;padding:88px 64px;display:flex;flex-direction:column;gap:48px">
+      <div style="text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center">
+        <div style="font-size:13.5px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#1f66d6">How it works</div>
+        <div style="font-size:36px;font-weight:800;color:#0f1f3d">Live within days — in three simple steps</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px">
+        <div style="display:flex;flex-direction:column;gap:14px;background:#fff;border:1px solid rgba(15,31,61,0.08);border-radius:12px;padding:36px">
+          <div style="font-size:44px;font-weight:800;color:#1f66d6">1</div>
+          <div style="font-size:20px;font-weight:800;color:#0f1f3d">Book a free call</div>
+          <div style="font-size:15.5px;line-height:1.65;color:#4a5670">A relaxed 20-minute chat about your business. No tech talk, no obligation.</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px;background:#fff;border:1px solid rgba(15,31,61,0.08);border-radius:12px;padding:36px">
+          <div style="font-size:44px;font-weight:800;color:#1f66d6">2</div>
+          <div style="font-size:20px;font-weight:800;color:#0f1f3d">Pick from three designs</div>
+          <div style="font-size:15.5px;line-height:1.65;color:#4a5670">We create three homepage concepts for your business. You choose the one you love — we build the rest.</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px;background:#fff;border:1px solid rgba(15,31,61,0.08);border-radius:12px;padding:36px">
+          <div style="font-size:44px;font-weight:800;color:#1f66d6">3</div>
+          <div style="font-size:20px;font-weight:800;color:#0f1f3d">Go live — we take it from there</div>
+          <div style="font-size:15.5px;line-height:1.65;color:#4a5670">Your site launches within days. From then on, every update is handled by us as part of your plan.</div>
+        </div>
+      </div>
+      <span style="align-self:center;font-size:16px;font-weight:700;color:#1f66d6;cursor:pointer" style-hover="text-decoration:underline" onClick="{{ goProcess }}">See the full process →</span>
+    </div>
+
+    <div style="padding:88px 64px;display:flex;flex-direction:column;gap:36px">
+      <div style="text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center">
+        <div style="font-size:13.5px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#1f66d6">Pricing</div>
+        <div style="font-size:36px;font-weight:800;color:#0f1f3d">Simple, transparent pricing</div>
+        <div style="font-size:17px;color:#4a5670">One setup fee. One monthly plan. No hourly rates, ever.</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px">
+        <div style="border:1px solid rgba(15,31,61,0.12);border-radius:14px;padding:30px;display:flex;flex-direction:column;gap:8px;cursor:pointer" style-hover="border-color:#1f66d6" onClick="{{ goPricing }}">
+          <div style="font-size:15px;font-weight:800;color:#1f66d6">Launch Starter</div>
+          <div style="font-size:32px;font-weight:800;color:#0f1f3d">€349 <span style="font-size:14px;font-weight:600;color:#7a8499">setup + €39/mo</span></div>
+          <div style="font-size:14.5px;color:#4a5670">A professional online presence, managed for you.</div>
+        </div>
+        <div style="border:2px solid #1f66d6;border-radius:14px;padding:30px;display:flex;flex-direction:column;gap:8px;cursor:pointer;box-shadow:0 12px 32px rgba(31,102,214,0.12)" onClick="{{ goPricing }}">
+          <div style="font-size:15px;font-weight:800;color:#1f66d6">Launch Business</div>
+          <div style="font-size:32px;font-weight:800;color:#0f1f3d">€699 <span style="font-size:14px;font-weight:600;color:#7a8499">setup + €79/mo</span></div>
+          <div style="font-size:14.5px;color:#4a5670">For growing businesses that take bookings.</div>
+        </div>
+        <div style="border:1px solid rgba(15,31,61,0.12);border-radius:14px;padding:30px;display:flex;flex-direction:column;gap:8px;cursor:pointer" style-hover="border-color:#1f66d6" onClick="{{ goPricing }}">
+          <div style="font-size:15px;font-weight:800;color:#1f66d6">Launch Growth</div>
+          <div style="font-size:32px;font-weight:800;color:#0f1f3d">€1,199 <span style="font-size:14px;font-weight:600;color:#7a8499">setup + €149/mo</span></div>
+          <div style="font-size:14.5px;color:#4a5670">Everything in Business, plus active growth.</div>
+        </div>
+      </div>
+      <span style="align-self:center;font-size:16px;font-weight:700;color:#1f66d6;cursor:pointer" style-hover="text-decoration:underline" onClick="{{ goPricing }}">Compare plans in detail →</span>
+    </div>
+
+    <div style="background:#f4f6f9;padding:88px 64px;display:flex;flex-direction:column;gap:44px">
+      <div style="text-align:center;font-size:36px;font-weight:800;color:#0f1f3d">Trusted by businesses like yours</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px">
+        <div style="background:#fff;border:1px solid rgba(15,31,61,0.08);border-radius:12px;padding:32px;display:flex;flex-direction:column;gap:16px">
+          <div style="color:#1f66d6;font-size:22px;letter-spacing:2px">★★★★★</div>
+          <div style="font-size:16px;line-height:1.7;color:#3c4a63">“We'd been putting a website off for years. LaunchPoint had us live in six days — and when we changed our opening hours, it was updated the same afternoon.”</div>
+          <div style="font-size:14.5px;font-weight:700;color:#0f1f3d">Sinéad Brennan<div style="font-weight:600;color:#7a8499">Brennan Hair Studio, Dublin 8</div></div>
+        </div>
+        <div style="background:#fff;border:1px solid rgba(15,31,61,0.08);border-radius:12px;padding:32px;display:flex;flex-direction:column;gap:16px">
+          <div style="color:#1f66d6;font-size:22px;letter-spacing:2px">★★★★★</div>
+          <div style="font-size:16px;line-height:1.7;color:#3c4a63">“I'm a plumber, not a computer person. I send a text, the site gets updated. Simple as that.”</div>
+          <div style="font-size:14.5px;font-weight:700;color:#0f1f3d">Dave Corrigan<div style="font-weight:600;color:#7a8499">Corrigan Plumbing &amp; Heating, Tallaght</div></div>
+        </div>
+        <div style="background:#fff;border:1px solid rgba(15,31,61,0.08);border-radius:12px;padding:32px;display:flex;flex-direction:column;gap:16px">
+          <div style="color:#1f66d6;font-size:22px;letter-spacing:2px">★★★★★</div>
+          <div style="font-size:16px;line-height:1.7;color:#3c4a63">“The online booking alone paid for the website in the first month. I wish we'd done it sooner.”</div>
+          <div style="font-size:14.5px;font-weight:700;color:#0f1f3d">Aoife Nolan<div style="font-weight:600;color:#7a8499">Nolan Physiotherapy, Naas</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:#0f1f3d;padding:80px 64px;display:flex;flex-direction:column;align-items:center;gap:22px;text-align:center">
+      <div style="font-size:38px;font-weight:800;color:#fff;line-height:1.15;text-wrap:balance">Ready to get your business online?</div>
+      <div style="font-size:17px;line-height:1.7;color:#aab6cc;max-width:560px">Book a free discovery call. We'll talk about your business, then send you three homepage concepts — free, no obligation.</div>
+      <span style="background:#1f66d6;color:#fff;padding:17px 36px;border-radius:9px;font-size:17px;font-weight:700;cursor:pointer;margin-top:6px" style-hover="background:#1a56b5" onClick="{{ goBook }}">{{ ctaLabel }}</span>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ===== SERVICES ===== -->
+  <sc-if value="{{ isServices }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="2a Services">
+    <div style="padding:88px 160px 72px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:18px">
+      <div style="font-size:13.5px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#1f66d6">Services</div>
+      <div style="font-size:48px;font-weight:800;color:#0f1f3d;line-height:1.1;text-wrap:balance">Everything your business needs online — handled for you</div>
+      <div style="font-size:18px;line-height:1.65;color:#4a5670;max-width:620px">One team for your website, your updates and your online growth. You never touch a line of code or a confusing dashboard.</div>
+    </div>
+
+    <div style="padding:0 64px 88px;display:flex;flex-direction:column;gap:24px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+        <div style="border:1px solid rgba(15,31,61,0.1);border-radius:14px;padding:40px;display:flex;flex-direction:column;gap:16px">
+          <div style="font-size:23px;font-weight:800;color:#0f1f3d">Website design</div>
+          <div style="font-size:15.5px;line-height:1.65;color:#4a5670">A bespoke website designed around your business — not a template with your logo dropped in.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:15px;font-weight:500;color:#3c4a63">
+            <span>✓ Bespoke modern design</span><span>✓ Mobile responsive</span><span>✓ Fast-loading pages</span><span>✓ Contact forms</span><span>✓ Google Maps</span><span>✓ Professional branding</span><span>✓ Domain connection</span><span>✓ SSL security</span>
+          </div>
+        </div>
+        <div style="border:1px solid rgba(15,31,61,0.1);border-radius:14px;padding:40px;display:flex;flex-direction:column;gap:16px">
+          <div style="font-size:23px;font-weight:800;color:#0f1f3d">Online booking</div>
+          <div style="font-size:15.5px;line-height:1.65;color:#4a5670">Customers book appointments directly from your website, with calendar integration — no phone tag, no missed jobs.</div>
+          <div style="font-size:14px;font-weight:700;color:#1f66d6;margin-top:4px">Perfect for</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <span style="font-size:13.5px;font-weight:700;color:#3c4a63;background:#f4f6f9;padding:7px 14px;border-radius:99px">Hair salons</span>
+            <span style="font-size:13.5px;font-weight:700;color:#3c4a63;background:#f4f6f9;padding:7px 14px;border-radius:99px">Barbers</span>
+            <span style="font-size:13.5px;font-weight:700;color:#3c4a63;background:#f4f6f9;padding:7px 14px;border-radius:99px">Therapists</span>
+            <span style="font-size:13.5px;font-weight:700;color:#3c4a63;background:#f4f6f9;padding:7px 14px;border-radius:99px">Beauticians</span>
+            <span style="font-size:13.5px;font-weight:700;color:#3c4a63;background:#f4f6f9;padding:7px 14px;border-radius:99px">Tutors</span>
+            <span style="font-size:13.5px;font-weight:700;color:#3c4a63;background:#f4f6f9;padding:7px 14px;border-radius:99px">Consultants</span>
+            <span style="font-size:13.5px;font-weight:700;color:#3c4a63;background:#f4f6f9;padding:7px 14px;border-radius:99px">Tradespeople</span>
+          </div>
+        </div>
+        <div style="border:1px solid rgba(15,31,61,0.1);border-radius:14px;padding:40px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;align-items:center;gap:12px"><div style="font-size:23px;font-weight:800;color:#0f1f3d">Website management</div><span style="font-size:11.5px;font-weight:800;background:#e6effc;color:#1f66d6;padding:4px 10px;border-radius:99px;text-transform:uppercase;letter-spacing:0.05em">In every plan</span></div>
+          <div style="font-size:15.5px;line-height:1.65;color:#4a5670">Your website stays as current as your business. Just tell us what changed — no technical knowledge required.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:15px;font-weight:500;color:#3c4a63">
+            <span>✓ Text changes</span><span>✓ Image updates</span><span>✓ New services</span><span>✓ Price changes</span><span>✓ Staff updates</span><span>✓ Contact details</span><span>✓ Monthly maintenance</span><span>✓ Security &amp; backups</span>
+          </div>
+        </div>
+        <div style="border:1px solid rgba(15,31,61,0.1);border-radius:14px;padding:40px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;align-items:center;gap:12px"><div style="font-size:23px;font-weight:800;color:#0f1f3d">Digital growth</div><span style="font-size:11.5px;font-weight:800;background:#f4f6f9;color:#7a8499;padding:4px 10px;border-radius:99px;text-transform:uppercase;letter-spacing:0.05em">Add-ons</span></div>
+          <div style="font-size:15.5px;line-height:1.65;color:#4a5670">When you're ready for more customers, we switch on growth — no new supplier needed.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:15px;font-weight:500;color:#3c4a63">
+            <span>✓ Google Business Profile</span><span>✓ Google Ads setup</span><span>✓ Instagram advertising</span><span>✓ Facebook advertising</span><span>✓ Basic SEO</span><span>✓ Website analytics</span><span>✓ Conversion improvements</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:#f4f6f9;padding:72px 64px;display:flex;flex-direction:column;gap:28px;align-items:center">
+      <div style="font-size:30px;font-weight:800;color:#0f1f3d;text-align:center">Industries we serve</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:900px">
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">Accountants</span>
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">Hair salons</span>
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">Barbers</span>
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">Beauty clinics</span>
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">Therapists</span>
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">Tutors</span>
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">Childcare</span>
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">Estate agents</span>
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">Plumbers</span>
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">Electricians</span>
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">Landscapers</span>
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">Builders</span>
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">Cleaning companies</span>
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">Pet groomers</span>
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">Physiotherapists</span>
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">Cafés</span>
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">Restaurants</span>
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">Gyms</span>
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">Personal trainers</span>
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">Retailers</span>
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">Consultants</span>
+        <span style="font-size:14px;font-weight:600;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:8px 16px;border-radius:99px">+ more</span>
+      </div>
+      <div style="font-size:15px;color:#4a5670">Don't see your industry? <span style="font-weight:700;color:#1f66d6;cursor:pointer" onClick="{{ goBook }}">Ask us on a free call.</span></div>
+    </div>
+
+    <div style="padding:72px 64px;display:flex;justify-content:center">
+      <div style="background:#0f1f3d;border-radius:16px;padding:48px 64px;display:flex;align-items:center;gap:48px;width:100%;justify-content:space-between">
+        <div style="font-size:26px;font-weight:800;color:#fff;line-height:1.25;max-width:520px;text-wrap:balance">Not sure what your business needs? That's what the free call is for.</div>
+        <span style="flex:none;background:#1f66d6;color:#fff;padding:16px 32px;border-radius:9px;font-size:16px;font-weight:700;cursor:pointer" style-hover="background:#1a56b5" onClick="{{ goBook }}">{{ ctaLabel }}</span>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ===== HOW IT WORKS ===== -->
+  <sc-if value="{{ isProcess }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="2a How it works">
+    <div style="padding:88px 160px 64px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:18px">
+      <div style="font-size:13.5px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#1f66d6">How it works</div>
+      <div style="font-size:48px;font-weight:800;color:#0f1f3d;line-height:1.1;text-wrap:balance">From first call to launch — in days, not months</div>
+      <div style="font-size:18px;line-height:1.65;color:#4a5670;max-width:600px">Your total time investment is about 20 minutes. Here's exactly what happens.</div>
+    </div>
+
+    <div style="padding:24px 200px 88px;display:flex;flex-direction:column">
+      <div style="display:flex;gap:28px;padding:28px 0;border-bottom:1px solid rgba(15,31,61,0.1)">
+        <div style="flex:none;width:48px;height:48px;border-radius:99px;background:#0f1f3d;color:#fff;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:800">1</div>
+        <div><div style="font-size:21px;font-weight:800;color:#0f1f3d">Free discovery call</div><div style="font-size:15.5px;line-height:1.7;color:#4a5670;margin-top:6px">A relaxed 20-minute phone chat. Tell us what you do, who your customers are and what you'd like the website to achieve. No tech talk, no obligation.</div></div>
+        <div style="flex:none;font-size:13px;font-weight:700;color:#7a8499;white-space:nowrap;align-self:flex-start;background:#f4f6f9;padding:6px 12px;border-radius:99px">Day 1 · 20 min</div>
+      </div>
+      <div style="display:flex;gap:28px;padding:28px 0;border-bottom:1px solid rgba(15,31,61,0.1)">
+        <div style="flex:none;width:48px;height:48px;border-radius:99px;background:#0f1f3d;color:#fff;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:800">2</div>
+        <div><div style="font-size:21px;font-weight:800;color:#0f1f3d">Three homepage concepts</div><div style="font-size:15.5px;line-height:1.7;color:#4a5670;margin-top:6px">We design three different homepage directions specifically for your business — different layouts, different feels. Free, whatever you decide.</div></div>
+        <div style="flex:none;font-size:13px;font-weight:700;color:#7a8499;white-space:nowrap;align-self:flex-start;background:#f4f6f9;padding:6px 12px;border-radius:99px">Days 2–3</div>
+      </div>
+      <div style="display:flex;gap:28px;padding:28px 0;border-bottom:1px solid rgba(15,31,61,0.1)">
+        <div style="flex:none;width:48px;height:48px;border-radius:99px;background:#0f1f3d;color:#fff;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:800">3</div>
+        <div><div style="font-size:21px;font-weight:800;color:#0f1f3d">You choose your direction</div><div style="font-size:15.5px;line-height:1.7;color:#4a5670;margin-top:6px">Point at the one you like. Want the colours from one and the layout from another? That works too.</div></div>
+        <div style="flex:none;font-size:13px;font-weight:700;color:#7a8499;white-space:nowrap;align-self:flex-start;background:#f4f6f9;padding:6px 12px;border-radius:99px">5 minutes</div>
+      </div>
+      <div style="display:flex;gap:28px;padding:28px 0;border-bottom:1px solid rgba(15,31,61,0.1)">
+        <div style="flex:none;width:48px;height:48px;border-radius:99px;background:#1f66d6;color:#fff;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:800">4</div>
+        <div><div style="font-size:21px;font-weight:800;color:#0f1f3d">We build your website</div><div style="font-size:15.5px;line-height:1.7;color:#4a5670;margin-top:6px">Every page written, designed and polished. We draft the text from our call — you just review and approve.</div></div>
+        <div style="flex:none;font-size:13px;font-weight:700;color:#7a8499;white-space:nowrap;align-self:flex-start;background:#f4f6f9;padding:6px 12px;border-radius:99px">Days 4–6</div>
+      </div>
+      <div style="display:flex;gap:28px;padding:28px 0;border-bottom:1px solid rgba(15,31,61,0.1)">
+        <div style="flex:none;width:48px;height:48px;border-radius:99px;background:#1f66d6;color:#fff;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:800">5</div>
+        <div><div style="font-size:21px;font-weight:800;color:#0f1f3d">Launch</div><div style="font-size:15.5px;line-height:1.7;color:#4a5670;margin-top:6px">Domain connected, SSL secured, Google Maps live. Your business is officially online — within days of the first call.</div></div>
+        <div style="flex:none;font-size:13px;font-weight:700;color:#7a8499;white-space:nowrap;align-self:flex-start;background:#f4f6f9;padding:6px 12px;border-radius:99px">Launch day</div>
+      </div>
+      <div style="display:flex;gap:28px;padding:28px 0">
+        <div style="flex:none;width:48px;height:48px;border-radius:99px;background:#1f66d6;color:#fff;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:800">6</div>
+        <div><div style="font-size:21px;font-weight:800;color:#0f1f3d">Ongoing support, forever</div><div style="font-size:15.5px;line-height:1.7;color:#4a5670;margin-top:6px">New prices, new staff, new photos, new services — text us and it's live, usually the same day. That's your monthly plan at work.</div></div>
+        <div style="flex:none;font-size:13px;font-weight:700;color:#1f66d6;white-space:nowrap;align-self:flex-start;background:#e6effc;padding:6px 12px;border-radius:99px">Every month</div>
+      </div>
+    </div>
+
+    <div style="background:#f4f6f9;padding:72px 64px;display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center">
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="font-size:28px;font-weight:800;color:#0f1f3d">All we need from you</div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:16px;font-weight:500;color:#3c4a63">
+          <span style="display:flex;gap:12px"><span style="color:#1f66d6;font-weight:800">✓</span>20 minutes on the phone</span>
+          <span style="display:flex;gap:12px"><span style="color:#1f66d6;font-weight:800">✓</span>Your logo and a few photos, if you have them</span>
+          <span style="display:flex;gap:12px"><span style="color:#1f66d6;font-weight:800">✓</span>A yes or a no on the design you like</span>
+        </div>
+        <div style="font-size:15px;color:#7a8499;margin-top:4px">No logo or photos? We'll sort that too.</div>
+      </div>
+      <div style="background:#fff;border-radius:14px;padding:36px;display:flex;flex-direction:column;gap:14px;border:1px solid rgba(15,31,61,0.08)">
+        <div style="font-size:20px;font-weight:800;color:#0f1f3d">Ready to start the clock?</div>
+        <div style="font-size:15px;line-height:1.65;color:#4a5670">Book your free call now — you could be live this time next week.</div>
+        <span style="background:#1f66d6;color:#fff;text-align:center;padding:15px;border-radius:9px;font-size:16px;font-weight:700;cursor:pointer" style-hover="background:#1a56b5" onClick="{{ goBook }}">{{ ctaLabel }}</span>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ===== PRICING ===== -->
+  <sc-if value="{{ isPricing }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="2a Pricing">
+    <div style="padding:88px 160px 64px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:18px">
+      <div style="font-size:13.5px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#1f66d6">Pricing</div>
+      <div style="font-size:48px;font-weight:800;color:#0f1f3d;line-height:1.1;text-wrap:balance">Simple, transparent pricing</div>
+      <div style="font-size:18px;line-height:1.65;color:#4a5670;max-width:560px">One setup fee, one monthly plan. Month to month, cancel anytime. No hourly rates, no surprise invoices — ever.</div>
+    </div>
+
+    <div style="padding:0 64px 72px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;align-items:stretch">
+      <div style="position:relative;border:2px solid {{ starterBorder }};box-shadow:{{ starterShadow }};border-radius:14px;padding:36px;display:flex;flex-direction:column;gap:18px">
+        <sc-if value="{{ starterFeatured }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:#1f66d6;color:#fff;font-size:12.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;padding:5px 14px;border-radius:99px">Most popular</div></sc-if>
+        <div style="font-size:16px;font-weight:800;color:#1f66d6">Launch Starter</div>
+        <div><span style="font-size:40px;font-weight:800;color:#0f1f3d">€349</span><span style="font-size:15px;color:#7a8499;font-weight:600"> setup</span><div style="font-size:17px;font-weight:700;color:#0f1f3d;margin-top:2px">+ €39<span style="font-weight:600;color:#7a8499">/month</span></div></div>
+        <div style="font-size:14.5px;color:#4a5670;line-height:1.5">A professional online presence, managed for you.</div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:15px;color:#3c4a63;font-weight:500">
+          <span>✓ Up to 4 pages</span><span>✓ Contact form</span><span>✓ Mobile optimisation</span><span>✓ Monthly edits</span><span>✓ Hosting management</span>
+        </div>
+        <span style="margin-top:auto;text-align:center;background:{{ starterBtnBg }};color:{{ starterBtnColor }};border:{{ starterBtnBorder }};padding:14px;border-radius:9px;font-weight:700;cursor:pointer" onClick="{{ goBook }}">Start with a call</span>
+      </div>
+      <div style="position:relative;border:2px solid {{ businessBorder }};box-shadow:{{ businessShadow }};border-radius:14px;padding:36px;display:flex;flex-direction:column;gap:18px">
+        <sc-if value="{{ businessFeatured }}" hint-placeholder-val="{{ true }}"><div style="position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:#1f66d6;color:#fff;font-size:12.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;padding:5px 14px;border-radius:99px">Most popular</div></sc-if>
+        <div style="font-size:16px;font-weight:800;color:#1f66d6">Launch Business</div>
+        <div><span style="font-size:40px;font-weight:800;color:#0f1f3d">€699</span><span style="font-size:15px;color:#7a8499;font-weight:600"> setup</span><div style="font-size:17px;font-weight:700;color:#0f1f3d;margin-top:2px">+ €79<span style="font-weight:600;color:#7a8499">/month</span></div></div>
+        <div style="font-size:14.5px;color:#4a5670;line-height:1.5">For growing businesses that take bookings.</div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:15px;color:#3c4a63;font-weight:500">
+          <span>✓ Up to 10 pages</span><span>✓ Online booking integration</span><span>✓ Basic SEO</span><span>✓ Google Maps</span><span>✓ Monthly updates</span><span>✓ Priority support</span>
+        </div>
+        <span style="margin-top:auto;text-align:center;background:{{ businessBtnBg }};color:{{ businessBtnColor }};border:{{ businessBtnBorder }};padding:14px;border-radius:9px;font-weight:700;cursor:pointer" onClick="{{ goBook }}">Start with a call</span>
+      </div>
+      <div style="position:relative;border:2px solid {{ growthBorder }};box-shadow:{{ growthShadow }};border-radius:14px;padding:36px;display:flex;flex-direction:column;gap:18px">
+        <sc-if value="{{ growthFeatured }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:#1f66d6;color:#fff;font-size:12.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;padding:5px 14px;border-radius:99px">Most popular</div></sc-if>
+        <div style="font-size:16px;font-weight:800;color:#1f66d6">Launch Growth</div>
+        <div><span style="font-size:40px;font-weight:800;color:#0f1f3d">€1,199</span><span style="font-size:15px;color:#7a8499;font-weight:600"> setup</span><div style="font-size:17px;font-weight:700;color:#0f1f3d;margin-top:2px">+ €149<span style="font-weight:600;color:#7a8499">/month</span></div></div>
+        <div style="font-size:14.5px;color:#4a5670;line-height:1.5">Everything in Business, plus active growth.</div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:15px;color:#3c4a63;font-weight:500">
+          <span>✓ Everything in Business</span><span>✓ Google Ads setup</span><span>✓ Social media advertising</span><span>✓ Advanced SEO</span><span>✓ Landing pages</span><span>✓ Quarterly optimisation review</span>
+        </div>
+        <span style="margin-top:auto;text-align:center;background:{{ growthBtnBg }};color:{{ growthBtnColor }};border:{{ growthBtnBorder }};padding:14px;border-radius:9px;font-weight:700;cursor:pointer" onClick="{{ goBook }}">Start with a call</span>
+      </div>
+    </div>
+
+    <div style="background:#f4f6f9;padding:72px 64px;display:grid;grid-template-columns:1fr 1fr;gap:64px">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="font-size:26px;font-weight:800;color:#0f1f3d">Every plan includes</div>
+        <div style="display:flex;flex-direction:column;gap:11px;font-size:15.5px;font-weight:500;color:#3c4a63">
+          <span style="display:flex;gap:12px"><span style="color:#1f66d6;font-weight:800">✓</span>Updates done for you — usually same-day</span>
+          <span style="display:flex;gap:12px"><span style="color:#1f66d6;font-weight:800">✓</span>Hosting, security monitoring and backups</span>
+          <span style="display:flex;gap:12px"><span style="color:#1f66d6;font-weight:800">✓</span>Mobile-responsive design</span>
+          <span style="display:flex;gap:12px"><span style="color:#1f66d6;font-weight:800">✓</span>Month-to-month terms — no lock-in</span>
+          <span style="display:flex;gap:12px"><span style="color:#1f66d6;font-weight:800">✓</span>A real person on the other end of the phone</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="padding:18px 0;border-bottom:1px solid rgba(15,31,61,0.1)"><div style="font-size:16px;font-weight:800;color:#0f1f3d">Can I switch plans later?</div><div style="font-size:14.5px;line-height:1.6;color:#4a5670;margin-top:4px">Yes — upgrade or downgrade any month. Most start on Starter and grow.</div></div>
+        <div style="padding:18px 0;border-bottom:1px solid rgba(15,31,61,0.1)"><div style="font-size:16px;font-weight:800;color:#0f1f3d">What does the setup fee cover?</div><div style="font-size:14.5px;line-height:1.6;color:#4a5670;margin-top:4px">The full design and build: three concepts, all pages, content, domain and launch.</div></div>
+        <div style="padding:18px 0"><div style="font-size:16px;font-weight:800;color:#0f1f3d">What if I cancel?</div><div style="font-size:14.5px;line-height:1.6;color:#4a5670;margin-top:4px">Your plan is month to month. Cancel anytime — your domain stays yours.</div></div>
+      </div>
+    </div>
+
+    <div style="padding:72px 64px;display:flex;justify-content:center">
+      <div style="background:#0f1f3d;border-radius:16px;padding:48px 64px;display:flex;align-items:center;gap:48px;width:100%;justify-content:space-between">
+        <div style="font-size:26px;font-weight:800;color:#fff;line-height:1.25;max-width:520px;text-wrap:balance">Not sure which plan fits? We'll tell you honestly on the call.</div>
+        <span style="flex:none;background:#1f66d6;color:#fff;padding:16px 32px;border-radius:9px;font-size:16px;font-weight:700;cursor:pointer" style-hover="background:#1a56b5" onClick="{{ goBook }}">{{ ctaLabel }}</span>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ===== FAQ ===== -->
+  <sc-if value="{{ isFaq }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="2a FAQ">
+    <div style="padding:88px 160px 56px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:18px">
+      <div style="font-size:13.5px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#1f66d6">FAQ</div>
+      <div style="font-size:48px;font-weight:800;color:#0f1f3d;line-height:1.1">Questions we hear all the time</div>
+      <div style="font-size:18px;line-height:1.65;color:#4a5670;max-width:560px">Straight answers, no small print. Anything else — ask us on the call.</div>
+    </div>
+
+    <div style="padding:0 200px 88px;display:flex;flex-direction:column">
+      <div style="padding:26px 0;border-bottom:1px solid rgba(15,31,61,0.1)"><div style="font-size:18px;font-weight:800;color:#0f1f3d;margin-bottom:8px">“I don't have time for this.”</div><div style="font-size:15.5px;line-height:1.7;color:#4a5670">You need about 20 minutes — one phone call. We handle everything else: design, content, domain, launch and every update after that.</div></div>
+      <div style="padding:26px 0;border-bottom:1px solid rgba(15,31,61,0.1)"><div style="font-size:18px;font-weight:800;color:#0f1f3d;margin-bottom:8px">“I don't know what I want it to look like.”</div><div style="font-size:15.5px;line-height:1.7;color:#4a5670">That's exactly why we show you three different homepage concepts designed for your business. You just pick the one that feels right.</div></div>
+      <div style="padding:26px 0;border-bottom:1px solid rgba(15,31,61,0.1)"><div style="font-size:18px;font-weight:800;color:#0f1f3d;margin-bottom:8px">“Isn't a website expensive?”</div><div style="font-size:15.5px;line-height:1.7;color:#4a5670">Plans start at €349 setup and €39 a month — everything included. No hourly fees, no surprise invoices, no agency price tag.</div></div>
+      <div style="padding:26px 0;border-bottom:1px solid rgba(15,31,61,0.1)"><div style="font-size:18px;font-weight:800;color:#0f1f3d;margin-bottom:8px">“What happens when my prices or hours change?”</div><div style="font-size:15.5px;line-height:1.7;color:#4a5670">Send us a text or an email and it's done — usually the same day. Updates are included in every monthly plan.</div></div>
+      <div style="padding:26px 0;border-bottom:1px solid rgba(15,31,61,0.1)"><div style="font-size:18px;font-weight:800;color:#0f1f3d;margin-bottom:8px">“Am I locked into a contract?”</div><div style="font-size:15.5px;line-height:1.7;color:#4a5670">No. Plans are month to month. We keep your business by doing good work, not by locking you in.</div></div>
+      <div style="padding:26px 0;border-bottom:1px solid rgba(15,31,61,0.1)"><div style="font-size:18px;font-weight:800;color:#0f1f3d;margin-bottom:8px">“Do I own my website and domain?”</div><div style="font-size:15.5px;line-height:1.7;color:#4a5670">Your domain is registered in your name and stays yours, always — even if you leave.</div></div>
+      <div style="padding:26px 0;border-bottom:1px solid rgba(15,31,61,0.1)"><div style="font-size:18px;font-weight:800;color:#0f1f3d;margin-bottom:8px">“I already have an old website.”</div><div style="font-size:15.5px;line-height:1.7;color:#4a5670">Even better — we'll rebuild it properly, move your domain over and make sure nothing breaks in the switch.</div></div>
+      <div style="padding:26px 0"><div style="font-size:18px;font-weight:800;color:#0f1f3d;margin-bottom:8px">“Who writes the text on the site?”</div><div style="font-size:15.5px;line-height:1.7;color:#4a5670">We do — drafted from our call, in plain language your customers understand. You review and approve before anything goes live.</div></div>
+    </div>
+
+    <div style="background:#0f1f3d;padding:72px 64px;display:flex;flex-direction:column;align-items:center;gap:20px;text-align:center">
+      <div style="font-size:32px;font-weight:800;color:#fff;text-wrap:balance">Still have a question?</div>
+      <div style="font-size:16.5px;color:#aab6cc">Ask it on a free 20-minute call — no obligation, no tech talk.</div>
+      <span style="background:#1f66d6;color:#fff;padding:16px 34px;border-radius:9px;font-size:16.5px;font-weight:700;cursor:pointer;margin-top:4px" style-hover="background:#1a56b5" onClick="{{ goBook }}">{{ ctaLabel }}</span>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ===== BOOK A CALL ===== -->
+  <sc-if value="{{ isBook }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="2a Book a call">
+    <div style="padding:88px 64px;display:grid;grid-template-columns:1fr 1fr;gap:72px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:24px">
+        <div style="font-size:13.5px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#1f66d6">Book a call</div>
+        <div style="font-size:46px;font-weight:800;color:#0f1f3d;line-height:1.1;text-wrap:balance">Let's talk about your business</div>
+        <div style="font-size:17.5px;line-height:1.7;color:#4a5670">Leave your details and we'll ring you back within one working day. The call is free, takes about 20 minutes, and there's no obligation whatsoever.</div>
+        <div style="display:flex;flex-direction:column;gap:20px;margin-top:8px">
+          <div style="display:flex;gap:18px"><span style="flex:none;width:40px;height:40px;border-radius:99px;background:#e6effc;color:#1f66d6;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800">1</span><div><div style="font-size:16.5px;font-weight:800;color:#0f1f3d">We call you back</div><div style="font-size:14.5px;line-height:1.6;color:#4a5670;margin-top:3px">Within one working day, at a time that suits you.</div></div></div>
+          <div style="display:flex;gap:18px"><span style="flex:none;width:40px;height:40px;border-radius:99px;background:#e6effc;color:#1f66d6;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800">2</span><div><div style="font-size:16.5px;font-weight:800;color:#0f1f3d">A 20-minute chat</div><div style="font-size:14.5px;line-height:1.6;color:#4a5670;margin-top:3px">About your business and customers — in plain English.</div></div></div>
+          <div style="display:flex;gap:18px"><span style="flex:none;width:40px;height:40px;border-radius:99px;background:#e6effc;color:#1f66d6;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800">3</span><div><div style="font-size:16.5px;font-weight:800;color:#0f1f3d">Three free concepts</div><div style="font-size:14.5px;line-height:1.6;color:#4a5670;margin-top:3px">Within days you'll see three homepage designs for your business — free, whatever you decide.</div></div></div>
+        </div>
+        <div style="font-size:15px;color:#4a5670;margin-top:10px;padding-top:20px;border-top:1px solid rgba(15,31,61,0.1)">Prefer email? <span style="font-weight:700;color:#1f66d6">hello@launchpoint.ie</span></div>
+      </div>
+      <div style="background:#0f1f3d;border-radius:16px;padding:44px;display:flex;flex-direction:column;gap:16px">
+        <div style="font-size:22px;font-weight:800;color:#fff">Request your free call</div>
+        <input placeholder="Your name" style="font-family:Manrope,sans-serif;font-size:15px;padding:15px 18px;border:none;border-radius:9px;outline:none;background:#fff"/>
+        <input placeholder="Business name" style="font-family:Manrope,sans-serif;font-size:15px;padding:15px 18px;border:none;border-radius:9px;outline:none;background:#fff"/>
+        <input placeholder="Phone number" style="font-family:Manrope,sans-serif;font-size:15px;padding:15px 18px;border:none;border-radius:9px;outline:none;background:#fff"/>
+        <textarea placeholder="Tell us a little about your business (optional)" style="font-family:Manrope,sans-serif;font-size:15px;padding:15px 18px;border:none;border-radius:9px;outline:none;background:#fff;min-height:110px;resize:vertical"></textarea>
+        <span style="background:#1f66d6;color:#fff;text-align:center;padding:17px;border-radius:9px;font-size:16.5px;font-weight:700;cursor:pointer" style-hover="background:#1a56b5">Request my free call</span>
+        <div style="font-size:13px;color:#aab6cc;text-align:center">We'll call you back within one working day. No spam, ever.</div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- shared footer -->
+  <div style="padding:28px 64px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(15,31,61,0.08);font-size:14px;color:#7a8499">
+    <span style="font-weight:800;color:#0f1f3d">Launch<span style="color:#1f66d6">Point</span></span>
+    <div style="display:flex;gap:28px;font-weight:600">
+      <span style="cursor:pointer" style-hover="color:#1f66d6" onClick="{{ goServices }}">Services</span>
+      <span style="cursor:pointer" style-hover="color:#1f66d6" onClick="{{ goProcess }}">How it works</span>
+      <span style="cursor:pointer" style-hover="color:#1f66d6" onClick="{{ goPricing }}">Pricing</span>
+      <span style="cursor:pointer" style-hover="color:#1f66d6" onClick="{{ goFaq }}">FAQ</span>
+      <span style="cursor:pointer" style-hover="color:#1f66d6" onClick="{{ goBook }}">Book a call</span>
+    </div>
+    <span>Dublin, Ireland · hello@launchpoint.ie · © 2026</span>
+  </div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "make the Book page the tweaks default" · "restyle <a class="dv-oid" href="#2a">2a</a> in the <a class="dv-oid" href="#1b">1b</a> or <a class="dv-oid" href="#1c">1c</a> style" · "add a mobile version"</p>
+</section>
+
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">LaunchPoint — three full-site directions</span></div>
+<div class="dv-opts">
+
+<!-- ============ OPTION 1A — Boardroom Clean ============ -->
+<div class="dv-opt" id="1a">
+<div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Boardroom clean — white, centered, blue CTAs, maximum trust</div>
+<div class="dv-card" style="width:1240px" data-screen-label="1a Boardroom clean">
+
+  <!-- nav -->
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 64px;border-bottom:1px solid rgba(15,31,61,0.08)">
+    <img src="assets/launchpoint-logo.png" alt="LaunchPoint" style="height:42px;display:block"/>
+    <div style="display:flex;align-items:center;gap:36px;font-size:15px;font-weight:600;color:#3c4a63">
+      <span>Services</span><span>How it works</span><span>Pricing</span><span>FAQ</span>
+      <span style="background:#1f66d6;color:#fff;padding:12px 24px;border-radius:8px;font-weight:700;cursor:pointer" style-hover="background:#1a56b5">Book a free call</span>
+    </div>
+  </div>
+
+  <!-- hero -->
+  <div style="padding:104px 160px 88px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:24px">
+    <div style="font-size:14px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#1f66d6">Web design &amp; management · Dublin, Ireland</div>
+    <div style="font-size:58px;line-height:1.08;font-weight:800;color:#0f1f3d;max-width:820px;text-wrap:balance">Affordable websites. Ongoing support. Zero hassle.</div>
+    <div style="font-size:20px;line-height:1.6;color:#4a5670;max-width:640px;text-wrap:pretty">We design, launch and manage professional websites for Irish small businesses — then keep them up to date for you, every month. No jargon, no hourly fees.</div>
+    <div style="display:flex;gap:14px;margin-top:8px">
+      <span style="background:#1f66d6;color:#fff;padding:17px 34px;border-radius:9px;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(31,102,214,0.28)" style-hover="background:#1a56b5">Book a free call</span>
+      <span style="background:#fff;color:#0f1f3d;border:1.5px solid rgba(15,31,61,0.18);padding:17px 34px;border-radius:9px;font-size:17px;font-weight:700;cursor:pointer" style-hover="border-color:#1f66d6;color:#1f66d6">See pricing</span>
+    </div>
+    <div style="font-size:14.5px;font-weight:600;color:#7a8499;display:flex;gap:22px;margin-top:6px">
+      <span>✓ From €349</span><span>✓ Live within days</span><span>✓ Updates included</span>
+    </div>
+  </div>
+
+  <!-- problem -->
+  <div style="background:#f4f6f9;padding:80px 64px;display:flex;flex-direction:column;gap:44px;align-items:center">
+    <div style="font-size:36px;font-weight:800;color:#0f1f3d;text-align:center;max-width:700px;line-height:1.2;text-wrap:balance">No website is costing you customers — every single week.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;width:100%">
+      <div style="background:#fff;border:1px solid rgba(15,31,61,0.08);border-radius:12px;padding:32px">
+        <div style="font-size:19px;font-weight:800;color:#0f1f3d;margin-bottom:10px">They're Googling you</div>
+        <div style="font-size:15.5px;line-height:1.65;color:#4a5670">When someone needs a plumber, a salon or an accountant, the first thing they do is search. If you're not there, your competitor is.</div>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(15,31,61,0.08);border-radius:12px;padding:32px">
+        <div style="font-size:19px;font-weight:800;color:#0f1f3d;margin-bottom:10px">A Facebook page isn't enough</div>
+        <div style="font-size:15.5px;line-height:1.65;color:#4a5670">Social pages get buried and look unprofessional on their own. A proper website makes people trust you before they ever pick up the phone.</div>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(15,31,61,0.08);border-radius:12px;padding:32px">
+        <div style="font-size:19px;font-weight:800;color:#0f1f3d;margin-bottom:10px">Out-of-date is worse than nothing</div>
+        <div style="font-size:15.5px;line-height:1.65;color:#4a5670">Wrong opening hours and old prices send customers straight to the competition. We keep everything current for you.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- services -->
+  <div style="padding:88px 64px;display:flex;flex-direction:column;gap:44px">
+    <div style="text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center">
+      <div style="font-size:13.5px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#1f66d6">What we do</div>
+      <div style="font-size:36px;font-weight:800;color:#0f1f3d">Everything your business needs online</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+      <div style="border:1px solid rgba(15,31,61,0.1);border-radius:12px;padding:36px;display:flex;flex-direction:column;gap:12px">
+        <div style="width:44px;height:44px;border-radius:10px;background:#e6effc;color:#1f66d6;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">01</div>
+        <div style="font-size:21px;font-weight:800;color:#0f1f3d">Website design</div>
+        <div style="font-size:15.5px;line-height:1.65;color:#4a5670">A bespoke, modern website built for your business. Mobile-friendly, fast-loading, with contact forms, Google Maps, your own domain and SSL security.</div>
+      </div>
+      <div style="border:1px solid rgba(15,31,61,0.1);border-radius:12px;padding:36px;display:flex;flex-direction:column;gap:12px">
+        <div style="width:44px;height:44px;border-radius:10px;background:#e6effc;color:#1f66d6;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">02</div>
+        <div style="font-size:21px;font-weight:800;color:#0f1f3d">Online booking</div>
+        <div style="font-size:15.5px;line-height:1.65;color:#4a5670">Let customers book appointments straight from your website, with calendar integration. Perfect for salons, barbers, therapists, tutors and tradespeople.</div>
+      </div>
+      <div style="border:1px solid rgba(15,31,61,0.1);border-radius:12px;padding:36px;display:flex;flex-direction:column;gap:12px">
+        <div style="width:44px;height:44px;border-radius:10px;background:#e6effc;color:#1f66d6;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">03</div>
+        <div style="font-size:21px;font-weight:800;color:#0f1f3d">Website management</div>
+        <div style="font-size:15.5px;line-height:1.65;color:#4a5670">Opening hours, prices, photos, new services — just tell us and it's done. Plus maintenance, security monitoring and backups. Included in every plan.</div>
+      </div>
+      <div style="border:1px solid rgba(15,31,61,0.1);border-radius:12px;padding:36px;display:flex;flex-direction:column;gap:12px">
+        <div style="width:44px;height:44px;border-radius:10px;background:#e6effc;color:#1f66d6;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800">04</div>
+        <div style="font-size:21px;font-weight:800;color:#0f1f3d">Digital growth</div>
+        <div style="font-size:15.5px;line-height:1.65;color:#4a5670">Optional add-ons when you're ready: Google Business Profile, Google &amp; social ads, SEO and analytics — so more local customers find you.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- process -->
+  <div style="background:#f4f6f9;padding:88px 64px;display:flex;flex-direction:column;gap:48px">
+    <div style="text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center">
+      <div style="font-size:13.5px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#1f66d6">How it works</div>
+      <div style="font-size:36px;font-weight:800;color:#0f1f3d">Live within days — in three simple steps</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px">
+      <div style="display:flex;flex-direction:column;gap:14px;background:#fff;border:1px solid rgba(15,31,61,0.08);border-radius:12px;padding:36px">
+        <div style="font-size:44px;font-weight:800;color:#1f66d6">1</div>
+        <div style="font-size:20px;font-weight:800;color:#0f1f3d">Book a free call</div>
+        <div style="font-size:15.5px;line-height:1.65;color:#4a5670">A relaxed 20-minute chat about your business. No tech talk, no obligation.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px;background:#fff;border:1px solid rgba(15,31,61,0.08);border-radius:12px;padding:36px">
+        <div style="font-size:44px;font-weight:800;color:#1f66d6">2</div>
+        <div style="font-size:20px;font-weight:800;color:#0f1f3d">Pick from three designs</div>
+        <div style="font-size:15.5px;line-height:1.65;color:#4a5670">We create three homepage concepts for your business. You choose the one you love — we build the rest.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px;background:#fff;border:1px solid rgba(15,31,61,0.08);border-radius:12px;padding:36px">
+        <div style="font-size:44px;font-weight:800;color:#1f66d6">3</div>
+        <div style="font-size:20px;font-weight:800;color:#0f1f3d">Go live — we take it from there</div>
+        <div style="font-size:15.5px;line-height:1.65;color:#4a5670">Your site launches within days. From then on, every update is handled by us as part of your plan.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- pricing -->
+  <div style="padding:88px 64px;display:flex;flex-direction:column;gap:44px">
+    <div style="text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center">
+      <div style="font-size:13.5px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#1f66d6">Pricing</div>
+      <div style="font-size:36px;font-weight:800;color:#0f1f3d">Simple, transparent pricing</div>
+      <div style="font-size:17px;color:#4a5670">One setup fee. One monthly plan. No hourly rates, ever.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;align-items:stretch">
+      <div style="border:1px solid rgba(15,31,61,0.12);border-radius:14px;padding:36px;display:flex;flex-direction:column;gap:18px">
+        <div style="font-size:16px;font-weight:800;color:#1f66d6">Launch Starter</div>
+        <div><span style="font-size:40px;font-weight:800;color:#0f1f3d">€349</span><span style="font-size:15px;color:#7a8499;font-weight:600"> setup</span><div style="font-size:17px;font-weight:700;color:#0f1f3d;margin-top:2px">+ €39<span style="font-weight:600;color:#7a8499">/month</span></div></div>
+        <div style="font-size:14.5px;color:#4a5670;line-height:1.5">A professional online presence, managed for you.</div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:15px;color:#3c4a63;font-weight:500">
+          <span>✓ Up to 4 pages</span><span>✓ Contact form</span><span>✓ Mobile optimisation</span><span>✓ Monthly edits</span><span>✓ Hosting management</span>
+        </div>
+        <span style="margin-top:auto;text-align:center;border:1.5px solid rgba(15,31,61,0.18);color:#0f1f3d;padding:14px;border-radius:9px;font-weight:700;cursor:pointer" style-hover="border-color:#1f66d6;color:#1f66d6">Start with a call</span>
+      </div>
+      <div style="border:2px solid #1f66d6;border-radius:14px;padding:36px;display:flex;flex-direction:column;gap:18px;position:relative;box-shadow:0 12px 32px rgba(31,102,214,0.14)">
+        <div style="position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:#1f66d6;color:#fff;font-size:12.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;padding:5px 14px;border-radius:99px">Most popular</div>
+        <div style="font-size:16px;font-weight:800;color:#1f66d6">Launch Business</div>
+        <div><span style="font-size:40px;font-weight:800;color:#0f1f3d">€699</span><span style="font-size:15px;color:#7a8499;font-weight:600"> setup</span><div style="font-size:17px;font-weight:700;color:#0f1f3d;margin-top:2px">+ €79<span style="font-weight:600;color:#7a8499">/month</span></div></div>
+        <div style="font-size:14.5px;color:#4a5670;line-height:1.5">For growing businesses that take bookings.</div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:15px;color:#3c4a63;font-weight:500">
+          <span>✓ Up to 10 pages</span><span>✓ Online booking integration</span><span>✓ Basic SEO</span><span>✓ Google Maps</span><span>✓ Monthly updates</span><span>✓ Priority support</span>
+        </div>
+        <span style="margin-top:auto;text-align:center;background:#1f66d6;color:#fff;padding:14px;border-radius:9px;font-weight:700;cursor:pointer" style-hover="background:#1a56b5">Start with a call</span>
+      </div>
+      <div style="border:1px solid rgba(15,31,61,0.12);border-radius:14px;padding:36px;display:flex;flex-direction:column;gap:18px">
+        <div style="font-size:16px;font-weight:800;color:#1f66d6">Launch Growth</div>
+        <div><span style="font-size:40px;font-weight:800;color:#0f1f3d">€1,199</span><span style="font-size:15px;color:#7a8499;font-weight:600"> setup</span><div style="font-size:17px;font-weight:700;color:#0f1f3d;margin-top:2px">+ €149<span style="font-weight:600;color:#7a8499">/month</span></div></div>
+        <div style="font-size:14.5px;color:#4a5670;line-height:1.5">Everything in Business, plus active growth.</div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:15px;color:#3c4a63;font-weight:500">
+          <span>✓ Google Ads setup</span><span>✓ Social media advertising</span><span>✓ Advanced SEO</span><span>✓ Landing pages</span><span>✓ Quarterly optimisation review</span>
+        </div>
+        <span style="margin-top:auto;text-align:center;border:1.5px solid rgba(15,31,61,0.18);color:#0f1f3d;padding:14px;border-radius:9px;font-weight:700;cursor:pointer" style-hover="border-color:#1f66d6;color:#1f66d6">Start with a call</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- testimonials -->
+  <div style="background:#f4f6f9;padding:88px 64px;display:flex;flex-direction:column;gap:44px">
+    <div style="text-align:center;font-size:36px;font-weight:800;color:#0f1f3d">Trusted by businesses like yours</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px">
+      <div style="background:#fff;border:1px solid rgba(15,31,61,0.08);border-radius:12px;padding:32px;display:flex;flex-direction:column;gap:16px">
+        <div style="color:#1f66d6;font-size:22px;letter-spacing:2px">★★★★★</div>
+        <div style="font-size:16px;line-height:1.7;color:#3c4a63">“We'd been putting a website off for years. LaunchPoint had us live in six days — and when we changed our opening hours, it was updated the same afternoon.”</div>
+        <div style="font-size:14.5px;font-weight:700;color:#0f1f3d">Sinéad Brennan<div style="font-weight:600;color:#7a8499">Brennan Hair Studio, Dublin 8</div></div>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(15,31,61,0.08);border-radius:12px;padding:32px;display:flex;flex-direction:column;gap:16px">
+        <div style="color:#1f66d6;font-size:22px;letter-spacing:2px">★★★★★</div>
+        <div style="font-size:16px;line-height:1.7;color:#3c4a63">“I'm a plumber, not a computer person. I send a text, the site gets updated. Simple as that.”</div>
+        <div style="font-size:14.5px;font-weight:700;color:#0f1f3d">Dave Corrigan<div style="font-weight:600;color:#7a8499">Corrigan Plumbing &amp; Heating, Tallaght</div></div>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(15,31,61,0.08);border-radius:12px;padding:32px;display:flex;flex-direction:column;gap:16px">
+        <div style="color:#1f66d6;font-size:22px;letter-spacing:2px">★★★★★</div>
+        <div style="font-size:16px;line-height:1.7;color:#3c4a63">“The online booking alone paid for the website in the first month. I wish we'd done it sooner.”</div>
+        <div style="font-size:14.5px;font-weight:700;color:#0f1f3d">Aoife Nolan<div style="font-weight:600;color:#7a8499">Nolan Physiotherapy, Naas</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FAQ -->
+  <div style="padding:88px 160px;display:flex;flex-direction:column;gap:40px">
+    <div style="text-align:center;font-size:36px;font-weight:800;color:#0f1f3d">Questions we hear all the time</div>
+    <div style="display:flex;flex-direction:column;gap:0">
+      <div style="padding:26px 0;border-bottom:1px solid rgba(15,31,61,0.1)">
+        <div style="font-size:18px;font-weight:800;color:#0f1f3d;margin-bottom:8px">“I don't have time for this.”</div>
+        <div style="font-size:15.5px;line-height:1.7;color:#4a5670">You need about 20 minutes — one phone call. We handle everything else: design, content, domain, launch and every update after that.</div>
+      </div>
+      <div style="padding:26px 0;border-bottom:1px solid rgba(15,31,61,0.1)">
+        <div style="font-size:18px;font-weight:800;color:#0f1f3d;margin-bottom:8px">“I don't know what I want it to look like.”</div>
+        <div style="font-size:15.5px;line-height:1.7;color:#4a5670">That's exactly why we show you three different homepage concepts designed for your business. You just pick the one that feels right.</div>
+      </div>
+      <div style="padding:26px 0;border-bottom:1px solid rgba(15,31,61,0.1)">
+        <div style="font-size:18px;font-weight:800;color:#0f1f3d;margin-bottom:8px">“Isn't a website expensive?”</div>
+        <div style="font-size:15.5px;line-height:1.7;color:#4a5670">Plans start at €349 setup and €39 a month — everything included. No hourly fees, no surprise invoices, no agency price tag.</div>
+      </div>
+      <div style="padding:26px 0;border-bottom:1px solid rgba(15,31,61,0.1)">
+        <div style="font-size:18px;font-weight:800;color:#0f1f3d;margin-bottom:8px">“What happens when my prices or hours change?”</div>
+        <div style="font-size:15.5px;line-height:1.7;color:#4a5670">Send us a text or an email and it's done — usually the same day. Updates are included in every monthly plan.</div>
+      </div>
+      <div style="padding:26px 0">
+        <div style="font-size:18px;font-weight:800;color:#0f1f3d;margin-bottom:8px">“Am I locked into a contract?”</div>
+        <div style="font-size:15.5px;line-height:1.7;color:#4a5670">No. Plans are month to month. We keep your business by doing good work, not by locking you in.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- final CTA -->
+  <div style="background:#0f1f3d;padding:80px 64px;display:grid;grid-template-columns:1.1fr 1fr;gap:64px;align-items:center">
+    <div style="display:flex;flex-direction:column;gap:18px">
+      <div style="font-size:38px;font-weight:800;color:#fff;line-height:1.15;text-wrap:balance">Ready to get your business online?</div>
+      <div style="font-size:17px;line-height:1.7;color:#aab6cc">Book a free discovery call. We'll talk about your business, then send you three homepage concepts — free, no obligation.</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:15px;font-weight:600;color:#dbe3f0">
+        <span>✓ 20-minute call, no tech talk</span>
+        <span>✓ Three free design concepts</span>
+        <span>✓ Live within days if you go ahead</span>
+      </div>
+    </div>
+    <div style="background:#fff;border-radius:14px;padding:36px;display:flex;flex-direction:column;gap:16px">
+      <div style="font-size:20px;font-weight:800;color:#0f1f3d">Book your free call</div>
+      <input placeholder="Your name" style="font-family:Manrope,sans-serif;font-size:15px;padding:14px 16px;border:1.5px solid rgba(15,31,61,0.15);border-radius:8px;outline:none" style-focus="border-color:#1f66d6"/>
+      <input placeholder="Business name" style="font-family:Manrope,sans-serif;font-size:15px;padding:14px 16px;border:1.5px solid rgba(15,31,61,0.15);border-radius:8px;outline:none" style-focus="border-color:#1f66d6"/>
+      <input placeholder="Phone number" style="font-family:Manrope,sans-serif;font-size:15px;padding:14px 16px;border:1.5px solid rgba(15,31,61,0.15);border-radius:8px;outline:none" style-focus="border-color:#1f66d6"/>
+      <span style="background:#1f66d6;color:#fff;text-align:center;padding:16px;border-radius:9px;font-size:16px;font-weight:700;cursor:pointer" style-hover="background:#1a56b5">Request my free call</span>
+      <div style="font-size:13px;color:#7a8499;text-align:center">We'll call you back within one working day.</div>
+    </div>
+  </div>
+
+  <!-- footer -->
+  <div style="padding:28px 64px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(15,31,61,0.08);font-size:14px;color:#7a8499">
+    <span style="font-weight:800;color:#0f1f3d">Launch<span style="color:#1f66d6">Point</span></span>
+    <span>Dublin, Ireland · hello@launchpoint.ie</span>
+    <span>© 2026 LaunchPoint</span>
+  </div>
+</div>
+</div>
+
+<!-- ============ OPTION 1B — Editorial split ============ -->
+<div class="dv-opt" id="1b">
+<div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Editorial split — serif headlines, warm-orange CTAs, photo-led</div>
+<div class="dv-card" style="width:1240px;background:#f7f8fa" data-screen-label="1b Editorial split">
+
+  <!-- nav -->
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:22px 64px">
+    <img src="assets/launchpoint-logo.png" alt="LaunchPoint" style="height:40px;display:block"/>
+    <div style="display:flex;align-items:center;gap:34px;font-size:15px;font-weight:600;color:#3c4a63">
+      <span>What we do</span><span>Process</span><span>Pricing</span>
+      <span style="background:oklch(0.62 0.14 45);color:#fff;padding:12px 24px;border-radius:99px;font-weight:700;cursor:pointer" style-hover="background:oklch(0.56 0.14 45)">Book a call</span>
+    </div>
+  </div>
+
+  <!-- hero split -->
+  <div style="display:grid;grid-template-columns:1.05fr 1fr;gap:56px;padding:64px 64px 88px;align-items:center">
+    <div style="display:flex;flex-direction:column;gap:24px">
+      <div style="font-family:'Source Serif 4',Georgia,serif;font-size:56px;line-height:1.1;font-weight:700;color:#0f1f3d;text-wrap:balance">Your customers are searching. Make sure they find you.</div>
+      <div style="font-size:19px;line-height:1.65;color:#4a5670;text-wrap:pretty">LaunchPoint builds professional websites for Irish small businesses — and keeps them up to date for you, every month, for one simple subscription.</div>
+      <div style="display:flex;align-items:center;gap:18px">
+        <span style="background:oklch(0.62 0.14 45);color:#fff;padding:17px 34px;border-radius:99px;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px oklch(0.62 0.14 45 / 0.35)" style-hover="background:oklch(0.56 0.14 45)">Book a free call</span>
+        <span style="font-size:16px;font-weight:700;color:#0f1f3d;border-bottom:2px solid oklch(0.62 0.14 45);padding-bottom:2px;cursor:pointer">How it works ↓</span>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+        <span style="font-size:13px;font-weight:700;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:7px 14px;border-radius:99px">Salons</span>
+        <span style="font-size:13px;font-weight:700;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:7px 14px;border-radius:99px">Plumbers</span>
+        <span style="font-size:13px;font-weight:700;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:7px 14px;border-radius:99px">Cafés</span>
+        <span style="font-size:13px;font-weight:700;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:7px 14px;border-radius:99px">Accountants</span>
+        <span style="font-size:13px;font-weight:700;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:7px 14px;border-radius:99px">Physios</span>
+        <span style="font-size:13px;font-weight:700;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:7px 14px;border-radius:99px">Builders</span>
+        <span style="font-size:13px;font-weight:700;color:#3c4a63;background:#fff;border:1px solid rgba(15,31,61,0.1);padding:7px 14px;border-radius:99px">+ 20 more</span>
+      </div>
+    </div>
+    <div style="position:relative">
+      <div style="height:440px;border-radius:16px;background:repeating-linear-gradient(45deg,#e4e9f0 0 14px,#eef1f6 14px 28px);display:flex;align-items:center;justify-content:center">
+        <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px;color:#7a8499;background:#fff;padding:8px 14px;border-radius:6px">photo: business owner + finished site</span>
+      </div>
+      <div style="position:absolute;bottom:-20px;left:-20px;background:#fff;border:1px solid rgba(15,31,61,0.1);border-radius:12px;padding:18px 22px;box-shadow:0 10px 30px rgba(15,31,61,0.12);display:flex;align-items:center;gap:14px">
+        <div style="width:40px;height:40px;border-radius:99px;background:oklch(0.62 0.14 45);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800">✓</div>
+        <div><div style="font-size:15px;font-weight:800;color:#0f1f3d">Live within days</div><div style="font-size:13px;color:#7a8499;font-weight:600">from your first call</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- problem band -->
+  <div style="background:#0f1f3d;padding:72px 64px;display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center">
+    <div style="font-family:'Source Serif 4',Georgia,serif;font-size:34px;line-height:1.25;font-weight:600;color:#fff;text-wrap:balance">Every day without a website, a customer is choosing the competitor who has one.</div>
+    <div style="display:flex;flex-direction:column;gap:18px;font-size:16px;line-height:1.65;color:#aab6cc">
+      <div style="display:flex;gap:14px"><span style="color:oklch(0.72 0.14 45);font-weight:800">→</span><span>People check you out online before they ring. No website means no trust — and no call.</span></div>
+      <div style="display:flex;gap:14px"><span style="color:oklch(0.72 0.14 45);font-weight:800">→</span><span>A social media page alone looks temporary. A real website looks like a real business.</span></div>
+      <div style="display:flex;gap:14px"><span style="color:oklch(0.72 0.14 45);font-weight:800">→</span><span>You don't need to learn anything. We build it, we run it, you get the customers.</span></div>
+    </div>
+  </div>
+
+  <!-- services rows -->
+  <div style="padding:88px 64px;display:flex;flex-direction:column;gap:40px">
+    <div style="font-family:'Source Serif 4',Georgia,serif;font-size:38px;font-weight:700;color:#0f1f3d">What's included</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div style="background:#fff;border-radius:14px;padding:34px;display:flex;flex-direction:column;gap:10px;border:1px solid rgba(15,31,61,0.07)">
+        <div style="font-size:20px;font-weight:800;color:#0f1f3d">Bespoke website design</div>
+        <div style="font-size:15.5px;line-height:1.65;color:#4a5670">Modern, mobile-responsive and fast — with contact forms, Google Maps, your domain and SSL security sorted for you.</div>
+      </div>
+      <div style="background:#fff;border-radius:14px;padding:34px;display:flex;flex-direction:column;gap:10px;border:1px solid rgba(15,31,61,0.07)">
+        <div style="font-size:20px;font-weight:800;color:#0f1f3d">Online booking</div>
+        <div style="font-size:15.5px;line-height:1.65;color:#4a5670">Customers book appointments directly from your site, synced with your calendar. Ideal for salons, therapists, tutors and trades.</div>
+      </div>
+      <div style="background:#fff;border-radius:14px;padding:34px;display:flex;flex-direction:column;gap:10px;border:1px solid rgba(15,31,61,0.07)">
+        <div style="font-size:20px;font-weight:800;color:#0f1f3d">Ongoing management</div>
+        <div style="font-size:15.5px;line-height:1.65;color:#4a5670">Text, photos, prices, staff, opening hours — updated for you, usually same-day. Plus security, maintenance and backups.</div>
+      </div>
+      <div style="background:#fff;border-radius:14px;padding:34px;display:flex;flex-direction:column;gap:10px;border:1px solid rgba(15,31,61,0.07)">
+        <div style="font-size:20px;font-weight:800;color:#0f1f3d">Growth add-ons</div>
+        <div style="font-size:15.5px;line-height:1.65;color:#4a5670">When you're ready for more customers: Google Business Profile, Google &amp; social ads, SEO and analytics.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- process 6 steps -->
+  <div style="background:#fff;padding:88px 64px;display:flex;flex-direction:column;gap:44px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:24px">
+      <div style="font-family:'Source Serif 4',Georgia,serif;font-size:38px;font-weight:700;color:#0f1f3d">From first call to launch</div>
+      <div style="font-size:15px;font-weight:700;color:oklch(0.55 0.14 45)">Most sites live within days</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px 32px">
+      <div style="display:flex;gap:16px"><span style="flex:none;width:36px;height:36px;border-radius:99px;background:#0f1f3d;color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800">1</span><div><div style="font-size:16.5px;font-weight:800;color:#0f1f3d">Free discovery call</div><div style="font-size:14.5px;line-height:1.6;color:#4a5670;margin-top:4px">Tell us about your business — 20 minutes, no jargon.</div></div></div>
+      <div style="display:flex;gap:16px"><span style="flex:none;width:36px;height:36px;border-radius:99px;background:#0f1f3d;color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800">2</span><div><div style="font-size:16.5px;font-weight:800;color:#0f1f3d">Three concepts</div><div style="font-size:14.5px;line-height:1.6;color:#4a5670;margin-top:4px">We design three homepage directions just for you.</div></div></div>
+      <div style="display:flex;gap:16px"><span style="flex:none;width:36px;height:36px;border-radius:99px;background:#0f1f3d;color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800">3</span><div><div style="font-size:16.5px;font-weight:800;color:#0f1f3d">You choose</div><div style="font-size:14.5px;line-height:1.6;color:#4a5670;margin-top:4px">Pick the direction you love. No design skills needed.</div></div></div>
+      <div style="display:flex;gap:16px"><span style="flex:none;width:36px;height:36px;border-radius:99px;background:oklch(0.62 0.14 45);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800">4</span><div><div style="font-size:16.5px;font-weight:800;color:#0f1f3d">We build it</div><div style="font-size:14.5px;line-height:1.6;color:#4a5670;margin-top:4px">Full site built, written and polished by us.</div></div></div>
+      <div style="display:flex;gap:16px"><span style="flex:none;width:36px;height:36px;border-radius:99px;background:oklch(0.62 0.14 45);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800">5</span><div><div style="font-size:16.5px;font-weight:800;color:#0f1f3d">Launch in days</div><div style="font-size:14.5px;line-height:1.6;color:#4a5670;margin-top:4px">Domain, hosting and security all handled.</div></div></div>
+      <div style="display:flex;gap:16px"><span style="flex:none;width:36px;height:36px;border-radius:99px;background:oklch(0.62 0.14 45);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800">6</span><div><div style="font-size:16.5px;font-weight:800;color:#0f1f3d">Ongoing support</div><div style="font-size:14.5px;line-height:1.6;color:#4a5670;margin-top:4px">Your site stays up to date through your monthly plan.</div></div></div>
+    </div>
+  </div>
+
+  <!-- pricing -->
+  <div style="padding:88px 64px;display:flex;flex-direction:column;gap:40px">
+    <div style="text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center">
+      <div style="font-family:'Source Serif 4',Georgia,serif;font-size:38px;font-weight:700;color:#0f1f3d">Honest pricing, no surprises</div>
+      <div style="font-size:16.5px;color:#4a5670">Month to month. Cancel anytime. Updates always included.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:22px;align-items:stretch">
+      <div style="background:#fff;border-radius:16px;padding:34px;display:flex;flex-direction:column;gap:16px;border:1px solid rgba(15,31,61,0.08)">
+        <div style="font-size:15px;font-weight:800;color:#7a8499;letter-spacing:0.08em;text-transform:uppercase">Launch Starter</div>
+        <div style="font-family:'Source Serif 4',Georgia,serif;font-size:42px;font-weight:700;color:#0f1f3d">€349<span style="font-family:Manrope,sans-serif;font-size:15px;font-weight:600;color:#7a8499"> setup + €39/mo</span></div>
+        <div style="font-size:15px;color:#4a5670;line-height:1.6">Up to 4 pages · contact form · mobile optimisation · monthly edits · hosting managed</div>
+        <span style="margin-top:auto;text-align:center;border:1.5px solid #0f1f3d;color:#0f1f3d;padding:13px;border-radius:99px;font-weight:700;cursor:pointer" style-hover="background:#0f1f3d;color:#fff">Book a call</span>
+      </div>
+      <div style="background:#0f1f3d;border-radius:16px;padding:34px;display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:15px;font-weight:800;color:oklch(0.72 0.14 45);letter-spacing:0.08em;text-transform:uppercase">Launch Business</span><span style="font-size:11.5px;font-weight:800;color:#0f1f3d;background:oklch(0.72 0.14 45);padding:4px 10px;border-radius:99px;text-transform:uppercase;letter-spacing:0.05em">Popular</span></div>
+        <div style="font-family:'Source Serif 4',Georgia,serif;font-size:42px;font-weight:700;color:#fff">€699<span style="font-family:Manrope,sans-serif;font-size:15px;font-weight:600;color:#aab6cc"> setup + €79/mo</span></div>
+        <div style="font-size:15px;color:#aab6cc;line-height:1.6">Up to 10 pages · online booking · basic SEO · Google Maps · monthly updates · priority support</div>
+        <span style="margin-top:auto;text-align:center;background:oklch(0.62 0.14 45);color:#fff;padding:13px;border-radius:99px;font-weight:700;cursor:pointer" style-hover="background:oklch(0.56 0.14 45)">Book a call</span>
+      </div>
+      <div style="background:#fff;border-radius:16px;padding:34px;display:flex;flex-direction:column;gap:16px;border:1px solid rgba(15,31,61,0.08)">
+        <div style="font-size:15px;font-weight:800;color:#7a8499;letter-spacing:0.08em;text-transform:uppercase">Launch Growth</div>
+        <div style="font-family:'Source Serif 4',Georgia,serif;font-size:42px;font-weight:700;color:#0f1f3d">€1,199<span style="font-family:Manrope,sans-serif;font-size:15px;font-weight:600;color:#7a8499"> setup + €149/mo</span></div>
+        <div style="font-size:15px;color:#4a5670;line-height:1.6">Everything in Business + Google Ads · social advertising · advanced SEO · landing pages · quarterly review</div>
+        <span style="margin-top:auto;text-align:center;border:1.5px solid #0f1f3d;color:#0f1f3d;padding:13px;border-radius:99px;font-weight:700;cursor:pointer" style-hover="background:#0f1f3d;color:#fff">Book a call</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- featured testimonial -->
+  <div style="background:#fff;padding:88px 160px;display:flex;flex-direction:column;gap:28px;align-items:center;text-align:center">
+    <div style="color:oklch(0.62 0.14 45);font-size:24px;letter-spacing:3px">★★★★★</div>
+    <div style="font-family:'Source Serif 4',Georgia,serif;font-size:30px;line-height:1.45;font-weight:600;color:#0f1f3d;max-width:800px;text-wrap:balance">“I'm a plumber, not a computer person. I send a text, the site gets updated. Simple as that.”</div>
+    <div style="font-size:15.5px;font-weight:700;color:#0f1f3d">Dave Corrigan <span style="font-weight:600;color:#7a8499">— Corrigan Plumbing &amp; Heating, Tallaght</span></div>
+    <div style="display:flex;gap:40px;margin-top:12px;font-size:14.5px;color:#4a5670;font-weight:600">
+      <span>“Live in six days.” — Brennan Hair Studio</span>
+      <span>“Booking paid for the site in a month.” — Nolan Physiotherapy</span>
+    </div>
+  </div>
+
+  <!-- FAQ two-col -->
+  <div style="padding:88px 64px;display:grid;grid-template-columns:0.8fr 1.4fr;gap:56px">
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="font-family:'Source Serif 4',Georgia,serif;font-size:38px;font-weight:700;color:#0f1f3d;line-height:1.2">Still on the fence?</div>
+      <div style="font-size:16px;line-height:1.65;color:#4a5670">Fair enough — here's what most owners ask us before they start.</div>
+      <span style="align-self:flex-start;background:oklch(0.62 0.14 45);color:#fff;padding:14px 28px;border-radius:99px;font-size:15.5px;font-weight:700;cursor:pointer;margin-top:8px" style-hover="background:oklch(0.56 0.14 45)">Just book the call</span>
+    </div>
+    <div style="display:flex;flex-direction:column">
+      <div style="padding:22px 0;border-bottom:1px solid rgba(15,31,61,0.1)"><div style="font-size:17px;font-weight:800;color:#0f1f3d;margin-bottom:6px">“I don't have time.”</div><div style="font-size:15px;line-height:1.65;color:#4a5670">One 20-minute call. That's your total time investment — we do the rest.</div></div>
+      <div style="padding:22px 0;border-bottom:1px solid rgba(15,31,61,0.1)"><div style="font-size:17px;font-weight:800;color:#0f1f3d;margin-bottom:6px">“I don't know what I want.”</div><div style="font-size:15px;line-height:1.65;color:#4a5670">You don't need to. We show you three concepts and you point at the one you like.</div></div>
+      <div style="padding:22px 0;border-bottom:1px solid rgba(15,31,61,0.1)"><div style="font-size:17px;font-weight:800;color:#0f1f3d;margin-bottom:6px">“Is it expensive?”</div><div style="font-size:15px;line-height:1.65;color:#4a5670">From €349 setup and €39/month, all-in. A fraction of agency prices, with no hourly fees.</div></div>
+      <div style="padding:22px 0"><div style="font-size:17px;font-weight:800;color:#0f1f3d;margin-bottom:6px">“What if things change?”</div><div style="font-size:15px;line-height:1.65;color:#4a5670">Text us the change and it's live, usually the same day. That's the whole point of the plan.</div></div>
+    </div>
+  </div>
+
+  <!-- final CTA -->
+  <div style="background:#0f1f3d;margin:0 64px 64px;border-radius:20px;padding:64px;display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center">
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="font-family:'Source Serif 4',Georgia,serif;font-size:36px;font-weight:700;color:#fff;line-height:1.2;text-wrap:balance">Let's get your business online.</div>
+      <div style="font-size:16.5px;line-height:1.7;color:#aab6cc">Leave your details and we'll ring you back within one working day for a free, no-obligation chat.</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <input placeholder="Your name" style="font-family:Manrope,sans-serif;font-size:15px;padding:15px 18px;border:none;border-radius:10px;outline:none;background:#fff"/>
+      <input placeholder="Business name" style="font-family:Manrope,sans-serif;font-size:15px;padding:15px 18px;border:none;border-radius:10px;outline:none;background:#fff"/>
+      <input placeholder="Phone number" style="font-family:Manrope,sans-serif;font-size:15px;padding:15px 18px;border:none;border-radius:10px;outline:none;background:#fff"/>
+      <span style="background:oklch(0.62 0.14 45);color:#fff;text-align:center;padding:16px;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer" style-hover="background:oklch(0.56 0.14 45)">Request my free call</span>
+    </div>
+  </div>
+
+  <!-- footer -->
+  <div style="padding:24px 64px 32px;display:flex;justify-content:space-between;font-size:14px;color:#7a8499">
+    <span style="font-weight:800;color:#0f1f3d">Launch<span style="color:#1f66d6">Point</span></span>
+    <span>Dublin, Ireland · hello@launchpoint.ie · © 2026</span>
+  </div>
+</div>
+</div>
+
+<!-- ============ OPTION 1C — Navy premium ============ -->
+<div class="dv-opt" id="1c">
+<div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Navy premium — dark hero, big type, checklist services</div>
+<div class="dv-card" style="width:1240px" data-screen-label="1c Navy premium">
+
+  <!-- dark nav + hero -->
+  <div style="background:#0b1730;padding:0 64px 96px">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:24px 0;border-bottom:1px solid rgba(255,255,255,0.08)">
+      <span style="font-size:23px;font-weight:800;color:#fff">Launch<span style="color:#4d8df0">Point</span></span>
+      <div style="display:flex;align-items:center;gap:34px;font-size:15px;font-weight:600;color:#aab6cc">
+        <span>Services</span><span>Process</span><span>Pricing</span><span>FAQ</span>
+        <span style="background:#fff;color:#0b1730;padding:12px 24px;border-radius:8px;font-weight:800;cursor:pointer" style-hover="background:#dbe3f0">Book a free call</span>
+      </div>
+    </div>
+    <div style="padding:96px 0 0;display:flex;flex-direction:column;gap:26px;max-width:860px">
+      <div style="font-size:14px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#4d8df0">Built for Irish business</div>
+      <div style="font-size:68px;line-height:1.05;font-weight:800;color:#fff;text-wrap:balance">Launch your business online.</div>
+      <div style="font-size:20px;line-height:1.65;color:#aab6cc;max-width:620px;text-wrap:pretty">A professional website, designed and managed for you — for less than the price of a daily coffee. You run the business; we run the website.</div>
+      <div style="display:flex;gap:14px;align-items:center;margin-top:6px">
+        <span style="background:#2069e0;color:#fff;padding:18px 36px;border-radius:9px;font-size:17px;font-weight:700;cursor:pointer" style-hover="background:#1a56b5">Book a free call</span>
+        <span style="color:#fff;font-size:16px;font-weight:700;padding:18px 10px;cursor:pointer;opacity:0.85" style-hover="opacity:1">See pricing →</span>
+      </div>
+      <div style="display:flex;gap:36px;margin-top:28px;padding-top:28px;border-top:1px solid rgba(255,255,255,0.08)">
+        <div><div style="font-size:26px;font-weight:800;color:#fff">€349</div><div style="font-size:13.5px;font-weight:600;color:#7a8bab">one-off setup, from</div></div>
+        <div><div style="font-size:26px;font-weight:800;color:#fff">Days</div><div style="font-size:13.5px;font-weight:600;color:#7a8bab">from call to launch</div></div>
+        <div><div style="font-size:26px;font-weight:800;color:#fff">3</div><div style="font-size:13.5px;font-weight:600;color:#7a8bab">free design concepts</div></div>
+        <div><div style="font-size:26px;font-weight:800;color:#fff">0</div><div style="font-size:13.5px;font-weight:600;color:#7a8bab">hourly fees, ever</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- problem strip -->
+  <div style="padding:80px 64px;display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:start">
+    <div style="font-size:36px;font-weight:800;color:#0f1f3d;line-height:1.2;text-wrap:balance;position:sticky;top:24px">Most agencies build your site, send an invoice, and disappear.</div>
+    <div style="display:flex;flex-direction:column;gap:22px;font-size:16.5px;line-height:1.7;color:#4a5670">
+      <div>LaunchPoint is different: we become your long-term digital partner. Whenever your business changes, your website changes too — usually the same day.</div>
+      <div style="display:flex;flex-direction:column;gap:12px;font-weight:700;color:#0f1f3d;font-size:16px">
+        <span style="display:flex;gap:12px;align-items:baseline"><span style="color:#2069e0">✓</span>No confusing software to learn</span>
+        <span style="display:flex;gap:12px;align-items:baseline"><span style="color:#2069e0">✓</span>No expensive hourly fees</span>
+        <span style="display:flex;gap:12px;align-items:baseline"><span style="color:#2069e0">✓</span>No waiting weeks for simple updates</span>
+        <span style="display:flex;gap:12px;align-items:baseline"><span style="color:#2069e0">✓</span>Just one monthly plan — and a site that's always current</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- services checklist -->
+  <div style="background:#f4f6f9;padding:88px 64px;display:flex;flex-direction:column;gap:40px">
+    <div style="font-size:36px;font-weight:800;color:#0f1f3d">Everything included, nothing hidden</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">
+      <div style="background:#fff;border-radius:12px;padding:30px;border:1px solid rgba(15,31,61,0.07)">
+        <div style="font-size:14px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#2069e0;margin-bottom:16px">Design &amp; build</div>
+        <div style="display:flex;flex-direction:column;gap:9px;font-size:15px;font-weight:500;color:#3c4a63">
+          <span>Bespoke modern design</span><span>Mobile responsive</span><span>Fast-loading pages</span><span>Contact forms</span><span>Google Maps</span><span>Domain + SSL security</span>
+        </div>
+      </div>
+      <div style="background:#fff;border-radius:12px;padding:30px;border:1px solid rgba(15,31,61,0.07)">
+        <div style="font-size:14px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#2069e0;margin-bottom:16px">Managed monthly</div>
+        <div style="display:flex;flex-direction:column;gap:9px;font-size:15px;font-weight:500;color:#3c4a63">
+          <span>Text &amp; image updates</span><span>Price &amp; service changes</span><span>Opening hours &amp; staff</span><span>Security monitoring</span><span>Backups</span><span>Maintenance</span>
+        </div>
+      </div>
+      <div style="background:#fff;border-radius:12px;padding:30px;border:1px solid rgba(15,31,61,0.07)">
+        <div style="font-size:14px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#2069e0;margin-bottom:16px">Optional growth</div>
+        <div style="display:flex;flex-direction:column;gap:9px;font-size:15px;font-weight:500;color:#3c4a63">
+          <span>Online booking</span><span>Google Business Profile</span><span>Google &amp; social ads</span><span>SEO</span><span>Analytics</span><span>Conversion improvements</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- process timeline -->
+  <div style="padding:88px 64px;display:flex;flex-direction:column;gap:48px">
+    <div style="font-size:36px;font-weight:800;color:#0f1f3d;text-align:center">Call → Choose → Live. That's it.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;position:relative">
+      <div style="position:absolute;top:27px;left:16%;right:16%;height:2px;background:rgba(15,31,61,0.12)"></div>
+      <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px;position:relative">
+        <div style="width:56px;height:56px;border-radius:99px;background:#0b1730;color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;border:6px solid #fff">1</div>
+        <div style="font-size:19px;font-weight:800;color:#0f1f3d">Free 20-minute call</div>
+        <div style="font-size:15px;line-height:1.6;color:#4a5670;max-width:280px">Tell us about your business. We handle everything from there.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px;position:relative">
+        <div style="width:56px;height:56px;border-radius:99px;background:#2069e0;color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;border:6px solid #fff">2</div>
+        <div style="font-size:19px;font-weight:800;color:#0f1f3d">Choose from 3 concepts</div>
+        <div style="font-size:15px;line-height:1.6;color:#4a5670;max-width:280px">Three homepage designs made for your business — pick your favourite.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px;position:relative">
+        <div style="width:56px;height:56px;border-radius:99px;background:#0b1730;color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;border:6px solid #fff">3</div>
+        <div style="font-size:19px;font-weight:800;color:#0f1f3d">Go live in days</div>
+        <div style="font-size:15px;line-height:1.6;color:#4a5670;max-width:280px">We launch, then keep your site up to date every month after.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- pricing dark featured -->
+  <div style="background:#f4f6f9;padding:88px 64px;display:flex;flex-direction:column;gap:40px">
+    <div style="text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center">
+      <div style="font-size:36px;font-weight:800;color:#0f1f3d">Pick your plan</div>
+      <div style="font-size:16.5px;color:#4a5670">Month to month · updates included · no hidden costs</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1.08fr 1fr;gap:22px;align-items:center">
+      <div style="background:#fff;border-radius:14px;padding:34px;display:flex;flex-direction:column;gap:16px;border:1px solid rgba(15,31,61,0.08)">
+        <div style="font-size:17px;font-weight:800;color:#0f1f3d">Launch Starter</div>
+        <div style="font-size:38px;font-weight:800;color:#0f1f3d">€349 <span style="font-size:15px;font-weight:600;color:#7a8499">setup</span></div>
+        <div style="font-size:16px;font-weight:700;color:#2069e0;margin-top:-10px">+ €39/month</div>
+        <div style="display:flex;flex-direction:column;gap:9px;font-size:14.5px;font-weight:500;color:#3c4a63"><span>✓ Up to 4 pages</span><span>✓ Contact form</span><span>✓ Mobile optimisation</span><span>✓ Monthly edits</span><span>✓ Hosting managed</span></div>
+        <span style="text-align:center;border:1.5px solid rgba(15,31,61,0.2);color:#0f1f3d;padding:13px;border-radius:8px;font-weight:700;cursor:pointer" style-hover="border-color:#2069e0;color:#2069e0">Book a call</span>
+      </div>
+      <div style="background:#0b1730;border-radius:16px;padding:40px 34px;display:flex;flex-direction:column;gap:16px;box-shadow:0 20px 44px rgba(11,23,48,0.3)">
+        <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:17px;font-weight:800;color:#fff">Launch Business</span><span style="font-size:11.5px;font-weight:800;background:#2069e0;color:#fff;padding:4px 10px;border-radius:99px;text-transform:uppercase;letter-spacing:0.05em">Best value</span></div>
+        <div style="font-size:42px;font-weight:800;color:#fff">€699 <span style="font-size:15px;font-weight:600;color:#7a8bab">setup</span></div>
+        <div style="font-size:16px;font-weight:700;color:#4d8df0;margin-top:-10px">+ €79/month</div>
+        <div style="display:flex;flex-direction:column;gap:9px;font-size:14.5px;font-weight:500;color:#c6d0e2"><span>✓ Up to 10 pages</span><span>✓ Online booking</span><span>✓ Basic SEO</span><span>✓ Google Maps</span><span>✓ Monthly updates</span><span>✓ Priority support</span></div>
+        <span style="text-align:center;background:#2069e0;color:#fff;padding:14px;border-radius:8px;font-weight:700;cursor:pointer" style-hover="background:#1a56b5">Book a call</span>
+      </div>
+      <div style="background:#fff;border-radius:14px;padding:34px;display:flex;flex-direction:column;gap:16px;border:1px solid rgba(15,31,61,0.08)">
+        <div style="font-size:17px;font-weight:800;color:#0f1f3d">Launch Growth</div>
+        <div style="font-size:38px;font-weight:800;color:#0f1f3d">€1,199 <span style="font-size:15px;font-weight:600;color:#7a8499">setup</span></div>
+        <div style="font-size:16px;font-weight:700;color:#2069e0;margin-top:-10px">+ €149/month</div>
+        <div style="display:flex;flex-direction:column;gap:9px;font-size:14.5px;font-weight:500;color:#3c4a63"><span>✓ Everything in Business</span><span>✓ Google Ads setup</span><span>✓ Social advertising</span><span>✓ Advanced SEO</span><span>✓ Quarterly review</span></div>
+        <span style="text-align:center;border:1.5px solid rgba(15,31,61,0.2);color:#0f1f3d;padding:13px;border-radius:8px;font-weight:700;cursor:pointer" style-hover="border-color:#2069e0;color:#2069e0">Book a call</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- testimonials row -->
+  <div style="padding:88px 64px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px">
+    <div style="border-left:3px solid #2069e0;padding:6px 0 6px 26px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:16.5px;line-height:1.7;color:#3c4a63;font-weight:500">“Live in six days — and every update since has been same-day.”</div>
+      <div style="font-size:14px;font-weight:700;color:#0f1f3d">Sinéad Brennan · <span style="font-weight:600;color:#7a8499">Brennan Hair Studio, Dublin 8</span></div>
+    </div>
+    <div style="border-left:3px solid #2069e0;padding:6px 0 6px 26px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:16.5px;line-height:1.7;color:#3c4a63;font-weight:500">“I send a text, the site gets updated. Simple as that.”</div>
+      <div style="font-size:14px;font-weight:700;color:#0f1f3d">Dave Corrigan · <span style="font-weight:600;color:#7a8499">Corrigan Plumbing &amp; Heating</span></div>
+    </div>
+    <div style="border-left:3px solid #2069e0;padding:6px 0 6px 26px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:16.5px;line-height:1.7;color:#3c4a63;font-weight:500">“The online booking alone paid for the website in the first month.”</div>
+      <div style="font-size:14px;font-weight:700;color:#0f1f3d">Aoife Nolan · <span style="font-weight:600;color:#7a8499">Nolan Physiotherapy, Naas</span></div>
+    </div>
+  </div>
+
+  <!-- FAQ -->
+  <div style="background:#f4f6f9;padding:88px 200px;display:flex;flex-direction:column;gap:36px">
+    <div style="font-size:36px;font-weight:800;color:#0f1f3d;text-align:center">Before you ask…</div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div style="background:#fff;border-radius:12px;padding:24px 30px;border:1px solid rgba(15,31,61,0.07);display:flex;justify-content:space-between;align-items:center;gap:24px"><div><div style="font-size:17px;font-weight:800;color:#0f1f3d">“I don't have time for this.”</div><div style="font-size:15px;line-height:1.65;color:#4a5670;margin-top:6px">One 20-minute call is all we need. We do everything else.</div></div><span style="font-size:22px;color:#7a8499">−</span></div>
+      <div style="background:#fff;border-radius:12px;padding:24px 30px;border:1px solid rgba(15,31,61,0.07);display:flex;justify-content:space-between;align-items:center;gap:24px"><div><div style="font-size:17px;font-weight:800;color:#0f1f3d">“I don't know what I want it to look like.”</div><div style="font-size:15px;line-height:1.65;color:#4a5670;margin-top:6px">We show you three concepts made for your business — you just pick one.</div></div><span style="font-size:22px;color:#7a8499">−</span></div>
+      <div style="background:#fff;border-radius:12px;padding:24px 30px;border:1px solid rgba(15,31,61,0.07);display:flex;justify-content:space-between;align-items:center;gap:24px"><div><div style="font-size:17px;font-weight:800;color:#0f1f3d">“Is it expensive?”</div><div style="font-size:15px;line-height:1.65;color:#4a5670;margin-top:6px">From €349 setup + €39/month, everything included. No hourly fees, ever.</div></div><span style="font-size:22px;color:#7a8499">−</span></div>
+      <div style="background:#fff;border-radius:12px;padding:24px 30px;border:1px solid rgba(15,31,61,0.07);display:flex;justify-content:space-between;align-items:center;gap:24px"><div><div style="font-size:17px;font-weight:800;color:#0f1f3d">“Am I locked in?”</div><div style="font-size:15px;line-height:1.65;color:#4a5670;margin-top:6px">No contracts. Month to month — we earn your business every month.</div></div><span style="font-size:22px;color:#7a8499">−</span></div>
+    </div>
+  </div>
+
+  <!-- final CTA -->
+  <div style="background:#0b1730;padding:88px 64px;display:flex;flex-direction:column;align-items:center;gap:28px;text-align:center">
+    <div style="font-size:44px;font-weight:800;color:#fff;line-height:1.15;max-width:700px;text-wrap:balance">Your website. Always up to date.</div>
+    <div style="font-size:17.5px;line-height:1.7;color:#aab6cc;max-width:540px">Book your free discovery call today and get three homepage concepts for your business — no obligation.</div>
+    <div style="display:flex;gap:12px;background:#fff;padding:10px;border-radius:12px;align-items:center">
+      <input placeholder="Your name" style="font-family:Manrope,sans-serif;font-size:15px;padding:13px 16px;border:none;outline:none;width:170px"/>
+      <div style="width:1px;height:28px;background:rgba(15,31,61,0.12)"></div>
+      <input placeholder="Business" style="font-family:Manrope,sans-serif;font-size:15px;padding:13px 16px;border:none;outline:none;width:150px"/>
+      <div style="width:1px;height:28px;background:rgba(15,31,61,0.12)"></div>
+      <input placeholder="Phone" style="font-family:Manrope,sans-serif;font-size:15px;padding:13px 16px;border:none;outline:none;width:140px"/>
+      <span style="background:#2069e0;color:#fff;padding:14px 26px;border-radius:9px;font-size:15.5px;font-weight:700;cursor:pointer;white-space:nowrap" style-hover="background:#1a56b5">Book my call</span>
+    </div>
+    <div style="font-size:13.5px;color:#7a8bab">We'll call you back within one working day · Dublin, Ireland</div>
+  </div>
+
+  <!-- footer -->
+  <div style="padding:26px 64px;display:flex;justify-content:space-between;font-size:14px;color:#7a8499;border-top:1px solid rgba(15,31,61,0.08)">
+    <span style="font-weight:800;color:#0f1f3d">Launch<span style="color:#1f66d6">Point</span></span>
+    <span>hello@launchpoint.ie · © 2026 LaunchPoint</span>
+  </div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "build out <a class="dv-oid" href="#1a">1a</a> with the split hero from <a class="dv-oid" href="#1b">1b</a>" · "make <a class="dv-oid" href="#1c">1c</a> lighter" · "show mobile versions"</p>
+</section>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;page&quot;: {
+    &quot;editor&quot;: &quot;enum&quot;,
+    &quot;options&quot;: [&quot;home&quot;, &quot;services&quot;, &quot;how-it-works&quot;, &quot;pricing&quot;, &quot;faq&quot;, &quot;book-a-call&quot;],
+    &quot;default&quot;: &quot;home&quot;,
+    &quot;tsType&quot;: &quot;string&quot;,
+    &quot;section&quot;: &quot;Build-out (2a)&quot;
+  },
+  &quot;ctaLabel&quot;: {
+    &quot;editor&quot;: &quot;text&quot;,
+    &quot;default&quot;: &quot;Book a free call&quot;,
+    &quot;tsType&quot;: &quot;string&quot;,
+    &quot;section&quot;: &quot;Build-out (2a)&quot;
+  },
+  &quot;featuredTier&quot;: {
+    &quot;editor&quot;: &quot;enum&quot;,
+    &quot;options&quot;: [&quot;starter&quot;, &quot;business&quot;, &quot;growth&quot;],
+    &quot;default&quot;: &quot;business&quot;,
+    &quot;tsType&quot;: &quot;string&quot;,
+    &quot;section&quot;: &quot;Build-out (2a)&quot;
+  }
+}">
+class Component extends DCLogic {
+  state = { page: null };
+
+  componentDidUpdate(prevProps) {
+    if (prevProps.page !== this.props.page && this.state.page !== null) {
+      this.setState({ page: null });
+    }
+  }
+
+  renderVals() {
+    const page = this.state.page ?? this.props.page ?? 'home';
+    const go = (p) => () => this.setState({ page: p });
+    const navColor = (p) => (page === p ? '#1f66d6' : '#3c4a63');
+
+    const featured = this.props.featuredTier ?? 'business';
+    const tierVals = (name) => {
+      const on = featured === name;
+      return {
+        [name + 'Featured']: on,
+        [name + 'Border']: on ? '#1f66d6' : 'rgba(15,31,61,0.08)',
+        [name + 'Shadow']: on ? '0 12px 32px rgba(31,102,214,0.14)' : 'none',
+        [name + 'BtnBg']: on ? '#1f66d6' : '#fff',
+        [name + 'BtnColor']: on ? '#fff' : '#0f1f3d',
+        [name + 'BtnBorder']: on ? '1.5px solid #1f66d6' : '1.5px solid rgba(15,31,61,0.18)',
+      };
+    };
+
+    return {
+      ctaLabel: this.props.ctaLabel ?? 'Book a free call',
+      isHome: page === 'home',
+      isServices: page === 'services',
+      isProcess: page === 'how-it-works',
+      isPricing: page === 'pricing',
+      isFaq: page === 'faq',
+      isBook: page === 'book-a-call',
+      goHome: go('home'),
+      goServices: go('services'),
+      goProcess: go('how-it-works'),
+      goPricing: go('pricing'),
+      goFaq: go('faq'),
+      goBook: go('book-a-call'),
+      navServices: navColor('services'),
+      navProcess: navColor('how-it-works'),
+      navPricing: navColor('pricing'),
+      navFaq: navColor('faq'),
+      ...tierVals('starter'),
+      ...tierVals('business'),
+      ...tierVals('growth'),
+    };
+  }
+}
+</script>
+</body>
+</html>

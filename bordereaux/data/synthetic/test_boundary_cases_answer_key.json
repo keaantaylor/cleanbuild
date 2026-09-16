@@ -1,0 +1,968 @@
+{
+  "fixture": "test_boundary_cases.xlsx",
+  "total_rows": 320,
+  "sheets_processed": 10,
+  "sheet_row_counts": {
+    "Zurich Re": 35,
+    "Beazley": 28,
+    "Hiscox": 32,
+    "Chubb": 25,
+    "AIG": 40,
+    "RSA Group": 30,
+    "Allianz": 22,
+    "Tokio Marine HCC": 45,
+    "AXA XL": 33,
+    "Markel": 30
+  },
+  "sheets_with_banner_row": [
+    "RSA Group",
+    "Tokio Marine HCC"
+  ],
+  "column_mapping_by_sheet": {
+    "Zurich Re": {
+      "CR0104M": "Claim Reference",
+      "CR0105CM": "Claim Status",
+      "CR0119CM": "Loss Date",
+      "CR0136CM": "Notified Date",
+      "CR0035M": "Insured Name",
+      "CR0029M": "Policy Reference",
+      "CR0126CM": "Amount Paid",
+      "CR0130CM": "Reserve Amount",
+      "CR0155CM": "Incurred Amount",
+      "CR0110CM": "Currency"
+    },
+    "Beazley": {
+      "CR0104M": "Claim No",
+      "CR0105CM": "Status",
+      "CR0119CM": "Date of Loss",
+      "CR0136CM": "Date Notified",
+      "CR0035M": "Insured",
+      "CR0029M": "Policy No",
+      "CR0126CM": "Paid",
+      "CR0130CM": "O/S Reserve",
+      "CR0155CM": "Total Incurred",
+      "CR0110CM": "Ccy"
+    },
+    "Hiscox": {
+      "CR0104M": "ClaimRef",
+      "CR0105CM": "ClaimStatus",
+      "CR0119CM": "LossDate",
+      "CR0136CM": "NotifiedDate",
+      "CR0035M": "Insured",
+      "CR0029M": "PolicyRef",
+      "CR0126CM": "IndemnityPaid",
+      "CR0130CM": "IndemnityReserve",
+      "CR0155CM": "TotalIncurred",
+      "CR0110CM": "SettlementCurrency"
+    },
+    "Chubb": {
+      "CR0104M": "Reference",
+      "CR0105CM": "State",
+      "CR0119CM": "Incident Date",
+      "CR0136CM": "Advised Date",
+      "CR0035M": "Client Name",
+      "CR0029M": "Contract No",
+      "CR0126CM": "Paid To Date",
+      "CR0130CM": "Case Reserve",
+      "CR0155CM": "Incurred To Date",
+      "CR0110CM": "Currency Code"
+    },
+    "AIG": {
+      "CR0104M": "Claim Number",
+      "CR0105CM": "Claim State",
+      "CR0119CM": "Date of Loss",
+      "CR0136CM": "First Notified",
+      "CR0035M": "Policyholder",
+      "CR0029M": "Policy Number",
+      "CR0126CM": "Amount Paid",
+      "CR0130CM": "Reserve O/S",
+      "CR0155CM": "Gross Incurred",
+      "CR0110CM": "Ccy Code"
+    },
+    "RSA Group": {
+      "CR0104M": "Claim Ref",
+      "CR0105CM": "Status",
+      "CR0119CM": "Loss Date",
+      "CR0136CM": "Notification Date",
+      "CR0035M": "Insured",
+      "CR0029M": "Policy Ref",
+      "CR0126CM": "Paid Amount",
+      "CR0130CM": "Reserve Amount",
+      "CR0155CM": "Incurred Amount",
+      "CR0110CM": "Currency"
+    },
+    "Allianz": {
+      "CR0104M": "Claim Reference No",
+      "CR0105CM": "Current Status",
+      "CR0119CM": "Date Of Loss",
+      "CR0136CM": "Date First Notified",
+      "CR0035M": "Name of Insured",
+      "CR0029M": "Policy Reference No",
+      "CR0126CM": "Indemnity Paid",
+      "CR0130CM": "Indemnity O/S",
+      "CR0155CM": "Total Incurred Amount",
+      "CR0110CM": "Settlement Ccy"
+    },
+    "Tokio Marine HCC": {
+      "CR0104M": "Claim Ref",
+      "CR0105CM": "Claim Status",
+      "CR0119CM": "Loss Date",
+      "CR0136CM": "Notified Date",
+      "CR0035M": "Insured Name",
+      "CR0029M": "Policy No",
+      "CR0126CM": "Paid",
+      "CR0130CM": "Reserve",
+      "CR0155CM": "Incurred",
+      "CR0110CM": "Currency"
+    },
+    "AXA XL": {
+      "CR0104M": "Claim ID",
+      "CR0105CM": "Status Code",
+      "CR0119CM": "Date Loss Occurred",
+      "CR0136CM": "Date Claim Notified",
+      "CR0035M": "Insured Party",
+      "CR0029M": "Policy Identifier",
+      "CR0126CM": "Amount Paid To Date",
+      "CR0130CM": "Outstanding Reserve",
+      "CR0155CM": "Incurred Total",
+      "CR0110CM": "Currency"
+    },
+    "Markel": {
+      "CR0104M": "CLAIM_REF",
+      "CR0105CM": "CLAIM_STATUS",
+      "CR0119CM": "LOSS_DATE",
+      "CR0136CM": "NOTIFIED_DATE",
+      "CR0035M": "INSURED_NAME",
+      "CR0029M": "POLICY_REF",
+      "CR0126CM": "PAID_AMT",
+      "CR0130CM": "RESERVE_AMT",
+      "CR0155CM": "INCURRED_AMT",
+      "CR0110CM": "CURRENCY"
+    }
+  },
+  "injected_errors": {
+    "missing_mandatory_fields": {
+      "claim_reference": [
+        {
+          "sheet": "Zurich Re",
+          "row": 9
+        },
+        {
+          "sheet": "Zurich Re",
+          "row": 29
+        },
+        {
+          "sheet": "Zurich Re",
+          "row": 1
+        },
+        {
+          "sheet": "Zurich Re",
+          "row": 13
+        },
+        {
+          "sheet": "Zurich Re",
+          "row": 12
+        },
+        {
+          "sheet": "Beazley",
+          "row": 24
+        },
+        {
+          "sheet": "Beazley",
+          "row": 23
+        },
+        {
+          "sheet": "Beazley",
+          "row": 18
+        },
+        {
+          "sheet": "Beazley",
+          "row": 22
+        },
+        {
+          "sheet": "Hiscox",
+          "row": 25
+        },
+        {
+          "sheet": "Hiscox",
+          "row": 13
+        },
+        {
+          "sheet": "Hiscox",
+          "row": 31
+        },
+        {
+          "sheet": "Hiscox",
+          "row": 16
+        },
+        {
+          "sheet": "Hiscox",
+          "row": 14
+        },
+        {
+          "sheet": "Chubb",
+          "row": 19
+        },
+        {
+          "sheet": "Chubb",
+          "row": 17
+        },
+        {
+          "sheet": "Chubb",
+          "row": 25
+        },
+        {
+          "sheet": "Chubb",
+          "row": 23
+        },
+        {
+          "sheet": "AIG",
+          "row": 13
+        },
+        {
+          "sheet": "AIG",
+          "row": 17
+        },
+        {
+          "sheet": "AIG",
+          "row": 29
+        },
+        {
+          "sheet": "AIG",
+          "row": 30
+        },
+        {
+          "sheet": "AIG",
+          "row": 25
+        },
+        {
+          "sheet": "AIG",
+          "row": 12
+        },
+        {
+          "sheet": "RSA Group",
+          "row": 20
+        },
+        {
+          "sheet": "RSA Group",
+          "row": 24
+        },
+        {
+          "sheet": "RSA Group",
+          "row": 7
+        },
+        {
+          "sheet": "RSA Group",
+          "row": 10
+        },
+        {
+          "sheet": "RSA Group",
+          "row": 5
+        },
+        {
+          "sheet": "Allianz",
+          "row": 10
+        },
+        {
+          "sheet": "Allianz",
+          "row": 9
+        },
+        {
+          "sheet": "Allianz",
+          "row": 4
+        },
+        {
+          "sheet": "Tokio Marine HCC",
+          "row": 35
+        },
+        {
+          "sheet": "Tokio Marine HCC",
+          "row": 34
+        },
+        {
+          "sheet": "Tokio Marine HCC",
+          "row": 19
+        },
+        {
+          "sheet": "Tokio Marine HCC",
+          "row": 20
+        },
+        {
+          "sheet": "Tokio Marine HCC",
+          "row": 29
+        },
+        {
+          "sheet": "Tokio Marine HCC",
+          "row": 13
+        },
+        {
+          "sheet": "Tokio Marine HCC",
+          "row": 31
+        },
+        {
+          "sheet": "AXA XL",
+          "row": 29
+        },
+        {
+          "sheet": "AXA XL",
+          "row": 6
+        },
+        {
+          "sheet": "AXA XL",
+          "row": 24
+        },
+        {
+          "sheet": "AXA XL",
+          "row": 12
+        },
+        {
+          "sheet": "AXA XL",
+          "row": 9
+        },
+        {
+          "sheet": "Markel",
+          "row": 29
+        },
+        {
+          "sheet": "Markel",
+          "row": 17
+        },
+        {
+          "sheet": "Markel",
+          "row": 7
+        },
+        {
+          "sheet": "Markel",
+          "row": 16
+        }
+      ],
+      "insured_name": [
+        {
+          "sheet": "Zurich Re",
+          "row": 9
+        },
+        {
+          "sheet": "Zurich Re",
+          "row": 29
+        },
+        {
+          "sheet": "Zurich Re",
+          "row": 1
+        },
+        {
+          "sheet": "Beazley",
+          "row": 24
+        },
+        {
+          "sheet": "Beazley",
+          "row": 23
+        },
+        {
+          "sheet": "Hiscox",
+          "row": 25
+        },
+        {
+          "sheet": "Hiscox",
+          "row": 26
+        },
+        {
+          "sheet": "Hiscox",
+          "row": 22
+        },
+        {
+          "sheet": "Chubb",
+          "row": 21
+        },
+        {
+          "sheet": "Chubb",
+          "row": 14
+        },
+        {
+          "sheet": "AIG",
+          "row": 14
+        },
+        {
+          "sheet": "AIG",
+          "row": 22
+        },
+        {
+          "sheet": "AIG",
+          "row": 10
+        },
+        {
+          "sheet": "AIG",
+          "row": 1
+        },
+        {
+          "sheet": "RSA Group",
+          "row": 14
+        },
+        {
+          "sheet": "RSA Group",
+          "row": 15
+        },
+        {
+          "sheet": "RSA Group",
+          "row": 6
+        },
+        {
+          "sheet": "Allianz",
+          "row": 16
+        },
+        {
+          "sheet": "Allianz",
+          "row": 21
+        },
+        {
+          "sheet": "Tokio Marine HCC",
+          "row": 38
+        },
+        {
+          "sheet": "Tokio Marine HCC",
+          "row": 18
+        },
+        {
+          "sheet": "Tokio Marine HCC",
+          "row": 2
+        },
+        {
+          "sheet": "Tokio Marine HCC",
+          "row": 22
+        },
+        {
+          "sheet": "AXA XL",
+          "row": 2
+        },
+        {
+          "sheet": "AXA XL",
+          "row": 21
+        },
+        {
+          "sheet": "Markel",
+          "row": 12
+        }
+      ],
+      "overlap": [
+        {
+          "sheet": "Zurich Re",
+          "row": 9
+        },
+        {
+          "sheet": "Zurich Re",
+          "row": 1
+        },
+        {
+          "sheet": "Zurich Re",
+          "row": 29
+        },
+        {
+          "sheet": "Beazley",
+          "row": 23
+        },
+        {
+          "sheet": "Beazley",
+          "row": 24
+        },
+        {
+          "sheet": "Hiscox",
+          "row": 25
+        }
+      ]
+    },
+    "arithmetic_errors": {
+      "count": 38,
+      "rows": [
+        {
+          "sheet": "Zurich Re",
+          "row": 30,
+          "claim_reference": "ZUR-00030",
+          "difference": -44248.62
+        },
+        {
+          "sheet": "Zurich Re",
+          "row": 22,
+          "claim_reference": "ZUR-00022",
+          "difference": -20197.14
+        },
+        {
+          "sheet": "Zurich Re",
+          "row": 8,
+          "claim_reference": "ZUR-00008",
+          "difference": -16923.25
+        },
+        {
+          "sheet": "Zurich Re",
+          "row": 33,
+          "claim_reference": "ZUR-00033",
+          "difference": 46325.11
+        },
+        {
+          "sheet": "Zurich Re",
+          "row": 16,
+          "claim_reference": "ZUR-00016",
+          "difference": -24868.61
+        },
+        {
+          "sheet": "Zurich Re",
+          "row": 20,
+          "claim_reference": "ZUR-00020",
+          "difference": 38099.42
+        },
+        {
+          "sheet": "Beazley",
+          "row": 27,
+          "claim_reference": "BEZ-00027",
+          "difference": -40077.73
+        },
+        {
+          "sheet": "Beazley",
+          "row": 1,
+          "claim_reference": "BEZ-00001",
+          "difference": 45956.14
+        },
+        {
+          "sheet": "Beazley",
+          "row": 20,
+          "claim_reference": "BEZ-00020",
+          "difference": 34088.42
+        },
+        {
+          "sheet": "Hiscox",
+          "row": 9,
+          "claim_reference": "HSC-00009",
+          "difference": -15724.98
+        },
+        {
+          "sheet": "Hiscox",
+          "row": 11,
+          "claim_reference": "HSC-00011",
+          "difference": -49163.16
+        },
+        {
+          "sheet": "Hiscox",
+          "row": 27,
+          "claim_reference": "HSC-00027",
+          "difference": -19578.07
+        },
+        {
+          "sheet": "Hiscox",
+          "row": 18,
+          "claim_reference": "HSC-00018",
+          "difference": 10424.47
+        },
+        {
+          "sheet": "Chubb",
+          "row": 4,
+          "claim_reference": "CHB-00004",
+          "difference": -44713.86
+        },
+        {
+          "sheet": "Chubb",
+          "row": 3,
+          "claim_reference": "CHB-00003",
+          "difference": -5680.62
+        },
+        {
+          "sheet": "Chubb",
+          "row": 13,
+          "claim_reference": "CHB-00013",
+          "difference": -17583.7
+        },
+        {
+          "sheet": "AIG",
+          "row": 15,
+          "claim_reference": "AIG-00015",
+          "difference": -13691.27
+        },
+        {
+          "sheet": "AIG",
+          "row": 4,
+          "claim_reference": "AIG-00004",
+          "difference": -25140.84
+        },
+        {
+          "sheet": "AIG",
+          "row": 34,
+          "claim_reference": "AIG-00034",
+          "difference": -37799.83
+        },
+        {
+          "sheet": "AIG",
+          "row": 36,
+          "claim_reference": "AIG-00036",
+          "difference": 14403.34
+        },
+        {
+          "sheet": "AIG",
+          "row": 23,
+          "claim_reference": "AIG-00023",
+          "difference": 41340.05
+        },
+        {
+          "sheet": "RSA Group",
+          "row": 11,
+          "claim_reference": "RSA-00011",
+          "difference": 19573.34
+        },
+        {
+          "sheet": "RSA Group",
+          "row": 25,
+          "claim_reference": "RSA-00025",
+          "difference": -49976.89
+        },
+        {
+          "sheet": "RSA Group",
+          "row": 9,
+          "claim_reference": "RSA-00009",
+          "difference": -7363.67
+        },
+        {
+          "sheet": "Allianz",
+          "row": 6,
+          "claim_reference": "ALZ-00006",
+          "difference": -7177.72
+        },
+        {
+          "sheet": "Allianz",
+          "row": 18,
+          "claim_reference": "ALZ-00018",
+          "difference": 37047.0
+        },
+        {
+          "sheet": "Tokio Marine HCC",
+          "row": 8,
+          "claim_reference": "TMH-00008",
+          "difference": -22825.15
+        },
+        {
+          "sheet": "Tokio Marine HCC",
+          "row": 39,
+          "claim_reference": "TMH-00039",
+          "difference": -49103.89
+        },
+        {
+          "sheet": "Tokio Marine HCC",
+          "row": 32,
+          "claim_reference": "TMH-00032",
+          "difference": 16192.76
+        },
+        {
+          "sheet": "Tokio Marine HCC",
+          "row": 17,
+          "claim_reference": "TMH-00017",
+          "difference": 47147.82
+        },
+        {
+          "sheet": "Tokio Marine HCC",
+          "row": 37,
+          "claim_reference": "TMH-00037",
+          "difference": 41985.61
+        },
+        {
+          "sheet": "Tokio Marine HCC",
+          "row": 23,
+          "claim_reference": "TMH-00023",
+          "difference": -7820.4
+        },
+        {
+          "sheet": "AXA XL",
+          "row": 22,
+          "claim_reference": "AXL-00022",
+          "difference": 19486.12
+        },
+        {
+          "sheet": "AXA XL",
+          "row": 25,
+          "claim_reference": "AXL-00025",
+          "difference": -48503.33
+        },
+        {
+          "sheet": "AXA XL",
+          "row": 27,
+          "claim_reference": "AXL-00027",
+          "difference": 18056.08
+        },
+        {
+          "sheet": "Markel",
+          "row": 26,
+          "claim_reference": "MRK-00026",
+          "difference": 37910.97
+        },
+        {
+          "sheet": "Markel",
+          "row": 21,
+          "claim_reference": "MRK-00021",
+          "difference": 44614.85
+        },
+        {
+          "sheet": "Markel",
+          "row": 13,
+          "claim_reference": "MRK-00013",
+          "difference": 14187.23
+        }
+      ]
+    },
+    "duplicates": {
+      "count": 16,
+      "pairs": [
+        {
+          "a": {
+            "sheet": "Zurich Re",
+            "row": 6,
+            "claim_reference": "ZUR-00006",
+            "insured_name": "Magee, Sheehy and Corish",
+            "loss_date": "2025-03-26"
+          },
+          "b": {
+            "sheet": "Zurich Re",
+            "row": 24,
+            "claim_reference": "ZUR-00024",
+            "insured_name": "MAGEE, SHEEHY AND CORISH",
+            "loss_date": "2025-03-26"
+          }
+        },
+        {
+          "a": {
+            "sheet": "Allianz",
+            "row": 3,
+            "claim_reference": "ALZ-00003",
+            "insured_name": "Fanning, MacVeigh and Diffley",
+            "loss_date": "2025-03-17"
+          },
+          "b": {
+            "sheet": "Allianz",
+            "row": 12,
+            "claim_reference": "ALZ-00012",
+            "insured_name": "Fanning, MacVeigh and Diffley ",
+            "loss_date": "2025-03-17"
+          }
+        },
+        {
+          "a": {
+            "sheet": "Allianz",
+            "row": 5,
+            "claim_reference": "ALZ-00005",
+            "insured_name": "Donagher-Gloster",
+            "loss_date": "2025-03-04"
+          },
+          "b": {
+            "sheet": "AIG",
+            "row": 31,
+            "claim_reference": "AIG-00031",
+            "insured_name": "donagher-gloster",
+            "loss_date": "2025-03-05"
+          }
+        },
+        {
+          "a": {
+            "sheet": "Beazley",
+            "row": 9,
+            "claim_reference": "BEZ-00009",
+            "insured_name": "Toolis Ltd",
+            "loss_date": "2025-01-03"
+          },
+          "b": {
+            "sheet": "Beazley",
+            "row": 25,
+            "claim_reference": "BEZ-00025",
+            "insured_name": "toolis ltd",
+            "loss_date": "2025-01-02"
+          }
+        },
+        {
+          "a": {
+            "sheet": "Zurich Re",
+            "row": 2,
+            "claim_reference": "ZUR-00002",
+            "insured_name": "Meenan Ltd",
+            "loss_date": "2025-02-03"
+          },
+          "b": {
+            "sheet": "Allianz",
+            "row": 8,
+            "claim_reference": "ALZ-00008",
+            "insured_name": "Meenan Ltd  ",
+            "loss_date": "2025-02-02"
+          }
+        },
+        {
+          "a": {
+            "sheet": "Zurich Re",
+            "row": 18,
+            "claim_reference": "ZUR-00018",
+            "insured_name": "Herbert, Hodnett and O'Hea",
+            "loss_date": "2024-11-14"
+          },
+          "b": {
+            "sheet": "Tokio Marine HCC",
+            "row": 5,
+            "claim_reference": "TMH-00005",
+            "insured_name": "Herbert, Hodnett and O'Hea ",
+            "loss_date": "2024-11-14"
+          }
+        },
+        {
+          "a": {
+            "sheet": "Tokio Marine HCC",
+            "row": 36,
+            "claim_reference": "TMH-00036",
+            "insured_name": "Story and Sons",
+            "loss_date": "2025-04-11"
+          },
+          "b": {
+            "sheet": "Tokio Marine HCC",
+            "row": 11,
+            "claim_reference": "TMH-00011",
+            "insured_name": "Story & Sons",
+            "loss_date": "2025-04-10"
+          }
+        },
+        {
+          "a": {
+            "sheet": "Chubb",
+            "row": 12,
+            "claim_reference": "CHB-00012",
+            "insured_name": "McInerney Ltd",
+            "loss_date": "2025-03-12"
+          },
+          "b": {
+            "sheet": "Chubb",
+            "row": 16,
+            "claim_reference": "CHB-00016",
+            "insured_name": "McInerney Limited",
+            "loss_date": "2025-03-11"
+          }
+        },
+        {
+          "a": {
+            "sheet": "RSA Group",
+            "row": 23,
+            "claim_reference": "RSA-00023",
+            "insured_name": "O'Moore Group",
+            "loss_date": "2024-11-28"
+          },
+          "b": {
+            "sheet": "RSA Group",
+            "row": 17,
+            "claim_reference": "RSA-00017",
+            "insured_name": "O'Moore Group  ",
+            "loss_date": "2024-11-28"
+          }
+        },
+        {
+          "a": {
+            "sheet": "AXA XL",
+            "row": 19,
+            "claim_reference": "AXL-00019",
+            "insured_name": "Combre LLC",
+            "loss_date": "2025-06-17"
+          },
+          "b": {
+            "sheet": "AXA XL",
+            "row": 17,
+            "claim_reference": "AXL-00017",
+            "insured_name": "Combre LLC  ",
+            "loss_date": "2025-06-16"
+          }
+        },
+        {
+          "a": {
+            "sheet": "Hiscox",
+            "row": 7,
+            "claim_reference": "HSC-00007",
+            "insured_name": "Geany-Roland",
+            "loss_date": "2025-06-12"
+          },
+          "b": {
+            "sheet": "Markel",
+            "row": 15,
+            "claim_reference": "MRK-00015",
+            "insured_name": "Geany-Roland  ",
+            "loss_date": "2025-06-13"
+          }
+        },
+        {
+          "a": {
+            "sheet": "AIG",
+            "row": 16,
+            "claim_reference": "AIG-00016",
+            "insured_name": "MacEver, Kangley and Madigan",
+            "loss_date": "2025-05-08"
+          },
+          "b": {
+            "sheet": "Tokio Marine HCC",
+            "row": 9,
+            "claim_reference": "TMH-00009",
+            "insured_name": "MacEver, Kangley and Madigan ",
+            "loss_date": "2025-05-08"
+          }
+        },
+        {
+          "a": {
+            "sheet": "AIG",
+            "row": 32,
+            "claim_reference": "AIG-00032",
+            "insured_name": "Rudkins Ltd",
+            "loss_date": "2025-03-03"
+          },
+          "b": {
+            "sheet": "AIG",
+            "row": 40,
+            "claim_reference": "AIG-00040",
+            "insured_name": "rudkins ltd",
+            "loss_date": "2025-03-03"
+          }
+        },
+        {
+          "a": {
+            "sheet": "Tokio Marine HCC",
+            "row": 44,
+            "claim_reference": "TMH-00044",
+            "insured_name": "McFall, Reynoldson and Hennessey",
+            "loss_date": "2025-06-11"
+          },
+          "b": {
+            "sheet": "Hiscox",
+            "row": 19,
+            "claim_reference": "HSC-00019",
+            "insured_name": "mcfall, reynoldson and hennessey",
+            "loss_date": "2025-06-11"
+          }
+        },
+        {
+          "a": {
+            "sheet": "Tokio Marine HCC",
+            "row": 27,
+            "claim_reference": "TMH-00027",
+            "insured_name": "McNaughton and Sons",
+            "loss_date": "2024-10-27"
+          },
+          "b": {
+            "sheet": "Tokio Marine HCC",
+            "row": 43,
+            "claim_reference": "TMH-00043",
+            "insured_name": "McNaughton and Sons  ",
+            "loss_date": "2024-10-27"
+          }
+        },
+        {
+          "a": {
+            "sheet": "AXA XL",
+            "row": 13,
+            "claim_reference": "AXL-00013",
+            "insured_name": "Corless, Curtin and Bree",
+            "loss_date": "2025-02-26"
+          },
+          "b": {
+            "sheet": "AXA XL",
+            "row": 3,
+            "claim_reference": "AXL-00003",
+            "insured_name": "Corless, Curtin and Bree ",
+            "loss_date": "2025-02-27"
+          }
+        }
+      ]
+    }
+  },
+  "validation_notes": "Every row listed under missing_mandatory_fields, arithmetic_errors and duplicates is a deliberate, exact injection -- a correct pipeline run flags precisely these rows and no others for the corresponding reason (zero false positives, zero false negatives)."
+}

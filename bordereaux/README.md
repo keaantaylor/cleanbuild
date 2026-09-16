@@ -1,9 +1,12 @@
 # Claims Bordereaux Aggregation & Segregation Tool (MVP)
 
-Upload a claims bordereau in any format → get back a standardised,
+Upload a claims bordereau in any format — a single sheet or a whole
+multi-sheet workbook, one tab per sender — and get back a standardised,
 validated, exception-flagged version, plus a plain-English data-quality
 report. Built against the six-phase brief; see inline docstrings in
-`src/bordereaux/` for how each phase maps to its acceptance test.
+`src/bordereaux/` for how each phase maps to its acceptance test, and the
+"Ingestion & Mapping Fix Spec" work (below) for the multi-sheet/mapping
+hardening that followed real-world testing.
 
 ## Setup
 
@@ -29,21 +32,44 @@ degrades gracefully rather than failing.
 
 ```
 data/synthetic/          Phase 1: messy synthetic bordereaux + answer key
+                          Fix-spec fixture: test_boundary_cases.xlsx (10-sheet,
+                          320-row) + test_boundary_cases_answer_key.json
 src/bordereaux/
-  schema.py               Section 3: the 10-field skeleton, as field specs
+  schema.py               Section 3: the 10-field skeleton, as field specs --
+                           also the single source of truth for field
+                           requiredness (required / optional / conditional
+                           pair / reconciled -- fix spec 3.6)
   iso4217.py               ISO 4217 currency codes
-  ingest.py                Load a raw file, apply a confirmed mapping
+  ingest.py                Load a raw file OR every sheet of a workbook, with
+                            per-sheet header-row detection (fix spec 3.1/3.2);
+                            apply a confirmed mapping
   pandera_schema.py        Column-level type schema
-  validation.py             Section 8 row-level rules -> exception report
+  validation.py             Section 8 row-level rules -> exception report,
+                             tri-state-mapping-aware (fix spec 3.3), three-
+                             outcome arithmetic reconciliation (fix spec 3.7)
   export.py                  Segregated export (one sheet per claim status)
-  mapping.py                 Phase 3: fuzzy + AI-assisted column mapping
-  dedupe.py                   Phase 4: exact + probable duplicate detection
-  report.py                    Phase 5: completeness/health report (xlsx + pdf)
-  pipeline.py                   Orchestrates the above for the CLI and the app
+  mapping.py                  Phase 3 (+ fix spec 3.3-3.5): fuzzy/alias +
+                               AI-assisted column mapping, tri-state
+                               (alias/ai/unmapped), AI-availability checked
+                               once up front rather than caught per column
+  dedupe.py                    Phase 4 (+ fix spec 3.8): exact + probable
+                                duplicate detection, name-normalized
+                                (case/punctuation/legal-suffix), cross-sheet
+  report.py                     Phase 5 (+ fix spec 3.3/3.6/3.7/3.9):
+                                 completeness/health report (xlsx + pdf),
+                                 coverage banner, reliability caveat
+  pipeline.py                    Orchestrates the above for the CLI and the
+                                  app; both a single-sheet path and a
+                                  multi-sheet workbook path
 scripts/process_file.py    Phase 2 CLI: hard-coded mapping, one file at a time
-app.py                      Phase 6: Streamlit demo (upload -> mapping review
-                             -> validation/duplicates -> download)
+app.py                      Phase 6 (+ fix spec): Streamlit demo (upload,
+                             single sheet or multi-sheet workbook -> mapping
+                             review per sheet -> validation/duplicates,
+                             with a coverage banner -> download)
 tests/test_phase{2,3,4,5,6}.py   Each phase's acceptance test
+tests/test_boundary_fixture.py   Fix spec 3.10: regression suite against
+                                  test_boundary_cases.xlsx, one assertion per
+                                  D1-D8 defect in the fix spec
 ```
 
 ## Running things
@@ -62,7 +88,7 @@ Run one file through the Phase 2 hard-coded-mapping pipeline:
 python3 scripts/process_file.py a   # a | b | c | d
 ```
 
-Run the acceptance tests for each phase:
+Run the acceptance tests for each phase, plus the fix-spec regression suite:
 
 ```bash
 python3 tests/test_phase2.py
@@ -70,6 +96,14 @@ python3 tests/test_phase3.py
 python3 tests/test_phase4.py
 python3 tests/test_phase5.py
 python3 tests/test_phase6.py
+python3 tests/test_boundary_fixture.py
+```
+
+To regenerate the fix-spec fixture (already committed under `data/synthetic/`):
+
+```bash
+pip install -e ".[dev]"
+python3 data/synthetic/generate_boundary_fixture.py
 ```
 
 Launch the demo app:
@@ -90,5 +124,17 @@ output before uploading anything of their own, per Phase 6's brief.
   is a standalone upload → process → export tool.
 - The tool prepares data for human review; it does not accept, deny or
   price claims, and nothing here auto-merges a flagged duplicate.
-- Every mapping decision (fuzzy-matched, AI-suggested, human-confirmed)
-  is shown in the app's "Mapping audit trail" panel per run.
+- Every mapping decision (fuzzy-matched, AI-suggested, manually-picked) is
+  shown in the app's "Mapping audit trail" panel per run, per sheet.
+- Field requiredness (fix spec 3.6): only claim reference and insured name
+  are unconditionally required. Status/dates/currency/policy reference are
+  validated when present but don't trigger a missing-mandatory-field flag
+  when absent. Paid/reserve are a conditional pair (flagged only if both
+  are null). Total incurred is checked via arithmetic reconciliation
+  (paid + reserve == incurred), not as an independent non-null field.
+- A workbook can have any number of sheets; each is mapped independently.
+  A sheet with no header row the pipeline can recognise (e.g. a notes/
+  cover tab) is skipped and reported as skipped, never silently dropped
+  or silently counted as claims. A canonical field left unmapped
+  everywhere in the file shows as "column not found" in the health
+  report, never as a misleading 0% completeness.

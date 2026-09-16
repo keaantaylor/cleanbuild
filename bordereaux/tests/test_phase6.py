@@ -25,8 +25,8 @@ def run_try_it_now() -> None:
     assert not at.exception, f"app raised after clicking 'Try it now': {at.exception}"
     assert "Loaded" in " ".join(m.value for m in at.success), "expected a 'Loaded ...' success message"
 
-    confirm_buttons = [b for b in at.button if "Confirm mapping" in b.label]
-    assert confirm_buttons, "expected a 'Confirm mapping and process file' button"
+    confirm_buttons = [b for b in at.button if "Confirm all mappings" in b.label]
+    assert confirm_buttons, "expected a 'Confirm all mappings and process file' button"
     confirm_buttons[0].click()
     at.run()
     assert not at.exception, f"app raised after confirming mapping: {at.exception}"

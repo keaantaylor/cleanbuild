@@ -90,7 +90,7 @@ def process(sender: str) -> tuple:
     raw = ingest.load_raw(path)
     canonical = ingest.apply_mapping(raw, mapping)
     CANONICAL_SCHEMA.validate(canonical)
-    exceptions = validation.validate(canonical)
+    exceptions = validation.validate(canonical).exceptions
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_path = OUT_DIR / f"{path.stem}_segregated.xlsx"

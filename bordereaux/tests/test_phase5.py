@@ -25,8 +25,8 @@ def check_sender(sender: str) -> None:
     assert h.grade_label
     assert h.total_claims == len(result.canonical)
     assert len(h.field_completeness) == 10
-    assert all(0.0 <= fs.pct <= 100.0 for fs in h.field_completeness)
-    assert h.arithmetic_exceptions == int((result.exceptions["rule"] == "arithmetic_mismatch").sum())
+    assert all(fs.never_mapped or 0.0 <= fs.pct <= 100.0 for fs in h.field_completeness)
+    assert h.arithmetic_mismatches == int((result.exceptions["rule"] == "arithmetic_mismatch").sum())
     assert h.exact_duplicates == int((result.duplicates["match_type"] == "exact_duplicate").sum())
 
     out_dir = REPO_ROOT / "data" / "output"

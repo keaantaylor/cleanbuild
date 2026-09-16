@@ -1,0 +1,260 @@
+{
+  "sender_a_sedgwick.csv": [
+    {
+      "claim_ref": "SDG-00001",
+      "type": "arithmetic_mismatch"
+    },
+    {
+      "claim_ref": "SDG-00043",
+      "type": "arithmetic_mismatch"
+    },
+    {
+      "claim_ref": "SDG-00043",
+      "type": "missing_mandatory_field",
+      "field": "policy_ref"
+    },
+    {
+      "claim_ref": "SDG-00007",
+      "type": "missing_mandatory_field",
+      "field": "status"
+    },
+    {
+      "claim_ref": "SDG-00008",
+      "type": "exact_duplicate"
+    },
+    {
+      "claim_ref": [
+        "SDG-00007",
+        "SDG-00007-R"
+      ],
+      "type": "near_duplicate"
+    },
+    {
+      "claim_ref": "SDG-00048",
+      "type": "exact_duplicate"
+    }
+  ],
+  "sender_b_crawford.xlsx": [
+    {
+      "claim_ref": "CRW-00121",
+      "type": "arithmetic_mismatch"
+    },
+    {
+      "claim_ref": "CRW-00179",
+      "type": "arithmetic_mismatch"
+    },
+    {
+      "claim_ref": "CRW-00036",
+      "type": "arithmetic_mismatch"
+    },
+    {
+      "claim_ref": "CRW-00158",
+      "type": "missing_mandatory_field",
+      "field": "status"
+    },
+    {
+      "claim_ref": "CRW-00002",
+      "type": "missing_mandatory_field",
+      "field": "policy_ref"
+    },
+    {
+      "claim_ref": "CRW-00021",
+      "type": "missing_mandatory_field",
+      "field": "policy_ref"
+    },
+    {
+      "claim_ref": "CRW-00005",
+      "type": "missing_mandatory_field",
+      "field": "notified_date"
+    },
+    {
+      "claim_ref": "CRW-00029",
+      "type": "exact_duplicate"
+    },
+    {
+      "claim_ref": [
+        "CRW-00199",
+        "CRW-00199-R"
+      ],
+      "type": "near_duplicate"
+    },
+    {
+      "claim_ref": "CRW-00074",
+      "type": "exact_duplicate"
+    },
+    {
+      "claim_ref": [
+        "CRW-00061",
+        "CRW-00061-R"
+      ],
+      "type": "near_duplicate"
+    }
+  ],
+  "sender_c_blackrock.xlsx": [
+    {
+      "claim_ref": "BLK-00291",
+      "type": "arithmetic_mismatch"
+    },
+    {
+      "claim_ref": "BLK-00219",
+      "type": "arithmetic_mismatch"
+    },
+    {
+      "claim_ref": "BLK-00096",
+      "type": "arithmetic_mismatch"
+    },
+    {
+      "claim_ref": "BLK-00524",
+      "type": "arithmetic_mismatch"
+    },
+    {
+      "claim_ref": "BLK-00566",
+      "type": "arithmetic_mismatch"
+    },
+    {
+      "claim_ref": "BLK-00320",
+      "type": "arithmetic_mismatch"
+    },
+    {
+      "claim_ref": "BLK-00534",
+      "type": "arithmetic_mismatch"
+    },
+    {
+      "claim_ref": "BLK-00349",
+      "type": "arithmetic_mismatch"
+    },
+    {
+      "claim_ref": "BLK-00853",
+      "type": "missing_mandatory_field",
+      "field": "status"
+    },
+    {
+      "claim_ref": "BLK-00793",
+      "type": "missing_mandatory_field",
+      "field": "insured"
+    },
+    {
+      "claim_ref": "BLK-00312",
+      "type": "missing_mandatory_field",
+      "field": "insured"
+    },
+    {
+      "claim_ref": "BLK-00744",
+      "type": "missing_mandatory_field",
+      "field": "insured"
+    },
+    {
+      "claim_ref": "BLK-00433",
+      "type": "missing_mandatory_field",
+      "field": "notified_date"
+    },
+    {
+      "claim_ref": "BLK-00518",
+      "type": "missing_mandatory_field",
+      "field": "status"
+    },
+    {
+      "claim_ref": "BLK-00114",
+      "type": "missing_mandatory_field",
+      "field": "insured"
+    },
+    {
+      "claim_ref": "BLK-00750",
+      "type": "missing_mandatory_field",
+      "field": "notified_date"
+    },
+    {
+      "claim_ref": "BLK-00062",
+      "type": "missing_mandatory_field",
+      "field": "status"
+    },
+    {
+      "claim_ref": "BLK-00862",
+      "type": "missing_mandatory_field",
+      "field": "policy_ref"
+    },
+    {
+      "claim_ref": "BLK-00382",
+      "type": "missing_mandatory_field",
+      "field": "policy_ref"
+    },
+    {
+      "claim_ref": "BLK-00266",
+      "type": "missing_mandatory_field",
+      "field": "status"
+    },
+    {
+      "claim_ref": "BLK-00307",
+      "type": "exact_duplicate"
+    },
+    {
+      "claim_ref": [
+        "BLK-00292",
+        "BLK-00292-R"
+      ],
+      "type": "near_duplicate"
+    },
+    {
+      "claim_ref": "BLK-00683",
+      "type": "exact_duplicate"
+    },
+    {
+      "claim_ref": [
+        "BLK-00804",
+        "BLK-00804-R"
+      ],
+      "type": "near_duplicate"
+    },
+    {
+      "claim_ref": "BLK-00835",
+      "type": "exact_duplicate"
+    },
+    {
+      "claim_ref": [
+        "BLK-00733",
+        "BLK-00733-R"
+      ],
+      "type": "near_duplicate"
+    }
+  ],
+  "sender_d_mx_underwriting.xlsx": [
+    {
+      "claim_ref": "MXU-00008",
+      "type": "arithmetic_mismatch"
+    },
+    {
+      "claim_ref": "MXU-00076",
+      "type": "arithmetic_mismatch"
+    },
+    {
+      "claim_ref": "MXU-00050",
+      "type": "missing_mandatory_field",
+      "field": "status"
+    },
+    {
+      "claim_ref": "MXU-00055",
+      "type": "missing_mandatory_field",
+      "field": "policy_ref"
+    },
+    {
+      "claim_ref": "MXU-00041",
+      "type": "missing_mandatory_field",
+      "field": "policy_ref"
+    },
+    {
+      "claim_ref": "MXU-00014",
+      "type": "exact_duplicate"
+    },
+    {
+      "claim_ref": [
+        "MXU-00051",
+        "MXU-00051-R"
+      ],
+      "type": "near_duplicate"
+    },
+    {
+      "claim_ref": "MXU-00002",
+      "type": "exact_duplicate"
+    }
+  ]
+}

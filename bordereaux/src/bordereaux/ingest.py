@@ -1,8 +1,21 @@
 """Load a raw bordereau file and apply a confirmed column mapping to
-produce a canonical DataFrame keyed by the Section 3 field codes."""
+produce a canonical DataFrame keyed by the Section 3 field codes.
+
+Fix spec 3.1/3.2: a workbook can carry multiple sheets (one per sender/
+cedant), and a sheet's real header row isn't always row 1 -- some carry a
+merged title banner above it. load_workbook_sheets() handles both: it
+iterates every sheet (not just the active/first one) and, per sheet,
+scores the first few rows by how many cells look like a known field
+header, picking whichever row scores best rather than assuming row 1.
+That scoring approach also solves the banner-row case for free: a merged
+banner cell reads back as one non-null value with everything else in that
+row None (openpyxl returns None for the cells a merge covers), so a real
+banner row's score is always far below the actual header row's.
+"""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -12,16 +25,119 @@ from .schema import FIELDS, FIELDS_BY_CODE
 
 # Tried in order; whichever format parses the most values for a given
 # column wins. A final flexible-parser pass catches anything left over.
-_DATE_FORMATS = ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%b-%Y", "%Y/%m/%d", "%d.%m.%Y"]
+_DATE_FORMATS = ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%b-%Y", "%Y/%m/%d", "%d.%m.%Y",
+                  "%Y-%m-%d %H:%M:%S"]
+
+HEADER_SCAN_ROWS = 5  # how many leading rows to consider as candidate headers
+MIN_HEADER_MATCHES = 3  # a candidate row needs at least this many alias-matchable cells
+
+
+@dataclass
+class SheetData:
+    sheet_name: str
+    header_row_index: int  # 0-based row index (within the sheet) the header was found at
+    raw: pd.DataFrame  # data rows only, columns = the detected header row's text
+    skipped: bool = False
+    skip_reason: str | None = None
+    raw_row_count: int = 0  # every row openpyxl saw in this sheet, header/banner included
 
 
 def load_raw(path: str | Path) -> pd.DataFrame:
-    """Read a bordereau file as-is, all columns as strings (so numeric
-    formatting, leading zeros etc. aren't mangled before mapping)."""
+    """Read a single-sheet/CSV bordereau as-is, all columns as strings.
+    Kept for simple single-sheet callers; load_workbook_sheets() is the
+    multi-sheet-aware, header-row-detecting entry point."""
     path = str(path)
     if path.lower().endswith(".csv"):
         return pd.read_csv(path, dtype="string")
     return pd.read_excel(path, dtype="string", engine="openpyxl")
+
+
+def load_workbook_sheets(path: str | Path) -> list[SheetData]:
+    """Every sheet in the workbook (fix spec 3.1), each with its own
+    detected header row (fix spec 3.2). A CSV has exactly one implicit
+    "sheet" named after the file."""
+    path = str(path)
+    if path.lower().endswith(".csv"):
+        raw = pd.read_csv(path, dtype="string")
+        return [SheetData(sheet_name=Path(path).stem, header_row_index=0, raw=raw)]
+
+    import openpyxl
+
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    sheets: list[SheetData] = []
+    try:
+        for name in wb.sheetnames:
+            ws = wb[name]
+            rows = list(ws.iter_rows(values_only=True))
+            sheets.append(_build_sheet_data(name, rows))
+    finally:
+        wb.close()
+    return sheets
+
+
+def _build_sheet_data(name: str, rows: list[tuple]) -> SheetData:
+    total = len(rows)
+    if not rows:
+        return SheetData(name, 0, pd.DataFrame(), skipped=True, skip_reason="sheet is empty",
+                          raw_row_count=total)
+
+    header_idx, score = _detect_header_row(rows)
+    if header_idx is None:
+        return SheetData(name, 0, pd.DataFrame(), skipped=True,
+                          skip_reason="no row in the first "
+                                      f"{HEADER_SCAN_ROWS} matched enough known fields to be a header row",
+                          raw_row_count=total)
+
+    columns = _dedupe_columns([_clean_header_cell(c, i) for i, c in enumerate(rows[header_idx])])
+    data_rows = rows[header_idx + 1:]
+    if not data_rows:
+        return SheetData(name, header_idx, pd.DataFrame(columns=columns), skipped=True,
+                          skip_reason="header row found but no data rows follow it",
+                          raw_row_count=total)
+
+    df = pd.DataFrame(data_rows, columns=columns)
+    df = df.astype("string")
+    return SheetData(name, header_idx, df, raw_row_count=total)
+
+
+def _clean_header_cell(value: object, position: int) -> str:
+    if value is None:
+        return f"__blank_col_{position}__"
+    return str(value).strip()
+
+
+def _dedupe_columns(columns: list[str]) -> list[str]:
+    seen: dict[str, int] = {}
+    out = []
+    for col in columns:
+        if col not in seen:
+            seen[col] = 0
+            out.append(col)
+        else:
+            seen[col] += 1
+            out.append(f"{col}__{seen[col]}")
+    return out
+
+
+def _detect_header_row(rows: list[tuple]) -> tuple[int | None, int]:
+    """Score each of the first HEADER_SCAN_ROWS rows by how many of its
+    cells fuzzy-match a known field alias; return the best-scoring row
+    index (and its score), or (None, 0) if nothing clears the bar."""
+    from .mapping import fuzzy_match_headers
+
+    best_idx, best_score = None, -1
+    for i, row in enumerate(rows[:HEADER_SCAN_ROWS]):
+        cells = [str(c).strip() for c in row if c is not None and str(c).strip()]
+        if not cells:
+            continue
+        matches = fuzzy_match_headers(cells)
+        score = sum(1 for s in matches.values() if s.method != "unmapped")
+        if score > best_score:
+            best_idx, best_score = i, score
+
+    if best_idx is None or best_score < MIN_HEADER_MATCHES:
+        return None, best_score
+    return best_idx, best_score
 
 
 def _best_date_parse(series: pd.Series) -> pd.Series:
@@ -48,11 +164,14 @@ def _best_date_parse(series: pd.Series) -> pd.Series:
     return best_parsed
 
 
-def apply_mapping(raw: pd.DataFrame, mapping: dict[str, str]) -> pd.DataFrame:
+def apply_mapping(raw: pd.DataFrame, mapping: dict[str, str], sheet_name: str = "") -> pd.DataFrame:
     """mapping: {source_column_name: field_code}. Source columns absent
     from the mapping are dropped; canonical fields absent from the mapping
     come back as all-null columns so downstream code can always rely on
-    every field code being present."""
+    every field code being present as a column -- but see schema.SOURCE_
+    SHEET_CODE: validation/report consumers must check the mapping state
+    (via a MappingBatchResult) before treating a null cell as "genuinely
+    blank" rather than "column was never mapped"."""
     out = pd.DataFrame(index=raw.index)
 
     for source_col, code in mapping.items():
@@ -77,7 +196,10 @@ def apply_mapping(raw: pd.DataFrame, mapping: dict[str, str]) -> pd.DataFrame:
         if f.code not in out.columns:
             out[f.code] = _empty_column(f.dtype, len(out), out.index)
 
-    return out[[f.code for f in FIELDS]]
+    from .schema import SOURCE_SHEET_CODE
+    out[SOURCE_SHEET_CODE] = pd.array([sheet_name] * len(out), dtype="string")
+
+    return out[[f.code for f in FIELDS] + [SOURCE_SHEET_CODE]]
 
 
 def _empty_column(dtype: str, length: int, index) -> pd.Series:

@@ -1,4 +1,4 @@
-"""Phase 5: completeness / health report.
+"""Phase 5 (+ fix spec 3.3/3.6/3.7/3.9): completeness / health report.
 
 Produces the sales artifact from the brief: a one-page grade (1-5) a
 non-technical claims handler can read in under two minutes, backed by
@@ -10,43 +10,101 @@ scored against an agreed skeleton, the GreenKite-style approach the brief
 is built around). The composite score implemented here is:
 
     composite = average field completeness %
-                - 1.5 x (% of rows with at least one validation exception)
-                - 1.0 x (% of rows flagged as a duplicate)
+                - 1.0 x (% of rows with at least one validation exception)
+                - 0.5 x (% of rows flagged as a duplicate)
 
-clipped to [0, 100] and banded into a 1-5 grade. Exceptions are weighted
-more heavily than duplicate flags because they represent data that is
-actively wrong (arithmetic doesn't tie out, dates don't make sense),
-whereas a duplicate flag is a "check this" signal, not necessarily an
-error. This is a documented heuristic, not a standards body's formula --
-tune the weights once real client bordereaux give a feel for what "good"
+clipped to [0, 100] and banded into a 1-5 grade, but ONLY over fields that
+were actually mapped somewhere in the file -- a field nobody's sheet ever
+had a column for is reported as "not found", not averaged in as a 0%
+(fix spec D3/3.3). Coverage (how much of the source file was actually
+read and mapped) is tracked and surfaced separately: a file where sheets
+were skipped or a required field was never mapped gets a visible caveat
+rather than a clean-looking low score that reads as "bad data" when the
+real story is "the pipeline didn't see all of it" (fix spec D8/3.9).
+
+Weights: exceptions are penalized twice as heavily as duplicate flags,
+because they represent data that is actively wrong (arithmetic doesn't
+tie out, a mandatory field is blank) whereas a duplicate flag is a
+"check this" signal, not necessarily an error -- but not so heavily that
+a file built with realistic, bounded and roughly-independent error rates
+per category (a bordereau with a mandatory-field issue on ~20% of rows
+and an arithmetic issue on ~12% of a *different* set of rows is messy,
+not worthless) collapses toward a near-zero score. That collapse is
+itself a defect (fix spec D8): a near-zero score should read as "check
+the pipeline", not be indistinguishable from genuinely unusable data.
+This is a documented heuristic, not a standards body's formula -- tune
+the weights once real client bordereaux give a feel for what "good"
 looks like in practice.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import pandas as pd
 
 from . import schema
+from .validation import ValidationResult
 
 GRADE_LABELS = {5: "Excellent", 4: "Good", 3: "Fair", 2: "Poor", 1: "Very poor"}
-EXCEPTION_WEIGHT = 1.5
-DUPLICATE_WEIGHT = 1.0
+EXCEPTION_WEIGHT = 1.0
+DUPLICATE_WEIGHT = 0.5
+
+REQUIREMENT_LABELS = {
+    "required": "Required",
+    "optional": "Optional",
+    "conditional_pair": "Conditional pair",
+    "reconciled": "Reconciled (not standalone-required)",
+}
+
+
+@dataclass
+class WorkbookCoverage:
+    """What fraction of the source file the pipeline actually read and
+    mapped -- the fix spec 3.9 "assessed N of M rows across K of J
+    sheets" line, plus the per-sheet mapping state fix spec 3.3 needs to
+    tell "unmapped" apart from "mapped but blank"."""
+    sheets_total: int
+    sheets_processed: int
+    skipped_sheets: list[tuple[str, str]]  # (sheet_name, reason)
+    rows_total: int
+    rows_assessed: int
+    sheet_field_state: dict[str, dict[str, str]] = field(default_factory=dict)
+
+    @staticmethod
+    def single_sheet(row_count: int, sheet_name: str = "") -> "WorkbookCoverage":
+        """Coverage for the simple single-DataFrame call path (one file,
+        already-resolved mapping, nothing skipped)."""
+        return WorkbookCoverage(
+            sheets_total=1, sheets_processed=1, skipped_sheets=[],
+            rows_total=row_count, rows_assessed=row_count,
+            sheet_field_state={},
+        )
+
+    @property
+    def fully_covered(self) -> bool:
+        return self.sheets_processed == self.sheets_total and self.rows_assessed == self.rows_total
 
 
 @dataclass
 class FieldCompleteness:
     code: str
     name: str
-    required: bool
+    requirement: str  # schema.Requirement
     present: int
-    total: int
+    denominator: int  # rows where this field was actually mapped to a source column
+    total: int  # rows assessed file-wide, for reference
 
     @property
-    def pct(self) -> float:
-        return 100.0 * self.present / self.total if self.total else 0.0
+    def never_mapped(self) -> bool:
+        return self.denominator == 0
+
+    @property
+    def pct(self) -> float | None:
+        if self.denominator == 0:
+            return None
+        return 100.0 * self.present / self.denominator
 
 
 @dataclass
@@ -54,7 +112,8 @@ class HealthReport:
     source_name: str
     total_claims: int
     field_completeness: list[FieldCompleteness]
-    arithmetic_exceptions: int
+    arithmetic_mismatches: int
+    arithmetic_not_evaluable: int
     missing_mandatory_rows: int
     date_exceptions: int
     currency_exceptions: int
@@ -66,6 +125,12 @@ class HealthReport:
     composite_score: float
     grade: int
     grade_label: str
+    coverage: WorkbookCoverage
+    unmapped_required_fields: list[str]
+
+    @property
+    def score_reliable(self) -> bool:
+        return self.coverage.fully_covered and not self.unmapped_required_fields
 
 
 def _grade_from_composite(score: float) -> int:
@@ -80,17 +145,39 @@ def _grade_from_composite(score: float) -> int:
     return 1
 
 
-def build_health_report(canonical: pd.DataFrame, exceptions: pd.DataFrame,
-                         duplicates: pd.DataFrame, source_name: str = "") -> HealthReport:
+def _mapped_mask(df: pd.DataFrame, field_code: str, sheet_field_state: dict[str, dict[str, str]]) -> pd.Series:
+    if not sheet_field_state or schema.SOURCE_SHEET_CODE not in df.columns:
+        return pd.Series(True, index=df.index)
+
+    def is_mapped(sheet_name: object) -> bool:
+        return sheet_field_state.get(sheet_name, {}).get(field_code) != "unmapped"
+
+    return df[schema.SOURCE_SHEET_CODE].map(is_mapped).fillna(True).astype(bool)
+
+
+def build_health_report(canonical: pd.DataFrame, validation_result: ValidationResult,
+                         duplicates: pd.DataFrame, source_name: str = "",
+                         coverage: WorkbookCoverage | None = None) -> HealthReport:
     total = len(canonical)
+    coverage = coverage or WorkbookCoverage.single_sheet(total, source_name)
+    exceptions = validation_result.exceptions
 
-    field_stats = [
-        FieldCompleteness(f.code, f.name, f.required, int(canonical[f.code].notna().sum()), total)
-        for f in schema.FIELDS
+    field_stats = []
+    for f in schema.FIELDS:
+        mapped = _mapped_mask(canonical, f.code, coverage.sheet_field_state)
+        denominator = int(mapped.sum())
+        present = int((canonical[f.code].notna() & mapped).sum())
+        field_stats.append(FieldCompleteness(f.code, f.name, f.requirement, present, denominator, total))
+
+    scored_fields = [fs for fs in field_stats if not fs.never_mapped]
+    overall_completeness = (
+        sum(fs.pct for fs in scored_fields) / len(scored_fields) if scored_fields else 0.0
+    )
+
+    unmapped_required_fields = [
+        fs.name for fs in field_stats if fs.never_mapped and fs.requirement == "required"
     ]
-    overall_completeness = sum(fs.pct for fs in field_stats) / len(field_stats) if field_stats else 0.0
 
-    arithmetic = int((exceptions["rule"] == "arithmetic_mismatch").sum()) if not exceptions.empty else 0
     missing_mandatory_rows = (
         exceptions.loc[exceptions["rule"] == "missing_mandatory_field", "row_index"].nunique()
         if not exceptions.empty else 0
@@ -120,7 +207,8 @@ def build_health_report(canonical: pd.DataFrame, exceptions: pd.DataFrame,
         source_name=source_name,
         total_claims=total,
         field_completeness=field_stats,
-        arithmetic_exceptions=arithmetic,
+        arithmetic_mismatches=validation_result.arithmetic_mismatch_count,
+        arithmetic_not_evaluable=validation_result.arithmetic_not_evaluable_count,
         missing_mandatory_rows=int(missing_mandatory_rows),
         date_exceptions=date_exceptions,
         currency_exceptions=currency_exceptions,
@@ -132,7 +220,25 @@ def build_health_report(canonical: pd.DataFrame, exceptions: pd.DataFrame,
         composite_score=composite,
         grade=grade,
         grade_label=GRADE_LABELS[grade],
+        coverage=coverage,
+        unmapped_required_fields=unmapped_required_fields,
     )
+
+
+def _coverage_line(coverage: WorkbookCoverage) -> str:
+    return (f"Assessed {coverage.rows_assessed} of {coverage.rows_total} total rows "
+            f"across {coverage.sheets_processed} of {coverage.sheets_total} sheets/tabs in the source file.")
+
+
+def _reliability_caveat(health: HealthReport) -> str | None:
+    if health.score_reliable:
+        return None
+    reasons = []
+    if not health.coverage.fully_covered:
+        reasons.append("not every sheet/row was assessed")
+    if health.unmapped_required_fields:
+        reasons.append(f"required field(s) left unmapped: {', '.join(health.unmapped_required_fields)}")
+    return "Score not fully reliable — " + "; ".join(reasons) + ". See coverage note above."
 
 
 def write_health_report_excel(health: HealthReport, exceptions: pd.DataFrame,
@@ -145,14 +251,25 @@ def write_health_report_excel(health: HealthReport, exceptions: pd.DataFrame,
 
     summary_rows = [
         ["Source file", health.source_name],
-        ["Total claims", health.total_claims],
+        ["Coverage", _coverage_line(health.coverage)],
+    ]
+    if health.coverage.skipped_sheets:
+        for name, reason in health.coverage.skipped_sheets:
+            summary_rows.append([f"  Skipped sheet: {name}", reason])
+    caveat = _reliability_caveat(health)
+    if caveat:
+        summary_rows.append(["Reliability caveat", caveat])
+    summary_rows += [
+        ["", ""],
+        ["Total claims assessed", health.total_claims],
         ["Overall grade", f"{health.grade} / 5 — {health.grade_label}"],
         ["Composite score", f"{health.composite_score:.1f} / 100"],
         ["Average field completeness", f"{health.overall_completeness_pct:.1f}%"],
         ["Rows with at least one exception", f"{health.exception_rate_pct:.1f}%"],
         ["Rows flagged as possible duplicates", f"{health.duplicate_rate_pct:.1f}%"],
         ["", ""],
-        ["Arithmetic mismatches (paid + reserve != incurred)", health.arithmetic_exceptions],
+        ["Arithmetic mismatches (paid + reserve != incurred)", health.arithmetic_mismatches],
+        ["Arithmetic checks not evaluable (missing/unmapped inputs)", health.arithmetic_not_evaluable],
         ["Rows with a missing mandatory field", health.missing_mandatory_rows],
         ["Date-logic exceptions", health.date_exceptions],
         ["Currency exceptions", health.currency_exceptions],
@@ -165,10 +282,10 @@ def write_health_report_excel(health: HealthReport, exceptions: pd.DataFrame,
         {
             "Field code": fs.code,
             "Field name": fs.name,
-            "Required": "Yes" if fs.required else "Conditional",
+            "Requirement": REQUIREMENT_LABELS[fs.requirement],
             "Present": fs.present,
-            "Total rows": fs.total,
-            "Completeness %": round(fs.pct, 1),
+            "Mapped rows": fs.denominator,
+            "Completeness %": "— (column not found)" if fs.never_mapped else round(fs.pct, 1),
         }
         for fs in health.field_completeness
     ])
@@ -218,8 +335,22 @@ def write_health_report_pdf(health: HealthReport, out_path: str | Path) -> None:
     story = [
         Paragraph("Claims Bordereau Data Quality Report", styles["Title"]),
         Paragraph(health.source_name or "(unnamed file)", styles["Heading3"]),
-        Spacer(1, 10),
+        Spacer(1, 6),
     ]
+
+    coverage_style = styles["Normal"].clone("coverage")
+    if not health.coverage.fully_covered:
+        coverage_style.textColor = colors.HexColor("#c0392b")
+        coverage_style.fontName = "Helvetica-Bold"
+    story.append(Paragraph(_coverage_line(health.coverage), coverage_style))
+
+    caveat = _reliability_caveat(health)
+    if caveat:
+        caveat_style = styles["Normal"].clone("caveat")
+        caveat_style.textColor = colors.HexColor("#c0392b")
+        caveat_style.fontName = "Helvetica-Bold"
+        story.append(Paragraph(caveat, caveat_style))
+    story.append(Spacer(1, 10))
 
     grade_style = styles["Heading1"].clone("grade")
     grade_style.textColor = grade_colors.get(health.grade, colors.black)
@@ -236,7 +367,8 @@ def write_health_report_pdf(health: HealthReport, out_path: str | Path) -> None:
         ["Average field completeness", f"{health.overall_completeness_pct:.1f}%"],
         ["Rows with at least one exception", f"{health.exception_rate_pct:.1f}%"],
         ["Rows flagged as possible duplicates", f"{health.duplicate_rate_pct:.1f}%"],
-        ["Arithmetic mismatches", str(health.arithmetic_exceptions)],
+        ["Arithmetic mismatches", str(health.arithmetic_mismatches)],
+        ["Arithmetic checks not evaluable", str(health.arithmetic_not_evaluable)],
         ["Missing mandatory fields", str(health.missing_mandatory_rows)],
         ["Certain duplicates", str(health.exact_duplicates)],
         ["Probable duplicates (review)", str(health.probable_duplicates)],
@@ -254,10 +386,11 @@ def write_health_report_pdf(health: HealthReport, out_path: str | Path) -> None:
     story.append(Spacer(1, 16))
 
     story.append(Paragraph("Field-by-field completeness", styles["Heading2"]))
-    field_data = [["Field", "Required", "Completeness"]]
+    field_data = [["Field", "Requirement", "Completeness"]]
     for fs in health.field_completeness:
-        field_data.append([fs.name, "Yes" if fs.required else "Conditional", f"{fs.pct:.0f}%"])
-    field_table = Table(field_data, colWidths=[8 * cm, 3.5 * cm, 3.5 * cm])
+        completeness_str = "— (column not found)" if fs.never_mapped else f"{fs.pct:.0f}%"
+        field_data.append([fs.name, REQUIREMENT_LABELS[fs.requirement], completeness_str])
+    field_table = Table(field_data, colWidths=[7 * cm, 4.5 * cm, 3.5 * cm])
     field_table.setStyle(TableStyle([
         ("FONTSIZE", (0, 0), (-1, -1), 9.5),
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f1f3d")),
@@ -274,10 +407,11 @@ def write_health_report_pdf(health: HealthReport, out_path: str | Path) -> None:
     story.append(Paragraph(
         "What this means: this contract's bordereaux were checked against the ten-field "
         "core data set insurers and coverholders typically agree on first. Completeness "
-        "shows how often each field was actually populated; exceptions are rows where the "
-        "numbers or dates don't add up; duplicate flags are claims that may have been "
-        "reported more than once and should be reviewed before use. This report prepares "
-        "data for human review and does not make any claims decisions itself.",
+        "shows how often each field was actually populated, among the rows where it was "
+        "found at all; exceptions are rows where the numbers or dates don't add up; "
+        "duplicate flags are claims that may have been reported more than once and should "
+        "be reviewed before use. This report prepares data for human review and does not "
+        "make any claims decisions itself.",
         styles["Normal"],
     ))
 

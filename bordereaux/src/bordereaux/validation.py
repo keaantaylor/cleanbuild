@@ -1,8 +1,12 @@
-"""Section 8 validation rules against the canonical DataFrame."""
+"""Section 8 validation rules against the canonical DataFrame (fix spec
+3.6/3.7: field-requiredness now lives entirely in schema.py's per-field
+`requirement` tag, and arithmetic reconciliation has three outcomes, not
+two)."""
 
 from __future__ import annotations
 
 import datetime as dt
+from dataclasses import dataclass
 
 import pandas as pd
 
@@ -11,10 +15,26 @@ from .iso4217 import VALID_CURRENCY_CODES
 
 EXCEPTION_COLUMNS = ["row_index", "claim_ref", "rule", "detail"]
 
+# sheet_field_state: {sheet_name: {field_code: "alias" | "ai" | "unmapped"}}.
+# A field UNMAPPED on a given sheet must never be treated as "present on
+# that sheet's rows but blank" -- every check below excludes those rows
+# from that field's denominator rather than counting them as failures.
+SheetFieldState = dict[str, dict[str, str]]
 
-def validate(df: pd.DataFrame) -> pd.DataFrame:
+
+@dataclass
+class ValidationResult:
+    exceptions: pd.DataFrame
+    arithmetic_match_count: int
+    arithmetic_mismatch_count: int
+    arithmetic_not_evaluable_count: int
+
+
+def validate(df: pd.DataFrame, sheet_field_state: SheetFieldState | None = None) -> ValidationResult:
     """Returns one row per exception found in df (canonical DataFrame,
-    columns = Section 3 field codes)."""
+    columns = Section 3 field codes), plus the three-outcome arithmetic
+    reconciliation counts (fix spec 3.7)."""
+    sheet_field_state = sheet_field_state or {}
     exceptions: list[dict] = []
 
     def flag(idx, rule: str, detail: str) -> None:
@@ -26,40 +46,80 @@ def validate(df: pd.DataFrame) -> pd.DataFrame:
             "detail": detail,
         })
 
-    _check_mandatory_fields(df, flag)
-    _check_arithmetic(df, flag)
+    _check_mandatory_fields(df, flag, sheet_field_state)
+    arith_counts = _check_arithmetic(df, flag, sheet_field_state)
     _check_dates(df, flag)
     _check_currency(df, flag)
     _check_status_enum(df, flag)
 
-    return pd.DataFrame(exceptions, columns=EXCEPTION_COLUMNS)
+    return ValidationResult(
+        exceptions=pd.DataFrame(exceptions, columns=EXCEPTION_COLUMNS),
+        **arith_counts,
+    )
 
 
-def _check_mandatory_fields(df: pd.DataFrame, flag) -> None:
+def _field_unmapped_mask(df: pd.DataFrame, field_code: str, sheet_field_state: SheetFieldState) -> pd.Series:
+    """True for rows whose source sheet never had a column mapped to
+    field_code at all (as opposed to a column that mapped but is blank
+    on that particular row)."""
+    if not sheet_field_state or schema.SOURCE_SHEET_CODE not in df.columns:
+        return pd.Series(False, index=df.index)
+
+    def is_unmapped(sheet_name: object) -> bool:
+        return sheet_field_state.get(sheet_name, {}).get(field_code) == "unmapped"
+
+    return df[schema.SOURCE_SHEET_CODE].map(is_unmapped).fillna(False).astype(bool)
+
+
+def _check_mandatory_fields(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState) -> None:
     for code in schema.REQUIRED_CODES:
         spec = schema.FIELDS_BY_CODE[code]
-        for idx in df.index[df[code].isna()]:
+        missing = df[code].isna() & ~_field_unmapped_mask(df, code, sheet_field_state)
+        for idx in df.index[missing]:
             flag(idx, "missing_mandatory_field", f"{code} ({spec.name}) is missing")
 
-    both_missing = df[schema.PAID_CODE].isna() & df[schema.RESERVE_CODE].isna()
-    for idx in df.index[both_missing]:
-        flag(idx, "missing_mandatory_field",
-             "both indemnity paid and indemnity reserve are missing; at least one is required")
+    if len(schema.CONDITIONAL_PAIR_CODES) == 2:
+        code_a, code_b = schema.CONDITIONAL_PAIR_CODES
+        both_missing = df[code_a].isna() & df[code_b].isna()
+        both_unmapped = (
+            _field_unmapped_mask(df, code_a, sheet_field_state)
+            & _field_unmapped_mask(df, code_b, sheet_field_state)
+        )
+        for idx in df.index[both_missing & ~both_unmapped]:
+            flag(idx, "missing_mandatory_field",
+                 "both indemnity paid and indemnity reserve are missing; at least one is required")
 
 
-def _check_arithmetic(df: pd.DataFrame, flag) -> None:
+def _check_arithmetic(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState) -> dict:
     paid = df[schema.PAID_CODE]
     reserve = df[schema.RESERVE_CODE]
     incurred = df[schema.INCURRED_CODE]
 
-    computable = incurred.notna() & (paid.notna() | reserve.notna())
+    unmapped = (
+        _field_unmapped_mask(df, schema.INCURRED_CODE, sheet_field_state)
+        | (
+            _field_unmapped_mask(df, schema.PAID_CODE, sheet_field_state)
+            & _field_unmapped_mask(df, schema.RESERVE_CODE, sheet_field_state)
+        )
+    )
+    has_inputs = incurred.notna() & (paid.notna() | reserve.notna())
+    computable = has_inputs & ~unmapped
+    not_evaluable = ~computable
+
     expected = paid.fillna(0) + reserve.fillna(0)
     diff = (incurred - expected).abs()
-    bad = computable & (diff > schema.ARITHMETIC_TOLERANCE)
+    mismatch = computable & (diff > schema.ARITHMETIC_TOLERANCE)
+    match = computable & ~mismatch
 
-    for idx in df.index[bad]:
+    for idx in df.index[mismatch]:
         flag(idx, "arithmetic_mismatch",
              f"incurred={incurred.at[idx]} but paid+reserve={expected.at[idx]}")
+
+    return {
+        "arithmetic_match_count": int(match.sum()),
+        "arithmetic_mismatch_count": int(mismatch.sum()),
+        "arithmetic_not_evaluable_count": int(not_evaluable.sum()),
+    }
 
 
 def _check_dates(df: pd.DataFrame, flag) -> None:

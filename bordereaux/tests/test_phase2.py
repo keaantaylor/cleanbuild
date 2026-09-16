@@ -24,12 +24,23 @@ FILE_BY_SENDER = {
 }
 
 
+# Fix spec 3.6 narrowed unconditional requiredness to just claim reference
+# and insured name (status/dates/policy ref are validated when present,
+# not flagged when absent). Phase 1's injections target insured/policy_ref/
+# status/notified_date; only the "insured" ones are still expected to
+# raise a missing_mandatory_field exception under the current taxonomy.
+STILL_REQUIRED_TARGET_FIELDS = {"insured"}
+
+
 def check_sender(sender: str) -> None:
     canonical, exceptions, out_path = process_file.process(sender)
     answer = ANSWER_KEY[FILE_BY_SENDER[sender]]
 
     expected_arith = {e["claim_ref"] for e in answer if e["type"] == "arithmetic_mismatch"}
-    expected_missing = {e["claim_ref"] for e in answer if e["type"] == "missing_mandatory_field"}
+    expected_missing = {
+        e["claim_ref"] for e in answer
+        if e["type"] == "missing_mandatory_field" and e.get("field") in STILL_REQUIRED_TARGET_FIELDS
+    }
 
     found_arith = set(exceptions.loc[exceptions["rule"] == "arithmetic_mismatch", "claim_ref"])
     found_missing = set(exceptions.loc[exceptions["rule"] == "missing_mandatory_field", "claim_ref"])

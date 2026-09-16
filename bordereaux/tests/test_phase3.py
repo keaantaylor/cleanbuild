@@ -44,7 +44,7 @@ SENDER_HEADERS = {
           "Date Notified", "Amount Paid", "O/S Reserve", "Total Incurred", "Ccy"],
     "c": ["ClaimReference", "ClaimStatus", "LossDate", "FirstNotifiedDate", "InsuredName",
           "RiskReference", "IndemnityPaid", "IndemnityReserve", "TotalIncurred", "SettlementCurrency"],
-    "d": ["Unique Identifier", "Current Stage", "Occurrence Date", "Advice Date",
+    "d": ["Unique Identifier", "Current Stage", "Occurrence Date", "Notice Received Date",
           "Named Insured Party", "Cover Note Number", "Settled Amount",
           "Outstanding Provision", "Gross Position", "Denomination"],
 }
@@ -85,16 +85,18 @@ def test_fuzzy_stage_handles_known_senders() -> None:
 
 def test_ai_stage_handles_unseen_sender() -> None:
     results = fuzzy_match_headers(SENDER_HEADERS["d"])
-    assert all(s.method == "unmatched" for s in results.values()), (
+    assert all(s.method == "unmapped" for s in results.values()), (
         "expected sender d's headers to be genuinely unseen by the fuzzy "
         "stage -- if this fails, the test fixture needs harder headers"
     )
 
-    suggestions = build_mapping(SENDER_HEADERS["d"], ai_mapper=CorrectAIMapper())
+    result = build_mapping(SENDER_HEADERS["d"], ai_mapper=CorrectAIMapper())
+    suggestions = result.suggestions
     correct = sum(1 for s in suggestions if s.field_code == EXPECTED["d"][s.source_column])
     accuracy = correct / len(suggestions)
     assert accuracy >= 0.95, f"sender d: only {accuracy:.0%} correct, need >=95%"
     assert all(s.method == "ai" for s in suggestions)
+    assert result.ai_attempted and result.ai_unavailable_reason is None
     print(f"sender d: AI stage {accuracy:.0%} correct ({correct}/{len(suggestions)})")
 
     confirmed = {s.source_column: s.field_code for s in suggestions if s.field_code}
@@ -104,13 +106,33 @@ def test_ai_stage_handles_unseen_sender() -> None:
     print(f"audit trail: {len(audit)} mapping decisions logged")
 
 
+def test_ai_unavailable_is_reported_not_raised() -> None:
+    """Fix spec 3.4: when the AI fallback isn't configured, build_mapping
+    must not raise -- it reports ai_unavailable_reason so every caller
+    (UI, report) reads the same clean signal instead of an exception only
+    some call sites happen to catch."""
+    had_key = os.environ.pop("ANTHROPIC_API_KEY", None)
+    try:
+        result = build_mapping(SENDER_HEADERS["d"])  # no ai_mapper injected, no key set
+    finally:
+        if had_key is not None:
+            os.environ["ANTHROPIC_API_KEY"] = had_key
+
+    assert not result.ai_attempted
+    assert result.ai_unavailable_reason == "ANTHROPIC_API_KEY is not set"
+    assert all(s.method == "unmapped" for s in result.suggestions)
+    print("D3/D4/3.4 OK: no ANTHROPIC_API_KEY -> build_mapping reports "
+          "ai_unavailable_reason cleanly instead of raising")
+
+
 def test_live_claude_mapper_if_key_available() -> None:
     if not os.environ.get("ANTHROPIC_API_KEY"):
         print("ANTHROPIC_API_KEY not set; skipping live Claude mapping test "
               "(CorrectAIMapper stand-in already covers the pipeline above)")
         return
 
-    suggestions = build_mapping(SENDER_HEADERS["d"])  # real ClaudeAIMapper
+    result = build_mapping(SENDER_HEADERS["d"])  # real ClaudeAIMapper
+    suggestions = result.suggestions
     correct = sum(1 for s in suggestions if s.field_code == EXPECTED["d"][s.source_column])
     accuracy = correct / len(suggestions)
     assert accuracy >= 0.95, f"live Claude call: only {accuracy:.0%} correct, need >=95%"
@@ -120,6 +142,7 @@ def test_live_claude_mapper_if_key_available() -> None:
 def main() -> None:
     test_fuzzy_stage_handles_known_senders()
     test_ai_stage_handles_unseen_sender()
+    test_ai_unavailable_is_reported_not_raised()
     test_live_claude_mapper_if_key_available()
     print("\nPhase 3 acceptance test PASSED.")
 

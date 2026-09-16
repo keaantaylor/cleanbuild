@@ -22,13 +22,7 @@ from bordereaux.schema import FIELDS  # noqa: E402
 
 st.set_page_config(page_title="Bordereau Quality Checker", layout="wide", page_icon="📋")
 
-EXAMPLE_FILES = {
-    "Sedgwick Ireland — 50 rows, plain headers": REPO_ROOT / "data/synthetic/sender_a_sedgwick.csv",
-    "Crawford Ireland — 200 rows, reordered columns": REPO_ROOT / "data/synthetic/sender_b_crawford.xlsx",
-    "Blackrock MGA — 1,000 rows, camelCase headers": REPO_ROOT / "data/synthetic/sender_c_blackrock.xlsx",
-    "MX Underwriting — 80 rows, unfamiliar headers (needs AI-assisted mapping)":
-        REPO_ROOT / "data/synthetic/sender_d_mx_underwriting.xlsx",
-}
+EXAMPLE_FILE = REPO_ROOT / "data/synthetic/sender_a_sedgwick.csv"
 
 FIELD_LABELS = {f.code: f"{f.code} — {f.name}" for f in FIELDS}
 FIELD_LABELS["(unmapped)"] = "(unmapped)"
@@ -65,7 +59,12 @@ col1, col2 = st.columns(2)
 with col1:
     uploaded = st.file_uploader("Upload your own bordereau", type=["csv", "xlsx"])
 with col2:
-    example_choice = st.selectbox("...or try a sample bordereau now", ["(none)"] + list(EXAMPLE_FILES.keys()))
+    st.write("...or")
+    if st.button("Try it now with a sample bordereau"):
+        st.session_state["use_example"] = True
+
+if uploaded is not None:
+    st.session_state["use_example"] = False
 
 raw_df = None
 source_name = None
@@ -75,13 +74,12 @@ if uploaded is not None:
     else:
         raw_df = pd.read_excel(uploaded, dtype="string", engine="openpyxl")
     source_name = uploaded.name
-elif example_choice != "(none)":
-    path = EXAMPLE_FILES[example_choice]
-    raw_df = ingest.load_raw(path)
-    source_name = path.name
+elif st.session_state.get("use_example"):
+    raw_df = ingest.load_raw(EXAMPLE_FILE)
+    source_name = EXAMPLE_FILE.name
 
 if raw_df is None:
-    st.info("Upload a file or pick a sample above to get started.")
+    st.info("Upload a file or click 'Try it now' above to get started.")
     st.stop()
 
 if st.session_state.get("loaded_source") != source_name:

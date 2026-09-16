@@ -78,9 +78,9 @@ Launch the demo app:
 streamlit run app.py
 ```
 
-It opens with an upload box and a dropdown of the four Phase 1 sample
-files so a prospect can see output before uploading anything of their
-own, per Phase 6's brief.
+It opens with an upload box and a "Try it now with a sample bordereau"
+button that pre-loads one Phase 1 synthetic file, so a prospect can see
+output before uploading anything of their own, per Phase 6's brief.
 
 ## Notes on scope
 

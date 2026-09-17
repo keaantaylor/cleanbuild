@@ -30,7 +30,10 @@ export default function DuplicatesPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1>Duplicates</h1>
+        <div>
+          <span className="eyebrow">Truebind never auto-merges</span>
+          <h1>Duplicates</h1>
+        </div>
         <ReportPicker value={reportId} onChange={setReportId} />
       </div>
 

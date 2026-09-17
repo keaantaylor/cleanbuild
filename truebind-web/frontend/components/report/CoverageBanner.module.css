@@ -1,18 +1,28 @@
 .banner {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--spacing-3);
-  padding: var(--spacing-4) var(--spacing-6);
-  border-radius: var(--radius-lg);
+  padding: var(--spacing-3) 0;
+  border-top: 2px solid var(--color-border);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.banner > span:first-child {
+  font-family: var(--font-mono);
   font-weight: 600;
 }
 
 .full {
-  background: var(--color-success-bg);
+  border-top-color: var(--color-success);
+}
+.full > span:first-child {
   color: var(--color-success);
 }
 
 .partial {
-  background: var(--color-warning-bg);
+  border-top-color: var(--color-warning);
+}
+.partial > span:first-child {
   color: var(--color-warning);
 }

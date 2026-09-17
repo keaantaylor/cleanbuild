@@ -30,9 +30,7 @@
 }
 
 .count {
-  background: var(--color-bg-tertiary);
-  color: var(--color-text-secondary);
-  border-radius: 999px;
-  padding: 0 var(--spacing-2);
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
   font-size: var(--text-xs);
 }

@@ -49,7 +49,10 @@ export default function ExceptionsPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1>Exceptions</h1>
+        <div>
+          <span className="eyebrow">What requires attention</span>
+          <h1>Exceptions</h1>
+        </div>
         <ReportPicker value={reportId} onChange={setReportId} />
       </div>
 

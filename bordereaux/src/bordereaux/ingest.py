@@ -49,6 +49,12 @@ def load_raw(path: str | Path) -> pd.DataFrame:
     path = str(path)
     if path.lower().endswith(".csv"):
         return pd.read_csv(path, dtype="string")
+    if path.lower().endswith(".xls"):
+        # Legacy binary format (pre-2007). openpyxl only reads the
+        # zip/XML-based .xlsx/.xlsm container, so a real .xls needs xlrd --
+        # without this branch pandas' engine auto-detection silently tries
+        # openpyxl anyway (by extension) and raises InvalidFileException.
+        return pd.read_excel(path, dtype="string", engine="xlrd")
     return pd.read_excel(path, dtype="string", engine="openpyxl")
 
 
@@ -60,6 +66,9 @@ def load_workbook_sheets(path: str | Path) -> list[SheetData]:
     if path.lower().endswith(".csv"):
         raw = pd.read_csv(path, dtype="string")
         return [SheetData(sheet_name=Path(path).stem, header_row_index=0, raw=raw)]
+
+    if path.lower().endswith(".xls"):
+        return [_build_sheet_data(name, rows) for name, rows in _iter_legacy_xls_rows(path)]
 
     import openpyxl
 
@@ -73,6 +82,33 @@ def load_workbook_sheets(path: str | Path) -> list[SheetData]:
     finally:
         wb.close()
     return sheets
+
+
+def _iter_legacy_xls_rows(path: str) -> list[tuple[str, list[tuple]]]:
+    """Read every sheet of a real legacy .xls (BIFF/CDFV2) workbook via
+    xlrd, normalized to look like openpyxl's `iter_rows(values_only=True)`
+    output: blank cells as None, date cells as datetime, everything else
+    as the underlying Python value -- so _build_sheet_data doesn't need to
+    know which library produced its rows."""
+    import xlrd
+
+    book = xlrd.open_workbook(path)
+    out: list[tuple[str, list[tuple]]] = []
+    for sheet_name in book.sheet_names():
+        ws = book.sheet_by_name(sheet_name)
+        rows: list[tuple] = []
+        for r in range(ws.nrows):
+            row: list[object] = []
+            for cell in ws.row(r):
+                if cell.ctype in (xlrd.XL_CELL_EMPTY, xlrd.XL_CELL_BLANK) or cell.value == "":
+                    row.append(None)
+                elif cell.ctype == xlrd.XL_CELL_DATE:
+                    row.append(xlrd.xldate.xldate_as_datetime(cell.value, book.datemode))
+                else:
+                    row.append(cell.value)
+            rows.append(tuple(row))
+        out.append((sheet_name, rows))
+    return out
 
 
 def _build_sheet_data(name: str, rows: list[tuple]) -> SheetData:

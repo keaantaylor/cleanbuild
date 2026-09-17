@@ -1,15 +1,16 @@
 .card {
   background: var(--color-bg-primary);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-8);
-  text-align: center;
+  border-radius: var(--radius-md);
+  padding: var(--spacing-8) var(--spacing-6);
 }
 
 .grade {
-  font-size: 3.5rem;
-  font-weight: 800;
+  font-family: var(--font-display);
+  font-size: 4rem;
+  font-weight: 500;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .g5 .grade, .g5 .label { color: var(--color-success); }
@@ -19,8 +20,10 @@
 .g1 .grade, .g1 .label { color: var(--color-error); }
 
 .label {
-  font-size: var(--text-lg);
+  font-size: var(--text-sm);
   font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
   margin-top: var(--spacing-2);
 }
 

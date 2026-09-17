@@ -26,6 +26,7 @@ export default function ReportsPage() {
 
   return (
     <div>
+      <span className="eyebrow">Health reports</span>
       <h1>Reports</h1>
       {reports === null ? <p>Loading…</p> : <Table columns={columns} rows={reports} rowKey={(r) => r.id} />}
     </div>

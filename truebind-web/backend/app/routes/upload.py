@@ -10,7 +10,7 @@ from .deps import stored_upload_dir
 
 router = APIRouter(prefix="/api/v1/reports", tags=["upload"])
 
-ALLOWED_SUFFIXES = (".xlsx", ".xls", ".csv")
+ALLOWED_SUFFIXES = (".xlsx", ".xlsm", ".xls", ".csv")
 
 
 @router.post("/upload", response_model=ReportOut)

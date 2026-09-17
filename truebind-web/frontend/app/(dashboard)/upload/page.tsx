@@ -98,14 +98,39 @@ export default function UploadPage() {
 
   if (!report) {
     return (
-      <div className={styles.page}>
-        <h1>Upload a bordereau</h1>
-        <p className={styles.intro}>
-          Upload a single sheet or a whole multi-sheet workbook. Every sheet gets its own header-row
-          detection and column mapping, reviewed before anything is ingested.
-        </p>
+      <div className={`${styles.page} ${styles.landing}`}>
+        <div className={styles.intro}>
+          <span className="eyebrow">Step one of three</span>
+          <h1>Bring any bordereau.</h1>
+          <p className={styles.subhead}>Any sender&rsquo;s layout, any column order, one sheet or twenty.</p>
+        </div>
+
         {error && <AlertBanner tone="error" title="Upload failed">{error}</AlertBanner>}
         <FileUpload onFile={handleFile} busy={busy} />
+
+        <ol className={`stepList ${styles.explainer}`}>
+          <li>
+            <span className="stepNumber">01</span>
+            <div>
+              <p className="stepTitle">Every sheet, not the first</p>
+              <p className="stepBody">A workbook can carry any number of sender tabs. Truebind inspects each one and detects its own header row, even below a title banner.</p>
+            </div>
+          </li>
+          <li>
+            <span className="stepNumber">02</span>
+            <div>
+              <p className="stepTitle">You confirm the mapping</p>
+              <p className="stepBody">Every column is matched by alias or AI, never assumed. Nothing is ingested until you&rsquo;ve reviewed and confirmed each sheet&rsquo;s mapping.</p>
+            </div>
+          </li>
+          <li>
+            <span className="stepNumber">03</span>
+            <div>
+              <p className="stepTitle">Flags, never edits</p>
+              <p className="stepBody">Mismatches, missing fields and probable duplicates are surfaced for review. Truebind never silently corrects or merges your data.</p>
+            </div>
+          </li>
+        </ol>
       </div>
     );
   }
@@ -114,6 +139,7 @@ export default function UploadPage() {
     <div className={styles.page}>
       <div className={styles.summary}>
         <div>
+          <span className="eyebrow">Step two of three</span>
           <h1>{report.file_name}</h1>
           <span className={styles.meta}>{formatBytes(report.file_size_bytes)} · {report.sheet_count_total} sheet(s)</span>
         </div>

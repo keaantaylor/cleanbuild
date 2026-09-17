@@ -1,0 +1,21 @@
+.wrapper {
+  position: relative;
+  display: inline-flex;
+  border-bottom: 1px dotted var(--color-text-tertiary);
+  cursor: help;
+}
+
+.bubble {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-text-primary);
+  color: var(--color-bg-primary);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  white-space: nowrap;
+  z-index: 10;
+}

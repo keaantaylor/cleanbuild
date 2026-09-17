@@ -1,0 +1,19 @@
+.alert {
+  border-radius: var(--radius-md);
+  padding: var(--spacing-4);
+  border: 1px solid transparent;
+}
+
+.title {
+  font-weight: 700;
+}
+
+.body {
+  margin-top: var(--spacing-1);
+  font-size: var(--text-sm);
+}
+
+.success { background: var(--color-success-bg); color: var(--color-success); }
+.warning { background: var(--color-warning-bg); color: var(--color-warning); }
+.error { background: var(--color-error-bg); color: var(--color-error); }
+.info { background: var(--color-info-bg); color: var(--color-info); }

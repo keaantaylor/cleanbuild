@@ -1,0 +1,38 @@
+.card {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-8);
+  text-align: center;
+}
+
+.grade {
+  font-size: 3.5rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.g5 .grade, .g5 .label { color: var(--color-success); }
+.g4 .grade, .g4 .label { color: var(--color-success); }
+.g3 .grade, .g3 .label { color: var(--color-warning); }
+.g2 .grade, .g2 .label { color: var(--color-warning); }
+.g1 .grade, .g1 .label { color: var(--color-error); }
+
+.label {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  margin-top: var(--spacing-2);
+}
+
+.score {
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  margin-top: var(--spacing-3);
+}
+
+.caveat {
+  margin-top: var(--spacing-4);
+  color: var(--color-error);
+  font-weight: 600;
+  font-size: var(--text-sm);
+}

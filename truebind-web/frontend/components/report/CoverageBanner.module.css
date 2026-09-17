@@ -1,0 +1,18 @@
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-4) var(--spacing-6);
+  border-radius: var(--radius-lg);
+  font-weight: 600;
+}
+
+.full {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.partial {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}

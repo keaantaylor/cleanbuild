@@ -1,0 +1,33 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--spacing-3);
+}
+
+.header h1 {
+  margin: 0;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-6);
+}
+
+.layout:has(.detailCol) {
+  grid-template-columns: 1fr 360px;
+}
+
+@media (max-width: 900px) {
+  .layout:has(.detailCol) {
+    grid-template-columns: 1fr;
+  }
+}

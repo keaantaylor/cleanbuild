@@ -15,7 +15,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..models.alerts import Alert
-from ..models.reports import ClaimRow, Mapping, Report, Sheet, ValidationResult
+from ..models.reports import ClaimRow, ExcludedRow, Mapping, Report, Sheet, ValidationResult
 from . import audit_service
 from .pipeline_service import FIELDS, FIELDS_BY_CODE, field_suggestions_by_code
 
@@ -57,6 +57,12 @@ def create_report_from_upload(db: Session, file_name: str, file_size_bytes: int,
         )
         db.add(sheet_row)
         db.flush()
+
+        for er in s.excluded_rows:
+            db.add(ExcludedRow(
+                report_id=report.id, sheet_name=er.sheet_name, row_number=er.row_number,
+                reason=er.reason, detail=er.detail, values=er.values,
+            ))
 
         proposal = proposal_by_sheet.get(s.sheet_name)
         if proposal is None:
@@ -136,6 +142,14 @@ def _severity_for_rule(rule: str) -> str:
     return "INFO"
 
 
+# Not-evaluable is deliberately never CRITICAL/HIGH: it means "we don't have
+# enough information to check this", not "this is wrong" -- see
+# bordereaux.validation._check_arithmetic's not_evaluable_detail, which is
+# kept separate from `exceptions` for the same reason (doesn't penalize the
+# composite score the way a real exception does).
+_NOT_EVALUABLE_SEVERITY = "MEDIUM"
+
+
 def persist_pipeline_result(
     db: Session, report: Report, sheets, workbook_result, sheet_id_by_name: dict[str, str],
 ) -> None:
@@ -181,6 +195,21 @@ def persist_pipeline_result(
                 extra={"rule": exc["rule"]},
             ))
 
+    not_evaluable = workbook_result.validation_result.not_evaluable_detail
+    if not not_evaluable.empty:
+        for _, ne in not_evaluable.iterrows():
+            row_pos = int(ne["row_index"])
+            if row_pos >= len(claim_row_ids):
+                continue
+            db.add(ValidationResult(
+                claim_row_id=claim_row_ids[row_pos],
+                check_type="ARITHMETIC",
+                status="NOT_EVALUABLE",
+                severity=_NOT_EVALUABLE_SEVERITY,
+                message=ne["detail"],
+                extra={"rule": ne["reason"]},
+            ))
+
     duplicates = workbook_result.duplicates
     if not duplicates.empty:
         for _, dup in duplicates.iterrows():
@@ -222,6 +251,15 @@ def persist_pipeline_result(
     db.commit()
 
 
+def list_excluded_rows(db: Session, report_id: str) -> list[ExcludedRow]:
+    return (
+        db.query(ExcludedRow)
+        .filter(ExcludedRow.report_id == report_id)
+        .order_by(ExcludedRow.sheet_name, ExcludedRow.row_number)
+        .all()
+    )
+
+
 def compute_report_summary(db: Session, report: Report) -> dict:
     """Rebuilds the dashboard's headline numbers from already-persisted
     rows -- no re-read of the source file needed, since claim_rows,
@@ -241,7 +279,8 @@ def compute_report_summary(db: Session, report: Report) -> dict:
     arithmetic_mismatches = (
         db.query(ValidationResult)
         .join(ClaimRow, ValidationResult.claim_row_id == ClaimRow.id)
-        .filter(ClaimRow.report_id == report.id, ValidationResult.check_type == "ARITHMETIC")
+        .filter(ClaimRow.report_id == report.id, ValidationResult.check_type == "ARITHMETIC",
+                ValidationResult.status != "NOT_EVALUABLE")
         .count()
     )
 
@@ -253,6 +292,22 @@ def compute_report_summary(db: Session, report: Report) -> dict:
     )
     exact_duplicates = sum(1 for vr in duplicate_vr if (vr.extra or {}).get("match_type") == "exact_duplicate")
     probable_duplicates = len(duplicate_vr) - exact_duplicates
+
+    not_evaluable_vr = (
+        db.query(ValidationResult)
+        .join(ClaimRow, ValidationResult.claim_row_id == ClaimRow.id)
+        .filter(ClaimRow.report_id == report.id, ValidationResult.status == "NOT_EVALUABLE")
+        .all()
+    )
+    not_evaluable_by_reason: dict[str, int] = {}
+    for vr in not_evaluable_vr:
+        reason = (vr.extra or {}).get("rule", "unknown")
+        not_evaluable_by_reason[reason] = not_evaluable_by_reason.get(reason, 0) + 1
+
+    excluded_rows = list_excluded_rows(db, report.id)
+    excluded_row_counts: dict[str, int] = {}
+    for er in excluded_rows:
+        excluded_row_counts[er.reason] = excluded_row_counts.get(er.reason, 0) + 1
 
     sheet_row_counts = {s.id: s.row_count for s in sheets if s.status == "CONFIRMED"}
     mapping_rows = db.query(Mapping).filter(Mapping.report_id == report.id, Mapping.sheet_id.in_(sheet_row_counts)).all()
@@ -293,4 +348,6 @@ def compute_report_summary(db: Session, report: Report) -> dict:
         "probable_duplicates": probable_duplicates,
         "field_completeness": field_completeness,
         "missing_mandatory_by_sheet": missing_mandatory_by_sheet,
+        "not_evaluable_by_reason": not_evaluable_by_reason,
+        "excluded_row_counts": excluded_row_counts,
     }

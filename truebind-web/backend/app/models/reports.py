@@ -45,6 +45,7 @@ class Report(Base):
 
     sheets: Mapped[list["Sheet"]] = relationship(back_populates="report", cascade="all, delete-orphan")
     claim_rows: Mapped[list["ClaimRow"]] = relationship(back_populates="report", cascade="all, delete-orphan")
+    excluded_rows: Mapped[list["ExcludedRow"]] = relationship(back_populates="report", cascade="all, delete-orphan")
 
 
 class Sheet(Base):
@@ -61,6 +62,27 @@ class Sheet(Base):
 
     report: Mapped[Report] = relationship(back_populates="sheets")
     mappings: Mapped[list["Mapping"]] = relationship(back_populates="sheet", cascade="all, delete-orphan")
+
+
+class ExcludedRow(Base):
+    """A row the source file contained but that was filtered out before
+    mapping/validation ever saw it (blank / subtotal / repeated header --
+    see bordereaux.ingest.ExcludedRow). Deliberately not a ClaimRow: it
+    was never a claim, so it has no validation_results of its own -- this
+    exists purely so the coverage summary's exclusion counts are
+    drillable down to the actual rows and reasons behind them, rather
+    than being an unverifiable aggregate number."""
+    __tablename__ = "excluded_rows"
+
+    id: Mapped[str] = uuid_pk()
+    report_id: Mapped[str] = mapped_column(ForeignKey("reports.id"), index=True)
+    sheet_name: Mapped[str] = mapped_column(String(255))
+    row_number: Mapped[int] = mapped_column(Integer)
+    reason: Mapped[str] = mapped_column(String(32))
+    detail: Mapped[str] = mapped_column(String(500))
+    values: Mapped[dict] = mapped_column(JSON)
+
+    report: Mapped[Report] = relationship(back_populates="excluded_rows")
 
 
 class Mapping(Base):

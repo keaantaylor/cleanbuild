@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models.reports import Report
-from ..schemas.reports import ReportOut, ReportSummaryOut
+from ..schemas.reports import ExcludedRowOut, ReportOut, ReportSummaryOut
 from ..services import audit_service, export_service, persistence_service
 from .deps import get_report_or_404, stored_upload_dir
 
@@ -31,6 +31,12 @@ def get_report_summary(report_id: str, db: Session = Depends(get_db)) -> ReportS
     report = get_report_or_404(db, report_id)
     summary = persistence_service.compute_report_summary(db, report)
     return ReportSummaryOut(report=ReportOut.model_validate(report), **summary)
+
+
+@router.get("/{report_id}/excluded-rows", response_model=list[ExcludedRowOut])
+def list_excluded_rows(report_id: str, db: Session = Depends(get_db)) -> list[ExcludedRowOut]:
+    get_report_or_404(db, report_id)
+    return [ExcludedRowOut.model_validate(er) for er in persistence_service.list_excluded_rows(db, report_id)]
 
 
 @router.delete("/{report_id}", status_code=204)

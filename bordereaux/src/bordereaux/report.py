@@ -45,6 +45,7 @@ from pathlib import Path
 import pandas as pd
 
 from . import schema
+from .ingest import EXCLUDED_ROW_REASON_LABELS, ExcludedRow
 from .validation import ValidationResult
 
 GRADE_LABELS = {5: "Excellent", 4: "Good", 3: "Fair", 2: "Poor", 1: "Very poor"}
@@ -71,6 +72,7 @@ class WorkbookCoverage:
     rows_total: int
     rows_assessed: int
     sheet_field_state: dict[str, dict[str, str]] = field(default_factory=dict)
+    excluded_rows: list[ExcludedRow] = field(default_factory=list)
 
     @staticmethod
     def single_sheet(row_count: int, sheet_name: str = "") -> "WorkbookCoverage":
@@ -85,6 +87,14 @@ class WorkbookCoverage:
     @property
     def fully_covered(self) -> bool:
         return self.sheets_processed == self.sheets_total and self.rows_assessed == self.rows_total
+
+    @property
+    def excluded_row_counts(self) -> dict[str, int]:
+        """{reason: count} -- e.g. {"blank": 2, "repeated_header": 1}."""
+        counts: dict[str, int] = {}
+        for er in self.excluded_rows:
+            counts[er.reason] = counts.get(er.reason, 0) + 1
+        return counts
 
 
 @dataclass
@@ -226,8 +236,16 @@ def build_health_report(canonical: pd.DataFrame, validation_result: ValidationRe
 
 
 def _coverage_line(coverage: WorkbookCoverage) -> str:
-    return (f"Assessed {coverage.rows_assessed} of {coverage.rows_total} total rows "
+    line = (f"Assessed {coverage.rows_assessed} of {coverage.rows_total} total rows "
             f"across {coverage.sheets_processed} of {coverage.sheets_total} sheets/tabs in the source file.")
+    counts = coverage.excluded_row_counts
+    if counts:
+        parts = [f"{n} {EXCLUDED_ROW_REASON_LABELS.get(reason, reason)}{'s' if n != 1 else ''}"
+                 for reason, n in sorted(counts.items())]
+        total_excluded = sum(counts.values())
+        line += (f" {total_excluded} additional row{'s' if total_excluded != 1 else ''} excluded before "
+                 f"assessment ({', '.join(parts)}) -- not counted as claims, not flagged as errors.")
+    return line
 
 
 def _reliability_caveat(health: HealthReport) -> str | None:
@@ -293,11 +311,18 @@ def write_health_report_excel(health: HealthReport, exceptions: pd.DataFrame,
     display_columns = {f.code: f"{f.code} - {f.name}" for f in schema.FIELDS}
     canonical_display = canonical.rename(columns=display_columns)
 
+    excluded_df = pd.DataFrame([
+        {"Sheet": er.sheet_name, "Row": er.row_number,
+         "Reason": EXCLUDED_ROW_REASON_LABELS.get(er.reason, er.reason), "Detail": er.detail}
+        for er in health.coverage.excluded_rows
+    ], columns=["Sheet", "Row", "Reason", "Detail"])
+
     with pd.ExcelWriter(out_path, engine="openpyxl") as writer:
         summary_df.to_excel(writer, sheet_name="Summary", index=False)
         completeness_df.to_excel(writer, sheet_name="Field completeness", index=False)
         exceptions.to_excel(writer, sheet_name="Exceptions", index=False)
         duplicates.to_excel(writer, sheet_name="Possible duplicates", index=False)
+        excluded_df.to_excel(writer, sheet_name="Excluded rows", index=False)
         canonical_display.to_excel(writer, sheet_name="Full data", index=False)
 
     _autosize_columns(out_path)

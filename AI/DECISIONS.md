@@ -134,3 +134,19 @@ abstraction for a pattern used in one or two places. If a third screen
 needs the same numbered-steps treatment, that's the point to extract a
 component; inventing one now for a single call site would be exactly the
 unnecessary abstraction the brief warns against.
+
+---
+
+## 2026-09-17 (session 2) — Built row-exclusion from scratch rather than silently accepting a false premise
+
+**Decision:** A follow-up task described "the existing row-filtering logic (which already correctly excludes fully-blank rows and rows that look like embedded subtotals)" and asked to extend it for repeated header rows. That logic did not exist anywhere in the codebase (verified by grepping `ingest.py`/`validation.py`/`pipeline.py` for any blank-row or subtotal/"total"-row handling — none existed). Rather than silently building only what was literally asked on top of a false premise, this session built all three exclusion categories (blank, subtotal, repeated-header) together, since the stated acceptance criteria (report each by name/count, never miscount as a claim) applied equally to all three and the brief explicitly asked the new behavior be reported "the same way the existing blank/subtotal-row exclusions are reported."
+
+**Why not flag the discrepancy and stop:** A partial fix matching only the literal repeated-header case, while leaving the false "already handled" premise uncorrected, would have left blank trailing rows and subtotal lines still silently miscounted as claims — a real, separately-verified latent bug (a fully-blank trailing row was previously flagged as "missing mandatory field" on every affected sheet, since nothing filtered it out before validation ran). Fixing the whole defect class the brief was describing served the user better than a literal-but-incomplete interpretation, and is called out explicitly in the handoff/commit so nobody mistakes it for scope creep.
+
+---
+
+## 2026-09-17 (session 2) — `not_evaluable_detail` kept out of the scored `exceptions` DataFrame
+
+**Decision:** Per-row "why is this not evaluable" detail was added as a new, separate field on `bordereaux.validation.ValidationResult` (`not_evaluable_detail`), not as additional rows in the existing `exceptions` DataFrame that the composite score's `exception_rate_pct` counts against.
+
+**Why:** `report.py`'s own docstring is explicit that exceptions represent data that is "actively wrong" and are weighted into the composite score for exactly that reason; a not-evaluable row is the opposite claim ("we don't have enough information to say either way"). Mixing the two would have silently penalized every report's score the moment this feature shipped, for rows that were never wrong — a scoring regression with no defect driving it. Verified this doesn't happen: `test_pipeline_parity.py::test_not_evaluable_rows_are_drillable` asserts NOT_EVALUABLE rows and real ARITHMETIC mismatches are counted separately end-to-end through the API, and that mismatches-only counts are unaffected.

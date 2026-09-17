@@ -15,7 +15,9 @@ banner row's score is always far below the actual header row's.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import re
+import unicodedata
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -31,6 +33,27 @@ _DATE_FORMATS = ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%b-%Y", "%Y/%m/%d", "%d
 HEADER_SCAN_ROWS = 5  # how many leading rows to consider as candidate headers
 MIN_HEADER_MATCHES = 3  # a candidate row needs at least this many alias-matchable cells
 
+EXCLUDED_ROW_REASON_LABELS = {
+    "blank": "blank row",
+    "subtotal": "subtotal/total row",
+    "repeated_header": "repeated header row",
+}
+
+
+@dataclass
+class ExcludedRow:
+    """A row this sheet's raw data contained but that was filtered out
+    before ever reaching mapping/validation -- never silently dropped:
+    every one of these is counted and explained in WorkbookCoverage so the
+    coverage summary accounts for every row in the source file (fix spec
+    3.1's "never silently drop or silently count as claims", extended
+    from whole-sheet skips down to individual rows)."""
+    sheet_name: str
+    row_number: int  # 1-based row number within the original sheet, as a user would see it in Excel
+    reason: str  # "blank" | "subtotal" | "repeated_header"
+    detail: str
+    values: dict[str, str] = field(default_factory=dict)  # column name -> raw cell text, for drill-down
+
 
 @dataclass
 class SheetData:
@@ -40,6 +63,7 @@ class SheetData:
     skipped: bool = False
     skip_reason: str | None = None
     raw_row_count: int = 0  # every row openpyxl saw in this sheet, header/banner included
+    excluded_rows: list[ExcludedRow] = field(default_factory=list)
 
 
 def load_raw(path: str | Path) -> pd.DataFrame:
@@ -64,8 +88,7 @@ def load_workbook_sheets(path: str | Path) -> list[SheetData]:
     "sheet" named after the file."""
     path = str(path)
     if path.lower().endswith(".csv"):
-        raw = pd.read_csv(path, dtype="string")
-        return [SheetData(sheet_name=Path(path).stem, header_row_index=0, raw=raw)]
+        return [_build_csv_sheet_data(path)]
 
     if path.lower().endswith(".xls"):
         return [_build_sheet_data(name, rows) for name, rows in _iter_legacy_xls_rows(path)]
@@ -111,6 +134,33 @@ def _iter_legacy_xls_rows(path: str) -> list[tuple[str, list[tuple]]]:
     return out
 
 
+def _build_csv_sheet_data(path: str) -> SheetData:
+    """A CSV's header is always row 1 (no banner-row ambiguity like a
+    workbook sheet can have), but the same row-exclusion pass still
+    applies -- a CSV export can carry trailing blank lines, an embedded
+    subtotal line, or (e.g. two exports concatenated into one file) a
+    repeated header line, same as a worksheet tab can."""
+    raw = pd.read_csv(path, dtype="string")
+    name = Path(path).stem
+    columns = list(raw.columns)
+    header_row = tuple(columns)
+    candidate_rows = [tuple(r) for r in raw.itertuples(index=False, name=None)]
+    total = len(candidate_rows) + 1  # + header row
+
+    if not candidate_rows:
+        return SheetData(name, 0, pd.DataFrame(columns=columns), skipped=True,
+                          skip_reason="header row found but no data rows follow it", raw_row_count=total)
+
+    kept_rows, excluded_rows = _classify_and_filter_rows(name, 0, header_row, columns, candidate_rows)
+    if not kept_rows:
+        return SheetData(name, 0, pd.DataFrame(columns=columns), skipped=True,
+                          skip_reason="header row found but every following row was blank or excluded",
+                          raw_row_count=total, excluded_rows=excluded_rows)
+
+    df = pd.DataFrame(kept_rows, columns=columns).astype("string")
+    return SheetData(name, 0, df, raw_row_count=total, excluded_rows=excluded_rows)
+
+
 def _build_sheet_data(name: str, rows: list[tuple]) -> SheetData:
     total = len(rows)
     if not rows:
@@ -124,16 +174,107 @@ def _build_sheet_data(name: str, rows: list[tuple]) -> SheetData:
                                       f"{HEADER_SCAN_ROWS} matched enough known fields to be a header row",
                           raw_row_count=total)
 
-    columns = _dedupe_columns([_clean_header_cell(c, i) for i, c in enumerate(rows[header_idx])])
-    data_rows = rows[header_idx + 1:]
-    if not data_rows:
+    header_row = rows[header_idx]
+    columns = _dedupe_columns([_clean_header_cell(c, i) for i, c in enumerate(header_row)])
+    candidate_rows = rows[header_idx + 1:]
+    if not candidate_rows:
         return SheetData(name, header_idx, pd.DataFrame(columns=columns), skipped=True,
                           skip_reason="header row found but no data rows follow it",
                           raw_row_count=total)
 
-    df = pd.DataFrame(data_rows, columns=columns)
+    kept_rows, excluded_rows = _classify_and_filter_rows(name, header_idx, header_row, columns, candidate_rows)
+    if not kept_rows:
+        return SheetData(name, header_idx, pd.DataFrame(columns=columns), skipped=True,
+                          skip_reason="header row found but every following row was blank or excluded",
+                          raw_row_count=total, excluded_rows=excluded_rows)
+
+    df = pd.DataFrame(kept_rows, columns=columns)
     df = df.astype("string")
-    return SheetData(name, header_idx, df, raw_row_count=total)
+    return SheetData(name, header_idx, df, raw_row_count=total, excluded_rows=excluded_rows)
+
+
+def _normalize_cell(value: object) -> str:
+    """Trim, collapse internal/non-breaking whitespace, and casefold --
+    the same normalization already used for header-alias matching, so a
+    repeated header row with different casing or stray whitespace is
+    still caught as a match rather than slipping through as "different
+    text" (fix spec: a normalized compare, not an exact one)."""
+    if value is None:
+        return ""
+    text = unicodedata.normalize("NFKC", str(value))  # NBSP (U+00A0) etc. -> regular space
+    return " ".join(text.split()).casefold()
+
+
+_SUBTOTAL_PATTERN = re.compile(r"^(sub[\s-]?)?total:?$|^grand\s+total:?$")
+
+
+def _row_is_blank(row: tuple) -> bool:
+    return all(_normalize_cell(c) == "" for c in row)
+
+
+def _row_matches_header(row: tuple, header_row: tuple) -> bool:
+    """A repeated header row embedded mid-sheet (e.g. two monthly
+    submissions pasted into one tab, each starting with a fresh header)
+    -- majority of the header's own non-blank cells reappear at the same
+    position in this row, normalized the same way header matching already
+    is. Checked positionally (not just "these values appear somewhere in
+    the row") so a genuine claim whose values happen to overlap a couple
+    of header words in the wrong columns isn't misclassified."""
+    header_norms = [_normalize_cell(c) for c in header_row]
+    non_blank_positions = [i for i, h in enumerate(header_norms) if h]
+    if not non_blank_positions:
+        return False
+    matches = sum(
+        1 for i in non_blank_positions
+        if _normalize_cell(row[i] if i < len(row) else None) == header_norms[i]
+    )
+    return matches / len(non_blank_positions) > 0.5
+
+
+def _row_is_subtotal(row: tuple) -> bool:
+    """The shape of a real-world embedded subtotal line: most cells blank,
+    with one of the few non-blank cells reading like a total/grand total
+    label. Requires the majority-blank shape (not just the word "total"
+    anywhere) so a genuine claim row is never misclassified just because
+    a free-text field happens to contain that word."""
+    non_blank = [c for c in row if _normalize_cell(c) != ""]
+    if not non_blank or len(non_blank) * 2 > len(row):
+        return False
+    return any(_SUBTOTAL_PATTERN.match(_normalize_cell(c)) for c in non_blank)
+
+
+def _classify_row(row: tuple, header_row: tuple) -> tuple[str | None, str | None]:
+    """Returns (reason, detail) for a row that should be excluded before
+    mapping/validation ever sees it, or (None, None) for a genuine data
+    row. Checked in this order: blank first (cheapest and unambiguous),
+    then an exact repeated-header match (specific), then the subtotal
+    heuristic (broadest) -- so a row that happens to match the header
+    is never also reported as a subtotal."""
+    if _row_is_blank(row):
+        return "blank", "row is entirely blank"
+    if _row_matches_header(row, header_row):
+        return "repeated_header", "row repeats the sheet's own header text"
+    if _row_is_subtotal(row):
+        return "subtotal", "row looks like a subtotal/total line, not a claim"
+    return None, None
+
+
+def _classify_and_filter_rows(
+    sheet_name: str, header_idx: int, header_row: tuple, columns: list[str], candidate_rows: list[tuple],
+) -> tuple[list[tuple], list[ExcludedRow]]:
+    kept: list[tuple] = []
+    excluded: list[ExcludedRow] = []
+    for offset, row in enumerate(candidate_rows):
+        reason, detail = _classify_row(row, header_row)
+        if reason is None:
+            kept.append(row)
+            continue
+        row_number = header_idx + 1 + offset + 1  # 1-based, as a user would see it in the sheet
+        values = {columns[i]: ("" if i >= len(row) or row[i] is None else str(row[i]))
+                  for i in range(len(columns))}
+        excluded.append(ExcludedRow(sheet_name=sheet_name, row_number=row_number,
+                                     reason=reason, detail=detail, values=values))
+    return kept, excluded
 
 
 def _clean_header_cell(value: object, position: int) -> str:

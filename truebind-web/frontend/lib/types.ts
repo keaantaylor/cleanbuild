@@ -40,6 +40,8 @@ export interface MappingField {
   confirmed: boolean;
 }
 
+export type ValidationStatus = "PASS" | "FAIL" | "NOT_EVALUABLE";
+
 export interface ExceptionRow {
   claim_row_id: string;
   claim_reference: string | null;
@@ -47,9 +49,21 @@ export interface ExceptionRow {
   row_index: number;
   amount: number | null;
   check_type: CheckType;
+  status: ValidationStatus;
   severity: Severity;
   message: string;
   validation_result_id: string;
+}
+
+export type ExcludedRowReason = "blank" | "subtotal" | "repeated_header";
+
+export interface ExcludedRow {
+  id: string;
+  sheet_name: string;
+  row_number: number;
+  reason: ExcludedRowReason;
+  detail: string;
+  values: Record<string, string>;
 }
 
 export type DuplicateReviewStatus = "not_duplicate" | "flagged_for_sender" | "confirmed_duplicate";
@@ -117,6 +131,8 @@ export interface ReportSummary {
   probable_duplicates: number;
   field_completeness: FieldCompleteness[];
   missing_mandatory_by_sheet: Record<string, number>;
+  not_evaluable_by_reason: Record<string, number>;
+  excluded_row_counts: Record<string, number>;
 }
 
 export interface Template {

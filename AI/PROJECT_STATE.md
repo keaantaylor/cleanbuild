@@ -88,15 +88,40 @@ was already correct before this session's redesign; the redesign only
 changed the badge's visual treatment (hairline tag, not filled pill), not
 the state model.
 
+## Row exclusion (blank / subtotal / repeated header)
+
+Before a sheet's data rows reach mapping/validation, each is classified
+(`bordereaux/src/bordereaux/ingest.py`: `_classify_row()`) as blank,
+subtotal/total, a repeated copy of the sheet's own header row, or genuine
+data. Excluded rows are never counted as claims and never flagged as
+validation exceptions; they're tracked separately
+(`SheetData.excluded_rows` → `WorkbookCoverage.excluded_rows`) and
+reported by name/count in the coverage line and a dedicated "Excluded
+rows" sheet in the Excel export. In `truebind-web`, they're persisted to
+their own `excluded_rows` table (they never become a `ClaimRow`, so they
+can't hang off `ValidationResult`) and exposed via
+`GET /reports/{id}/excluded-rows`, rendered as an expandable panel
+(`ExcludedRowsPanel`) on the report detail page.
+
 ## Validation outcomes
 
 `CheckType` = `MANDATORY_FIELD | ARITHMETIC | DUPLICATE |
 MAPPING_COMPLETENESS`. Arithmetic reconciliation (paid + reserve ==
 incurred) is a three-outcome check — match / mismatch / **not evaluable**
-(when a required operand was never mapped) — not a boolean pass/fail; "not
-evaluable" is a visually distinct violet family (`--color-not-evaluable`),
-never rendered as a pass. This is pre-existing pipeline behavior
-(`bordereaux/src/bordereaux/validation.py`), unchanged this session.
+(when a required operand was never mapped, or blank/unparseable on that
+row) — not a boolean pass/fail; "not evaluable" is a visually distinct
+violet family (`--color-not-evaluable`), never rendered as a pass. The
+three-outcome logic itself (`bordereaux/src/bordereaux/validation.py`)
+predates this session, but per-row drill-down into *why* a row is not
+evaluable (`ValidationResult.not_evaluable_detail`, four distinct reasons)
+was added in session 2 — previously only the aggregate count existed.
+Persisted using `ValidationResult.status = "NOT_EVALUABLE"` (a value the
+SQL model already declared but nothing wrote until session 2) with
+`check_type` still `"ARITHMETIC"`; kept out of the `exceptions` DataFrame
+bordereaux scores against, so it doesn't penalize the composite score
+(see `DECISIONS.md`). The `/exceptions` API takes a `status` filter; the
+Exceptions screen has a dedicated "Not evaluable" tab, deliberately
+separate from "Arithmetic mismatch."
 
 ## Design system (as of this session)
 
@@ -108,13 +133,16 @@ never rendered as a pass. This is pre-existing pipeline behavior
 - Stat display: typographic block (uppercase label + tabular numeral +
   hairline top rule), not a bordered "card" — used for the Reports
   screen's four top-line metrics.
-- Color tokens themselves are unchanged from before this session (see
-  `truebind-web/frontend/styles/variables.css` /
-  `lib/colorContrast.ts`) — deliberately, since they're already
-  WCAG-AA-validated at build time and kept as distinct hue families per
-  status system (mapping tri-state / arithmetic outcome / leakage
-  confidence / sanctions). This session changed *how* those colors are
-  applied (border vs. fill), not the palette.
+- Color tokens: session 1 changed only *how* colors are applied (border
+  vs. fill), not the values. Session 2 fixed two actual value defects
+  found by computing real contrast ratios: `--color-text-tertiary` was
+  2.5:1 on white against a 4.5:1 AA requirement (now `#69737F`), and
+  `--color-grade-3`/`--color-grade-2` were only 9° apart in hue with
+  grade-3 sharing an exact hex with generic `--color-warning` (now
+  `#7E7407`/`#B85B0A`, re-spaced ~27-31° apart across the full grade
+  ramp). `lib/colorContrast.ts` is the enforcement mechanism — it throws
+  at `app/layout.tsx` import time if any listed pair fails, and is the
+  first place to check before changing any color token.
 - Full rationale for every above choice: `DECISIONS.md`.
 
 ## Known deferred scope (pre-existing, not this session's problem)

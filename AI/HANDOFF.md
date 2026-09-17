@@ -6,6 +6,94 @@ before starting new work. This file covers one work session; it will get
 long over time, so trim completed items into `PROJECT_STATE.md` once
 they're no longer "recent."
 
+---
+
+## Session 2 (same day, follow-up work) — repeated-header-row bug, contrast audit, drill-down
+
+Three asks, all completed and tested. Session 1's notes (below the divider)
+are still accurate background reading; this section only covers what
+changed *since* that commit.
+
+**1. Fixed: a header row repeated mid-sheet was ingested as a fake claim.**
+Root-caused: no row-filtering existed at all for blank/subtotal/repeated-
+header rows in `bordereaux/src/bordereaux/ingest.py` prior to this session
+(the task brief that prompted this assumed such filtering already existed
+and just needed a repeated-header case added — it didn't, so this session
+built the whole thing: `ExcludedRow` dataclass, `_classify_row()` with
+blank/repeated-header/subtotal detection using the same normalized
+(trim/collapse-whitespace/casefold, NFKC for non-breaking spaces) compare
+already used for header-alias matching, wired through
+`SheetData.excluded_rows` → `WorkbookCoverage.excluded_rows` →
+`_coverage_line()` and a new "Excluded rows" sheet in the Excel report.
+Applies to both the openpyxl/xlrd workbook path and the CSV path.
+Regression test: `bordereaux/tests/test_row_exclusion.py` (also generates
+its own fixture, `bordereaux/tests/fixtures/repeated_header_block.xlsx`).
+
+**2. Contrast audit.** Two real WCAG AA failures found by actually
+computing ratios (not guessing): `--color-text-tertiary` was 2.5:1 on
+white (needs 4.5:1) despite being used as real text (row metadata, field
+codes, tab counts) — fixed to `#69737F` (light mode only; dark mode's
+`#94A3B8` was already fine). Also: `--color-grade-3` and `--color-grade-2`
+were only 9° apart in hue (and grade-3 was the literal same hex as generic
+`--color-warning`), making a 3/5 vs 2/5 grade hard to tell apart at a
+glance — re-spaced across the full green→red run to ~27-31° apart
+(`--color-grade-3: #7E7407`, `--color-grade-2: #B85B0A`, plus matching
+dark-mode `--color-grade-3: #FBDE23`). `lib/colorContrast.ts`'s pair list
+updated to match and to actually check text-tertiary (it wasn't checked
+before despite being real text). Every other existing color pair was
+already passing AA — this was not a wholesale palette problem, just these
+two specific gaps.
+
+**3. Explanations + drill-down.** The "Not evaluable" count was previously
+an aggregate-only number with zero row-level detail anywhere (a real gap,
+confirmed by reading `persistence_service.py`'s own comment on
+`Report.arithmetic_not_evaluable` acknowledging it). Added
+`bordereaux.validation.ValidationResult.not_evaluable_detail` (a DataFrame
+kept deliberately separate from `exceptions` so it doesn't affect
+composite scoring — a not-evaluable row is "insufficient information," not
+"wrong data"), with four distinct reasons
+(incurred_unmapped/paid_and_reserve_unmapped/incurred_blank/paid_and_reserve_blank).
+Persisted into the existing `ValidationResult` SQL table using its
+already-defined-but-unused `status="NOT_EVALUABLE"` value (check_type
+stays `"ARITHMETIC"`) — no new table needed for this part. `/exceptions`
+now takes a `status` query param; the Exceptions page has a "Not
+evaluable" tab alongside "Arithmetic mismatch" (deliberately split so a
+real defect and "we couldn't check" never look like the same thing) and
+switched its tab-counting to filter a single already-fetched list
+client-side (fixed a real pre-existing bug where switching tabs made every
+*other* tab's count reflect whichever filter was previously active).
+Excluded rows (from fix #1) needed a genuinely new table
+(`excluded_rows`, migration `f9495471daf3`) since they never become a
+`ClaimRow` — new `GET /reports/{id}/excluded-rows` endpoint, new
+`ExcludedRowsPanel` component (expandable per-row, grouped by sheet) on
+the report detail page. Added tooltips (reused the existing `Tooltip`
+component, not a new pattern) explaining every headline metric, the
+composite-score formula and grade bands, and per-field completeness
+percentages. Found and fixed a real bug in `Tooltip.module.css` while
+adding longer explanation text: the bubble inherited `text-transform:
+uppercase` from ancestor label elements and used `white-space: nowrap`,
+so a long tooltip rendered as one giant unreadable all-caps line — fixed
+to wrap normally with a 320px max-width.
+
+**Verified:** full `bordereaux` test suite (8 scripts) + `truebind-web`
+backend pytest (9 tests, 2 new) + frontend `tsc`/`next build` (contrast
+validator included) all pass. Manually walked the real upload → mapping →
+process → Reports → Exceptions flow through actual dev servers with two
+fixtures (the 10-sheet `test_boundary_cases.xlsx` for realistic flagged
+data, and the new `repeated_header_block.xlsx` for the not-evaluable +
+excluded-rows drill-down specifically) and screenshotted every new UI
+surface.
+
+**Not done / next session:** the Duplicates and Audit screens didn't get
+their own explanation/tooltip pass (Reports and Exceptions did) — if a
+future session wants full drill-down parity, those are the two screens
+left. The pre-existing "Missing mandatory: 68 vs tab count 74" mismatch
+(distinct-rows vs distinct-exceptions counting, see `TODO.md`) was
+noticed but not fixed — it predates this session and wasn't part of what
+was asked.
+
+---
+
 ## Repo shape (read this first if you're new here)
 
 There are **two separate applications** in this repo, not one:

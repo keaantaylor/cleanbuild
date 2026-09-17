@@ -128,6 +128,7 @@ def run_workbook_pipeline(
         len(s.raw) if not s.skipped else max(s.raw_row_count - 1, 0)
         for s in sheets
     )
+    excluded_rows = [er for s in sheets for er in s.excluded_rows]
     coverage = report.WorkbookCoverage(
         sheets_total=len(sheets),
         sheets_processed=sum(1 for s in sheets if not s.skipped),
@@ -135,6 +136,7 @@ def run_workbook_pipeline(
         rows_total=rows_total,
         rows_assessed=len(canonical),
         sheet_field_state=sheet_field_state,
+        excluded_rows=excluded_rows,
     )
 
     health = report.build_health_report(

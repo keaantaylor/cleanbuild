@@ -68,9 +68,21 @@ class ExceptionRowOut(BaseModel):
     row_index: int
     amount: float | None
     check_type: str
+    status: str
     severity: str
     message: str
     validation_result_id: str
+
+
+class ExcludedRowOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    sheet_name: str
+    row_number: int
+    reason: str
+    detail: str
+    values: dict
 
 
 class DuplicatePairOut(BaseModel):
@@ -184,3 +196,5 @@ class ReportSummaryOut(BaseModel):
     probable_duplicates: int
     field_completeness: list[FieldCompletenessOut]
     missing_mandatory_by_sheet: dict[str, int]
+    not_evaluable_by_reason: dict[str, int] = {}
+    excluded_row_counts: dict[str, int] = {}

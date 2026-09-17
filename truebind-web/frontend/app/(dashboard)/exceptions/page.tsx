@@ -9,11 +9,22 @@ import { ExceptionDetail } from "@/components/exceptions/ExceptionDetail";
 import { Tabs } from "@/components/ui/Tabs";
 import styles from "./page.module.css";
 
-const FILTERS = [
-  { value: "", label: "All flagged" },
-  { value: "MANDATORY_FIELD", label: "Missing mandatory" },
-  { value: "ARITHMETIC", label: "Arithmetic" },
-  { value: "MAPPING_COMPLETENESS", label: "Mapping completeness" },
+// Client-side predicates over the full (unfiltered) exception list, not a
+// server round-trip per tab -- keeps every tab's count honest regardless
+// of which tab is currently active (a prior version re-fetched filtered-
+// by-check_type from the server, so switching tabs made every OTHER tab's
+// count reflect whatever was already loaded, not the true total).
+// ARITHMETIC and NOT_EVALUABLE are deliberately separate tabs even though
+// today they're the only two statuses ARITHMETIC produces: a mismatch is
+// wrong data, a not-evaluable row is data Truebind refused to guess
+// about -- conflating them into one "Arithmetic" bucket would blur
+// exactly the distinction Section 2 exists to make visible.
+const FILTERS: { value: string; label: string; predicate: (e: ExceptionRow) => boolean }[] = [
+  { value: "", label: "All flagged", predicate: () => true },
+  { value: "MANDATORY_FIELD", label: "Missing mandatory", predicate: (e) => e.check_type === "MANDATORY_FIELD" },
+  { value: "ARITHMETIC", label: "Arithmetic mismatch", predicate: (e) => e.check_type === "ARITHMETIC" && e.status !== "NOT_EVALUABLE" },
+  { value: "NOT_EVALUABLE", label: "Not evaluable", predicate: (e) => e.status === "NOT_EVALUABLE" },
+  { value: "MAPPING_COMPLETENESS", label: "Mapping completeness", predicate: (e) => e.check_type === "MAPPING_COMPLETENESS" },
 ];
 
 export default function ExceptionsPage() {
@@ -25,10 +36,11 @@ export default function ExceptionsPage() {
 
   useEffect(() => {
     if (!reportId) return;
-    api.listExceptions(reportId, filter || undefined).then(setExceptions);
+    api.listExceptions(reportId).then(setExceptions);
     api.listObligations({ reportId }).then(setObligations);
     setSelected(null);
-  }, [reportId, filter]);
+    setFilter("");
+  }, [reportId]);
 
   async function handleCreateObligation(owner: string, deadline: string, note: string) {
     if (!reportId || !selected) return;
@@ -42,9 +54,9 @@ export default function ExceptionsPage() {
   }
 
   const selectedObligations = obligations.filter((o) => o.claim_row_id === selected?.claim_row_id);
-  const counts = FILTERS.map((f) =>
-    f.value ? exceptions.filter((e) => e.check_type === f.value).length : exceptions.length,
-  );
+  const activeFilter = FILTERS.find((f) => f.value === filter) ?? FILTERS[0];
+  const filteredRows = exceptions.filter(activeFilter.predicate);
+  const counts = FILTERS.map((f) => exceptions.filter(f.predicate).length);
 
   return (
     <div className={styles.page}>
@@ -66,7 +78,7 @@ export default function ExceptionsPage() {
 
           <div className={styles.layout}>
             <div className={styles.tableCol}>
-              <ExceptionsTable rows={exceptions} onSelect={setSelected} />
+              <ExceptionsTable rows={filteredRows} onSelect={setSelected} />
             </div>
             {selected && (
               <div className={styles.detailCol}>

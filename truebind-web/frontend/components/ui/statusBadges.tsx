@@ -28,6 +28,17 @@ export function SeverityBadge({ severity }: { severity: Severity }) {
   return <Badge tone={SEVERITY_TONE[severity]}>{SEVERITY_LABEL[severity]}</Badge>;
 }
 
+/** A NOT_EVALUABLE row is never shown with a severity badge: severity
+ * implies "this is wrong, and here's how badly" -- not evaluable means
+ * "we don't have enough information to say either way", which is a
+ * different claim entirely and must never look like a graded failure. */
+export function ExceptionStatusBadge({ status, severity }: { status: string; severity: Severity }) {
+  if (status === "NOT_EVALUABLE") {
+    return <Badge tone="notEvaluable" symbol="?">Not evaluable</Badge>;
+  }
+  return <SeverityBadge severity={severity} />;
+}
+
 export function DuplicateMatchBadge({ matchType }: { matchType: "exact_duplicate" | "probable_duplicate" }) {
   return matchType === "exact_duplicate" ? (
     <Badge tone="leakageCertain">Certain duplicate</Badge>

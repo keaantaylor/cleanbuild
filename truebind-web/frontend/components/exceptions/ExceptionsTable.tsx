@@ -1,6 +1,6 @@
 import type { ExceptionRow } from "@/lib/types";
 import { Table, type Column } from "@/components/ui/Table";
-import { SeverityBadge } from "@/components/ui/statusBadges";
+import { ExceptionStatusBadge } from "@/components/ui/statusBadges";
 import { formatCurrency } from "@/lib/formatters";
 
 export function ExceptionsTable({ rows, onSelect }: { rows: ExceptionRow[]; onSelect: (row: ExceptionRow) => void }) {
@@ -9,7 +9,7 @@ export function ExceptionsTable({ rows, onSelect }: { rows: ExceptionRow[]; onSe
     { key: "sheet", header: "Sheet · row", render: (r) => `${r.sheet_name ?? "—"} · ${r.row_index + 1}` },
     { key: "exception", header: "Exception", render: (r) => (
       <div>
-        <SeverityBadge severity={r.severity} /> <span>{r.message}</span>
+        <ExceptionStatusBadge status={r.status} severity={r.severity} /> <span>{r.message}</span>
       </div>
     ) },
     { key: "amount", header: "Amount", render: (r) => formatCurrency(r.amount), align: "right" },

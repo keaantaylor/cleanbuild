@@ -124,6 +124,39 @@ def test_summary_endpoint_matches_direct_pipeline_call(client):
     assert claim_ref_field["denominator"] == reference_fc.denominator
 
 
+def test_not_evaluable_rows_are_drillable(client):
+    """Section 2B: "Not evaluable: N" on the dashboard must be drillable
+    down to the actual rows and reasons, not just an aggregate count --
+    this is the API surface that closes that gap."""
+    reference = _reference_health()
+    report_id, persisted = _upload_and_process(client)
+
+    not_evaluable = client.get(f"/api/v1/reports/{report_id}/exceptions?status=NOT_EVALUABLE").json()
+    assert len(not_evaluable) == reference.health.arithmetic_not_evaluable
+    assert all(e["check_type"] == "ARITHMETIC" and e["status"] == "NOT_EVALUABLE" for e in not_evaluable)
+
+    # Never double-counted into the real mismatch bucket.
+    mismatches_only = client.get(f"/api/v1/reports/{report_id}/exceptions?check_type=ARITHMETIC&status=FAIL").json()
+    assert len(mismatches_only) == reference.health.arithmetic_mismatches
+
+    summary = client.get(f"/api/v1/reports/{report_id}/summary").json()
+    assert sum(summary["not_evaluable_by_reason"].values()) == reference.health.arithmetic_not_evaluable
+
+
+def test_excluded_rows_endpoint_matches_coverage(client):
+    reference = _reference_health()
+    report_id, _ = _upload_and_process(client)
+
+    excluded = client.get(f"/api/v1/reports/{report_id}/excluded-rows").json()
+    counts: dict[str, int] = {}
+    for er in excluded:
+        counts[er["reason"]] = counts.get(er["reason"], 0) + 1
+    assert counts == reference.coverage.excluded_row_counts
+
+    summary = client.get(f"/api/v1/reports/{report_id}/summary").json()
+    assert summary["excluded_row_counts"] == reference.coverage.excluded_row_counts
+
+
 def test_export_endpoints_return_csv(client):
     report_id, _ = _upload_and_process(client)
     audit_csv = client.get(f"/api/v1/reports/{report_id}/export/audit-csv")

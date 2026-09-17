@@ -22,12 +22,23 @@ EXCEPTION_COLUMNS = ["row_index", "claim_ref", "rule", "detail"]
 SheetFieldState = dict[str, dict[str, str]]
 
 
+NOT_EVALUABLE_DETAIL_COLUMNS = ["row_index", "claim_ref", "reason", "detail"]
+
+
 @dataclass
 class ValidationResult:
     exceptions: pd.DataFrame
     arithmetic_match_count: int
     arithmetic_mismatch_count: int
     arithmetic_not_evaluable_count: int
+    # Kept separate from `exceptions` deliberately: a not-evaluable row is
+    # not wrong data (it doesn't penalize the composite score the way an
+    # exception does, see report.py), it's a row Truebind refuses to guess
+    # about. This is the per-row "why" behind arithmetic_not_evaluable_count
+    # -- without it, a user could see "Not evaluable: 10" with no way to
+    # find which 10 rows or why, which is exactly the trust gap this exists
+    # to close.
+    not_evaluable_detail: pd.DataFrame
 
 
 def validate(df: pd.DataFrame, sheet_field_state: SheetFieldState | None = None) -> ValidationResult:
@@ -95,13 +106,12 @@ def _check_arithmetic(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState
     reserve = df[schema.RESERVE_CODE]
     incurred = df[schema.INCURRED_CODE]
 
-    unmapped = (
-        _field_unmapped_mask(df, schema.INCURRED_CODE, sheet_field_state)
-        | (
-            _field_unmapped_mask(df, schema.PAID_CODE, sheet_field_state)
-            & _field_unmapped_mask(df, schema.RESERVE_CODE, sheet_field_state)
-        )
-    )
+    incurred_unmapped = _field_unmapped_mask(df, schema.INCURRED_CODE, sheet_field_state)
+    paid_unmapped = _field_unmapped_mask(df, schema.PAID_CODE, sheet_field_state)
+    reserve_unmapped = _field_unmapped_mask(df, schema.RESERVE_CODE, sheet_field_state)
+    paid_and_reserve_unmapped = paid_unmapped & reserve_unmapped
+
+    unmapped = incurred_unmapped | paid_and_reserve_unmapped
     has_inputs = incurred.notna() & (paid.notna() | reserve.notna())
     computable = has_inputs & ~unmapped
     not_evaluable = ~computable
@@ -115,10 +125,30 @@ def _check_arithmetic(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState
         flag(idx, "arithmetic_mismatch",
              f"incurred={incurred.at[idx]} but paid+reserve={expected.at[idx]}")
 
+    not_evaluable_rows: list[dict] = []
+    claim_ref_col = schema.CLAIM_REF_CODE
+    for idx in df.index[not_evaluable]:
+        claim_ref = df.at[idx, claim_ref_col] if claim_ref_col in df.columns else None
+        claim_ref = claim_ref if pd.notna(claim_ref) else None
+        if incurred_unmapped.at[idx]:
+            reason = "incurred_unmapped"
+            detail = "Total incurred was never mapped to a column on this sheet"
+        elif paid_and_reserve_unmapped.at[idx]:
+            reason = "paid_and_reserve_unmapped"
+            detail = "Both indemnity paid and indemnity reserve were never mapped to a column on this sheet"
+        elif pd.isna(incurred.at[idx]):
+            reason = "incurred_blank"
+            detail = "Total incurred is blank or unparseable on this row"
+        else:
+            reason = "paid_and_reserve_blank"
+            detail = "Both indemnity paid and indemnity reserve are blank or unparseable on this row"
+        not_evaluable_rows.append({"row_index": idx, "claim_ref": claim_ref, "reason": reason, "detail": detail})
+
     return {
         "arithmetic_match_count": int(match.sum()),
         "arithmetic_mismatch_count": int(mismatch.sum()),
         "arithmetic_not_evaluable_count": int(not_evaluable.sum()),
+        "not_evaluable_detail": pd.DataFrame(not_evaluable_rows, columns=NOT_EVALUABLE_DETAIL_COLUMNS),
     }
 
 

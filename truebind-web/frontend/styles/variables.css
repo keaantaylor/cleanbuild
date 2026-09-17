@@ -42,10 +42,15 @@
   --color-sanctions: #FFFFFF;
   --color-sanctions-bg: #000000;
 
+  /* grade-3/grade-2 were originally #B45309/#C2410C -- only 9deg apart in
+     hue (and grade-3 was the exact same hex as --color-warning), so a
+     grade of 3 vs 2 was nearly indistinguishable at a glance and grade-3
+     could be mistaken for an unrelated warning badge. Re-spaced to ~27-31deg
+     apart across the full green->red run (contrast audit, Section 2A). */
   --color-grade-5: #15803D;
   --color-grade-4: #4D7C0F;
-  --color-grade-3: #B45309;
-  --color-grade-2: #C2410C;
+  --color-grade-3: #7E7407;
+  --color-grade-2: #B85B0A;
   --color-grade-1: #DC2626;
 
   --color-bg-primary: #FFFFFF;
@@ -53,7 +58,10 @@
   --color-bg-tertiary: #F3F4F6;
   --color-text-primary: #111827;
   --color-text-secondary: #6B7280;
-  --color-text-tertiary: #9CA3AF;
+  /* Was #9CA3AF: 2.5:1 on white, well under the 4.5:1 AA minimum for
+     normal text despite being used as real text (row metadata, field
+     codes, tab counts) -- not just decoration. Contrast audit, Section 2A. */
+  --color-text-tertiary: #69737F;
   --color-border: #E5E7EB;
 
   /* Display/heading face is a serif -- deliberate departure from the
@@ -126,7 +134,7 @@
 
     --color-grade-5: #4ADE80;
     --color-grade-4: #A3E635;
-    --color-grade-3: #FBBF24;
+    --color-grade-3: #FBDE23;
     --color-grade-2: #FB923C;
     --color-grade-1: #F87171;
 
@@ -161,7 +169,7 @@
 
   --color-grade-5: #4ADE80;
   --color-grade-4: #A3E635;
-  --color-grade-3: #FBBF24;
+  --color-grade-3: #FBDE23;
   --color-grade-2: #FB923C;
   --color-grade-1: #F87171;
 

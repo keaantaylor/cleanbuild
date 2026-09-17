@@ -28,6 +28,8 @@ export function contrastRatio(fg: string, bg: string): number {
 const LIGHT_PAIRS: [string, string, string][] = [
   ["text-primary on bg-primary", "#111827", "#FFFFFF"],
   ["text-secondary on bg-primary", "#6B7280", "#FFFFFF"],
+  ["text-tertiary on bg-primary", "#69737F", "#FFFFFF"],
+  ["text-tertiary on bg-secondary", "#69737F", "#F9FAFB"],
   ["primary on white", "#2E3FE0", "#FFFFFF"],
   ["success on white", "#15803D", "#FFFFFF"],
   ["success on success-bg", "#15803D", "#DCFCE7"],
@@ -45,14 +47,15 @@ const LIGHT_PAIRS: [string, string, string][] = [
   ["sanctions on sanctions-bg", "#FFFFFF", "#000000"],
   ["grade-5 on white", "#15803D", "#FFFFFF"],
   ["grade-4 on white", "#4D7C0F", "#FFFFFF"],
-  ["grade-3 on white", "#B45309", "#FFFFFF"],
-  ["grade-2 on white", "#C2410C", "#FFFFFF"],
+  ["grade-3 on white", "#7E7407", "#FFFFFF"],
+  ["grade-2 on white", "#B85B0A", "#FFFFFF"],
   ["grade-1 on white", "#DC2626", "#FFFFFF"],
 ];
 
 const DARK_PAIRS: [string, string, string][] = [
   ["text-primary-dark on bg-primary-dark", "#F8FAFC", "#0F172A"],
   ["text-secondary-dark on bg-primary-dark", "#CBD5E1", "#0F172A"],
+  ["text-tertiary-dark on bg-primary-dark", "#94A3B8", "#0F172A"],
   ["success-dark on its bg", "#4ADE80", "#14532D"],
   ["warning-dark on its bg", "#FBBF24", "#78350F"],
   ["error-dark on its bg", "#FCA5A5", "#7F1D1D"],
@@ -63,7 +66,7 @@ const DARK_PAIRS: [string, string, string][] = [
   ["leakage-certain-dark on its bg", "#FCA5A5", "#7F1D1D"],
   ["grade-5-dark on bg", "#4ADE80", "#0F172A"],
   ["grade-4-dark on bg", "#A3E635", "#0F172A"],
-  ["grade-3-dark on bg", "#FBBF24", "#0F172A"],
+  ["grade-3-dark on bg", "#FBDE23", "#0F172A"],
   ["grade-2-dark on bg", "#FB923C", "#0F172A"],
   ["grade-1-dark on bg", "#F87171", "#0F172A"],
 ];

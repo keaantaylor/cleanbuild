@@ -1,4 +1,4 @@
-import type { Alert, AuditLogEntry, DuplicatePair, ExceptionRow, MappingField, Obligation, Report, ReportSummary, Sheet, Template } from "./types";
+import type { Alert, AuditLogEntry, DuplicatePair, ExceptionRow, ExcludedRow, MappingField, Obligation, Report, ReportSummary, Sheet, Template } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
@@ -56,8 +56,14 @@ export const api = {
     }),
   processReport: (reportId: string) => request<Report>(`/reports/${reportId}/process`, { method: "POST" }),
 
-  listExceptions: (reportId: string, checkType?: string) =>
-    request<ExceptionRow[]>(`/reports/${reportId}/exceptions${checkType ? `?check_type=${checkType}` : ""}`),
+  listExceptions: (reportId: string, checkType?: string, status?: string) => {
+    const q = new URLSearchParams();
+    if (checkType) q.set("check_type", checkType);
+    if (status) q.set("status", status);
+    const qs = q.toString();
+    return request<ExceptionRow[]>(`/reports/${reportId}/exceptions${qs ? `?${qs}` : ""}`);
+  },
+  listExcludedRows: (reportId: string) => request<ExcludedRow[]>(`/reports/${reportId}/excluded-rows`),
   listDuplicates: (reportId: string) => request<DuplicatePair[]>(`/reports/${reportId}/duplicates`),
   reviewDuplicate: (reportId: string, validationResultId: string, reviewStatus: string) =>
     request<DuplicatePair>(`/reports/${reportId}/duplicates/${validationResultId}/review`, {

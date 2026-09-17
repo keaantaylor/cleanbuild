@@ -52,14 +52,17 @@ def load_raw(path: str | Path) -> pd.DataFrame:
     return pd.read_excel(path, dtype="string", engine="openpyxl")
 
 
-def load_workbook_sheets(path: str | Path) -> list[SheetData]:
+def load_workbook_sheets(path: str | Path, display_name: str | None = None) -> list[SheetData]:
     """Every sheet in the workbook (fix spec 3.1), each with its own
     detected header row (fix spec 3.2). A CSV has exactly one implicit
-    "sheet" named after the file."""
+    "sheet" named after the file -- `display_name` overrides that name
+    (e.g. a Streamlit upload saved under a random temp filename should
+    still be labeled with the name the user actually uploaded)."""
     path = str(path)
     if path.lower().endswith(".csv"):
         raw = pd.read_csv(path, dtype="string")
-        return [SheetData(sheet_name=Path(path).stem, header_row_index=0, raw=raw)]
+        sheet_name = Path(display_name).stem if display_name else Path(path).stem
+        return [SheetData(sheet_name=sheet_name, header_row_index=0, raw=raw)]
 
     import openpyxl
 

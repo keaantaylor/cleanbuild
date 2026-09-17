@@ -1,0 +1,42 @@
+{
+  "fixture": "leakage_fixture.csv",
+  "cases": {
+    "certain": {
+      "claim_ref": "LKG-00101",
+      "expected_tier": "CERTAIN"
+    },
+    "probable": {
+      "claim_ref_a": "LKG-00102",
+      "claim_ref_b": "LKG-00103",
+      "expected_tier": "PROBABLE"
+    },
+    "possible": {
+      "claim_ref_a": "LKG-00104",
+      "claim_ref_b": "LKG-00105",
+      "expected_tier": "POSSIBLE"
+    }
+  },
+  "total_rows": 32,
+  "expected_flag_count": {
+    "CERTAIN": 1,
+    "PROBABLE": 1,
+    "POSSIBLE": 1
+  },
+  "negative_cases": [
+    {
+      "claim_ref_a": "LKG-00106",
+      "claim_ref_b": "LKG-00107",
+      "reason": "amount outside tolerance"
+    },
+    {
+      "claim_ref_a": "LKG-00108",
+      "claim_ref_b": "LKG-00109",
+      "reason": "different payee"
+    },
+    {
+      "claim_ref_a": "LKG-00110",
+      "claim_ref_b": "LKG-00111",
+      "reason": "outside wide date window"
+    }
+  ]
+}

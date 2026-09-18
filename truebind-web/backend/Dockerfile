@@ -19,4 +19,10 @@ RUN grep -v '^-e ' requirements.txt > requirements.docker.txt \
 COPY truebind-web/backend/ .
 
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Most PaaS hosts (Railway, Render, etc.) assign the port to listen on
+# via $PORT at runtime and route traffic to whatever that resolves to --
+# a hardcoded --port 8000 works for docker-compose (which maps the port
+# explicitly) but silently fails health checks on those platforms if
+# they pick a different port. Falls back to 8000 for docker-compose/
+# local runs where $PORT isn't set.
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

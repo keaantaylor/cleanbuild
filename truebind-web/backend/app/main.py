@@ -8,8 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_cors_origins
 from .database import get_session_factory
+from .models.exception_summary import ExceptionSummary
 from .models.reports import Report
-from .routes import alerts, audit, duplicates, exceptions, mapping, obligations, reports, templates, upload
+from .routes import (
+    alerts, audit, duplicates, exception_summary, exceptions, mapping, obligations, reports, templates, upload,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +46,33 @@ def _fail_interrupted_processing_runs() -> None:
         db.close()
 
 
+def _fail_interrupted_summary_runs() -> None:
+    """Same crash-resilience pattern as _fail_interrupted_processing_
+    runs(), for the AI exception-summary background task (routes/
+    exception_summary.py) -- a summary stuck at GENERATING from before a
+    crash/restart would otherwise poll forever with the Exceptions page's
+    "generating..." panel never resolving."""
+    db = get_session_factory()()
+    try:
+        stuck = db.query(ExceptionSummary).filter_by(narrative_status="GENERATING").all()
+        for summary in stuck:
+            summary.narrative_status = "FAILED"
+            summary.narrative_error = (
+                "Narrative generation was interrupted (the server restarted or crashed). "
+                "Click regenerate to try again."
+            )
+        if stuck:
+            db.commit()
+            logger.warning("Marked %d exception summary/summaries FAILED on startup (interrupted run): %s",
+                            len(stuck), [s.id for s in stuck])
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     _fail_interrupted_processing_runs()
+    _fail_interrupted_summary_runs()
     yield
 
 
@@ -59,7 +86,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for router_module in (upload, mapping, reports, exceptions, duplicates, obligations, alerts, audit, templates):
+for router_module in (
+    upload, mapping, reports, exceptions, exception_summary, duplicates, obligations, alerts, audit, templates,
+):
     app.include_router(router_module.router)
 
 

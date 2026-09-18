@@ -6,6 +6,12 @@ pydantic>=2.9
 python-multipart>=0.0.9
 psycopg[binary]>=3.2
 reportlab>=4.2
+# Also a transitive dependency of the editable bordereaux install below
+# (its AI-assisted mapping fallback), but declared here explicitly too --
+# app/services/exception_narrative_service.py imports it directly for
+# the exception-triage summariser and shouldn't rely on a sibling
+# package's dependency list to keep providing it.
+anthropic>=0.40
 
 # Reuses the already-built, already-tested pure-Python pipeline
 # (ingest/mapping/validation/dedupe/report/leakage/schema) instead of

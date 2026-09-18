@@ -443,6 +443,39 @@ def _parse_amount_series(series: pd.Series) -> tuple[pd.Series, pd.Series]:
     return parsed_numeric, unparseable
 
 
+# Excel represents a date as a day count from a fixed epoch. 1899-12-30
+# (not 1900-01-01) is the standard trick that reproduces Excel's own
+# well-known "1900 is a leap year" bug, so it agrees with what Excel
+# itself displays for the same serial number -- verified against known
+# reference points (44197 -> 2021-01-01, 25569 -> 1970-01-01) before use.
+_EXCEL_SERIAL_EPOCH = pd.Timestamp("1899-12-30")
+# A plausible-claims-date guard, not a technical limit: rejects small
+# integers (an ID, a count, "1", "2") that are valid serials in principle
+# but are never a real bordereau date, while still covering any date a
+# real claims file would plausibly carry (serial 1000 ~= 1902-09-26,
+# serial 100000 ~= 2173-10-15).
+_EXCEL_SERIAL_MIN, _EXCEL_SERIAL_MAX = 1000, 100_000
+
+
+def _parse_excel_serial_dates(series: pd.Series) -> pd.Series:
+    """A cell stored as a bare number with no Excel date formatting
+    applied -- common when a bordereau is exported to CSV, or a date
+    column was pasted as values -- still needs to resolve to a real
+    calendar date instead of silently coming back NaT. Only called on
+    values that already failed every recognized date-string format (see
+    _best_date_parse), and only ever reached for a column already
+    confirmed-mapped to a date-type canonical field, so this never
+    reinterprets an ordinary reference number living in some other
+    column as a date."""
+    numeric = pd.to_numeric(series, errors="coerce")
+    plausible = numeric.between(_EXCEL_SERIAL_MIN, _EXCEL_SERIAL_MAX)
+    parsed = pd.Series(pd.NaT, index=series.index, dtype="datetime64[ns]")
+    valid = plausible & numeric.notna()
+    if valid.any():
+        parsed.loc[valid] = _EXCEL_SERIAL_EPOCH + pd.to_timedelta(numeric.loc[valid], unit="D")
+    return parsed
+
+
 def _best_date_parse(series: pd.Series) -> pd.Series:
     non_null = series.dropna()
     if non_null.empty:
@@ -463,7 +496,19 @@ def _best_date_parse(series: pd.Series) -> pd.Series:
         fallback = pd.to_datetime(series, format="mixed", errors="coerce")
         fallback_score = int(fallback.notna().sum())
         if fallback_score > best_score:
-            return fallback
+            best_score, best_parsed = fallback_score, fallback
+
+    if best_score < target:
+        # Whatever's still unresolved wasn't recognizable as a date
+        # string at all -- try reading it as a bare Excel serial number
+        # instead of leaving it NaT.
+        still_missing = best_parsed.isna() & series.notna()
+        if still_missing.any():
+            serial_parsed = _parse_excel_serial_dates(series[still_missing])
+            if serial_parsed.notna().any():
+                best_parsed = best_parsed.copy()
+                best_parsed.loc[still_missing] = serial_parsed
+
     return best_parsed
 
 

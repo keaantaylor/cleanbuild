@@ -96,6 +96,22 @@ class WorkbookCoverage:
             counts[er.reason] = counts.get(er.reason, 0) + 1
         return counts
 
+    @property
+    def unmapped_data_sheets(self) -> list[str]:
+        """Sheet names that were retained -- not skipped; their rows are
+        in canonical/rows_assessed like any other sheet -- but whose
+        confirmed mapping left every single canonical field unmapped. The
+        data was never dropped, but nothing about it could be validated
+        or scored, and that must be a visible, explained fact rather than
+        something a reviewer has to infer from an otherwise-unremarkable
+        low completeness number. General mechanism: driven entirely by
+        sheet_field_state, which every non-skipped sheet already
+        populates -- no per-file or per-sheet-name special-casing."""
+        return sorted(
+            name for name, state in self.sheet_field_state.items()
+            if state and all(v == "unmapped" for v in state.values())
+        )
+
 
 @dataclass
 class FieldCompleteness:
@@ -140,7 +156,11 @@ class HealthReport:
 
     @property
     def score_reliable(self) -> bool:
-        return self.coverage.fully_covered and not self.unmapped_required_fields
+        return (
+            self.coverage.fully_covered
+            and not self.unmapped_required_fields
+            and not self.coverage.unmapped_data_sheets
+        )
 
 
 def _grade_from_composite(score: float) -> int:
@@ -245,6 +265,11 @@ def _coverage_line(coverage: WorkbookCoverage) -> str:
         total_excluded = sum(counts.values())
         line += (f" {total_excluded} additional row{'s' if total_excluded != 1 else ''} excluded before "
                  f"assessment ({', '.join(parts)}) -- not counted as claims, not flagged as errors.")
+    unmapped_sheets = coverage.unmapped_data_sheets
+    if unmapped_sheets:
+        line += (f" {len(unmapped_sheets)} sheet(s) retained with every column unmapped "
+                 f"({', '.join(unmapped_sheets)}) -- their rows are counted above, but not evaluable "
+                 f"until mapped.")
     return line
 
 
@@ -256,6 +281,10 @@ def _reliability_caveat(health: HealthReport) -> str | None:
         reasons.append("not every sheet/row was assessed")
     if health.unmapped_required_fields:
         reasons.append(f"required field(s) left unmapped: {', '.join(health.unmapped_required_fields)}")
+    if health.coverage.unmapped_data_sheets:
+        reasons.append(
+            f"sheet(s) retained but entirely unmapped: {', '.join(health.coverage.unmapped_data_sheets)}"
+        )
     return "Score not fully reliable — " + "; ".join(reasons) + ". See coverage note above."
 
 

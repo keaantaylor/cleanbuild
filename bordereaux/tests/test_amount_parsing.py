@@ -75,6 +75,46 @@ def test_unparseable_value_is_not_evaluable_never_zero() -> None:
     print("OK: unparseable Paid Amount -> not evaluable, never a false arithmetic mismatch")
 
 
+def test_forensic_report_currency_and_european_format_figures() -> None:
+    """The exact figures from the forensic report -- currency-symbol and
+    European-format (dot-thousands, comma-decimal) values, including
+    symbol+European-format combined, which the general cases above don't
+    exercise explicitly."""
+    cases = {
+        "€227,122.35": 227122.35,
+        "£227,122.35": 227122.35,
+        "$227,122.35": 227122.35,
+        "227,122.35": 227122.35,
+        "478.776,12": 478776.12,
+        "€478.776,12": 478776.12,
+        "£478.776,12": 478776.12,
+    }
+    for text, expected in cases.items():
+        got = _parse_amount_cell(text)
+        assert got == expected, f"{text!r} parsed to {got}, expected {expected}"
+    print(f"OK: {len(cases)} forensic-report currency/European-format figures parse correctly")
+
+
+def test_single_row_all_three_amounts_european_format() -> None:
+    """Reproduces the reported CLM-P0-00031 shape: a row whose paid,
+    reserve AND incurred are all European-format (comma-decimal) text.
+    Each field is parsed from its own source column independently, so
+    this locks in that all three resolve correctly rather than one
+    unparseable convention blanking the whole row."""
+    raw = pd.DataFrame({
+        "Claim Ref": ["CLM-P0-00031"], "Insured Name": ["Test Insured"],
+        "Paid Amount": ["478.776,12"], "Reserve Amount": ["100.000,00"], "Incurred Amount": ["578.776,12"],
+    }).astype("string")
+    canonical = apply_mapping(raw, MAPPING, sheet_name="test")
+    assert canonical.at[0, "CR0126CM"] == 478776.12
+    assert canonical.at[0, "CR0130CM"] == 100000.00
+    assert canonical.at[0, "CR0155CM"] == 578776.12
+    assert not canonical.at[0, "_unparseable_CR0126CM"]
+    assert not canonical.at[0, "_unparseable_CR0130CM"]
+    assert not canonical.at[0, "_unparseable_CR0155CM"]
+    print("OK: CLM-P0-00031-style row (all-European-format paid/reserve/incurred) parses fully, nothing blank")
+
+
 def test_genuinely_blank_paid_still_computable_as_zero() -> None:
     """A cell that's simply empty (no text at all) is the established
     "$0 / not yet reported" bordereau convention, distinct from a cell
@@ -93,6 +133,8 @@ def test_genuinely_blank_paid_still_computable_as_zero() -> None:
 
 if __name__ == "__main__":
     test_currency_symbols_and_both_thousands_conventions()
+    test_forensic_report_currency_and_european_format_figures()
+    test_single_row_all_three_amounts_european_format()
     test_unparseable_value_is_not_evaluable_never_zero()
     test_genuinely_blank_paid_still_computable_as_zero()
     print("\nAmount-parsing regression tests PASSED.")

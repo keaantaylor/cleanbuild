@@ -208,6 +208,21 @@ class ReconciliationOut(BaseModel):
     reconciles: bool
 
 
+class ExceptionSummaryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    report_id: str
+    narrative_status: str
+    aggregate: dict
+    narrative: dict | None
+    narrative_model: str | None
+    narrative_error: str | None
+    narrative_warning: str | None
+    created_at: datetime
+    completed_at: datetime | None
+
+
 class ReportSummaryOut(BaseModel):
     report: ReportOut
     sheets_total: int
@@ -224,3 +239,4 @@ class ReportSummaryOut(BaseModel):
     skipped_sheets: list[dict] = []
     unmapped_sheets: list[dict] = []
     reconciliation: ReconciliationOut
+    

@@ -1,8 +1,8 @@
-export type ReportStatus = "PENDING_MAPPING" | "READY_FOR_REVIEW" | "COMPLETE";
+export type ReportStatus = "PENDING_MAPPING" | "READY_FOR_REVIEW" | "PROCESSING" | "COMPLETE" | "FAILED";
 export type SheetStatus = "PENDING_CONFIRMATION" | "CONFIRMED" | "SKIPPED";
 export type MappingState = "MAPPED_BY_ALIAS" | "MAPPED_BY_AI" | "UNMAPPED" | "MANUAL";
 export type Severity = "CRITICAL" | "HIGH" | "MEDIUM" | "INFO";
-export type CheckType = "MANDATORY_FIELD" | "ARITHMETIC" | "DUPLICATE" | "MAPPING_COMPLETENESS";
+export type CheckType = "MANDATORY_FIELD" | "ARITHMETIC" | "DUPLICATE" | "MAPPING_COMPLETENESS" | "DATA_QUALITY";
 export type ObligationStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "OVERDUE";
 export type AlertSource = "COVERAGE" | "MANDATORY_FAIL" | "NOT_EVALUABLE" | "DUPLICATE" | "OVERDUE";
 
@@ -18,6 +18,8 @@ export interface Report {
   grade: string | null;
   score: number | null;
   status: ReportStatus;
+  processing_phase: string | null;
+  processing_error: string | null;
 }
 
 export interface Sheet {

@@ -14,6 +14,7 @@ const FILTERS = [
   { value: "MANDATORY_FIELD", label: "Missing mandatory" },
   { value: "ARITHMETIC", label: "Arithmetic" },
   { value: "MAPPING_COMPLETENESS", label: "Mapping completeness" },
+  { value: "DATA_QUALITY", label: "Data quality" },
 ];
 
 export default function ExceptionsPage() {

@@ -47,7 +47,7 @@ def validate(df: pd.DataFrame, sheet_field_state: SheetFieldState | None = None)
         })
 
     _check_mandatory_fields(df, flag, sheet_field_state)
-    arith_counts = _check_arithmetic(df, flag, sheet_field_state)
+    arith_counts = _check_arithmetic(df, flag)
     _check_dates(df, flag)
     _check_currency(df, flag)
     _check_status_enum(df, flag)
@@ -90,30 +90,34 @@ def _check_mandatory_fields(df: pd.DataFrame, flag, sheet_field_state: SheetFiel
                  "both indemnity paid and indemnity reserve are missing; at least one is required")
 
 
-def _check_arithmetic(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState) -> dict:
+def _check_arithmetic(df: pd.DataFrame, flag) -> dict:
+    """Fix spec 3.2: paid + reserve == incurred is only ever checked when
+    ALL THREE inputs are actually present -- a value that's missing,
+    blank, or failed to parse (any of those three, for any reason) makes
+    the row NOT EVALUABLE, full stop. Never substitute a missing input
+    with 0: a genuinely-zero paid amount and a paid amount nobody could
+    read are different facts, and treating the second as the first
+    manufactures "arithmetic mismatch" exceptions that are really
+    ingestion failures wearing a different label (the confirmed
+    production symptom this fixes). A column that was never mapped for
+    this sheet is already all-NaN in `df` (see ingest.apply_mapping), so
+    checking .notna() on the three columns directly already captures
+    "never mapped" as one more reason a value is missing -- no separate
+    sheet_field_state lookup needed here."""
     paid = df[schema.PAID_CODE]
     reserve = df[schema.RESERVE_CODE]
     incurred = df[schema.INCURRED_CODE]
 
-    unmapped = (
-        _field_unmapped_mask(df, schema.INCURRED_CODE, sheet_field_state)
-        | (
-            _field_unmapped_mask(df, schema.PAID_CODE, sheet_field_state)
-            & _field_unmapped_mask(df, schema.RESERVE_CODE, sheet_field_state)
-        )
-    )
-    has_inputs = incurred.notna() & (paid.notna() | reserve.notna())
-    computable = has_inputs & ~unmapped
+    computable = paid.notna() & reserve.notna() & incurred.notna()
     not_evaluable = ~computable
 
-    expected = paid.fillna(0) + reserve.fillna(0)
-    diff = (incurred - expected).abs()
+    diff = (incurred - (paid + reserve)).abs()
     mismatch = computable & (diff > schema.ARITHMETIC_TOLERANCE)
     match = computable & ~mismatch
 
     for idx in df.index[mismatch]:
         flag(idx, "arithmetic_mismatch",
-             f"incurred={incurred.at[idx]} but paid+reserve={expected.at[idx]}")
+             f"incurred={incurred.at[idx]} but paid+reserve={(paid + reserve).at[idx]}")
 
     return {
         "arithmetic_match_count": int(match.sum()),

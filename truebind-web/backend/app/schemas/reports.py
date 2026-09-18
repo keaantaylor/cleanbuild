@@ -19,6 +19,8 @@ class ReportOut(BaseModel):
     grade: str | None
     score: float | None
     status: str
+    processing_phase: str | None
+    processing_error: str | None
 
 
 class SheetOut(BaseModel):

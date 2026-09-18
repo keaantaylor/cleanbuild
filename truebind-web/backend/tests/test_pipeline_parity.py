@@ -9,6 +9,7 @@ even though the underlying algorithm is shared, not reimplemented."""
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from bordereaux import pipeline as bpipeline
@@ -47,9 +48,27 @@ def _upload_and_process(client):
         )
         assert confirm.status_code == 200, confirm.text
 
+    # Fix spec Section 6.2: /process now kicks off the pipeline run as a
+    # background task and returns immediately (202, status=PROCESSING)
+    # instead of blocking the request until the whole workbook is done --
+    # poll GET /reports/{id} the same way the frontend does. TestClient
+    # runs FastAPI's BackgroundTasks synchronously as part of the request
+    # it was scheduled from, so this resolves on the first poll in
+    # practice; the loop is here so the test doesn't depend on that.
     process = client.post(f"/api/v1/reports/{report_id}/process")
-    assert process.status_code == 200, process.text
-    return report_id, process.json()
+    assert process.status_code == 202, process.text
+    assert process.json()["status"] == "PROCESSING"
+
+    report = None
+    for _ in range(50):
+        report = client.get(f"/api/v1/reports/{report_id}").json()
+        if report["status"] in ("COMPLETE", "FAILED"):
+            break
+        time.sleep(0.1)
+    assert report is not None and report["status"] == "COMPLETE", (
+        f"report never reached COMPLETE: {report}"
+    )
+    return report_id, report
 
 
 def test_full_workbook_matches_direct_pipeline_call(client):

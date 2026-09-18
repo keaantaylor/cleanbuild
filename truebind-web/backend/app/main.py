@@ -1,12 +1,55 @@
 from __future__ import annotations
 
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_cors_origins
+from .database import get_session_factory
+from .models.reports import Report
 from .routes import alerts, audit, duplicates, exceptions, mapping, obligations, reports, templates, upload
 
-app = FastAPI(title="Truebind API", version="0.1.0")
+logger = logging.getLogger(__name__)
+
+
+def _fail_interrupted_processing_runs() -> None:
+    """Fix spec Section 6.5: a report's background pipeline run (see
+    routes/mapping.py) lives only in this process's memory. If the
+    backend is killed or crashes mid-run (e.g. under memory pressure),
+    that report is left stuck at status=PROCESSING forever with nothing
+    to ever move it out of that state -- the frontend would show an
+    indefinite spinner with no way to tell "still working" from "hung".
+    On every startup (a clean restart included), any report still marked
+    PROCESSING predates this process and its run is gone; mark it FAILED
+    with a clear, specific reason so the UI shows a real failure state
+    instead of spinning forever, and the user can re-run it."""
+    db = get_session_factory()()
+    try:
+        stuck = db.query(Report).filter_by(status="PROCESSING").all()
+        for report in stuck:
+            report.status = "FAILED"
+            report.processing_phase = None
+            report.processing_error = (
+                "Processing was interrupted (the server restarted or crashed while this "
+                "report was being processed). Please re-run it."
+            )
+        if stuck:
+            db.commit()
+            logger.warning("Marked %d report(s) FAILED on startup (interrupted PROCESSING run): %s",
+                            len(stuck), [r.id for r in stuck])
+    finally:
+        db.close()
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    _fail_interrupted_processing_runs()
+    yield
+
+
+app = FastAPI(title="Truebind API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

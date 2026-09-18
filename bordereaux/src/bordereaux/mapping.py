@@ -39,19 +39,67 @@ from typing import Protocol
 from rapidfuzz import fuzz
 from rapidfuzz import process as rf_process
 
+from .iso4217 import VALID_CURRENCY_CODES
 from .schema import FIELDS, FIELDS_BY_CODE
 
 FUZZY_THRESHOLD = 85.0  # rapidfuzz token_sort_ratio, 0-100
 
 MappingState = str  # "alias" | "ai" | "unmapped"
 
+# Fix spec Section 2: a trailing parenthetical -- unit/currency hints like
+# "(GBP)", "(EUR)", "(000s)" -- must never affect whether the rest of the
+# header matches a known field alias. Stripped before normalization, in
+# the one function every header-comparing code path (header-row detection
+# in ingest.py, and the alias fuzzy-match below) already funnels through,
+# so the fix applies everywhere headers get compared, not just here.
+_TRAILING_PAREN_RE = re.compile(r"\s*\([^()]*\)\s*$")
+# Non-breaking space (U+00A0) and other characters that render as
+# whitespace but don't match \s in some contexts -- collapse them too.
+_NBSP_RE = re.compile(r"[   ]")
+
+
+def strip_header_suffix(header: str) -> str:
+    """Strip ONE trailing parenthetical (repeatedly, in case of nesting
+    like "Paid (GBP) (Restated)") and normalize whitespace, without
+    touching casing/punctuation inside the remaining text -- that's
+    normalize_header()'s job. Kept as its own function so ingest.py's
+    currency-hint extraction can share the exact same "what counts as a
+    trailing suffix" definition as the alias-matching path."""
+    text = _NBSP_RE.sub(" ", header)
+    text = text.strip()
+    while True:
+        stripped = _TRAILING_PAREN_RE.sub("", text).strip()
+        if stripped == text:
+            break
+        text = stripped
+    return text
+
 
 def normalize_header(header: str) -> str:
-    """'ClaimReference' -> 'claim reference', 'O/S Reserve' -> 'o s reserve'."""
-    text = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", header)
+    """'ClaimReference' -> 'claim reference', 'O/S Reserve' -> 'o s reserve',
+    'Paid to Date (GBP)' -> 'paid to date' (fix spec 2.1: a trailing unit/
+    currency suffix must never prevent the core header text from matching
+    a known alias)."""
+    text = strip_header_suffix(header)
+    text = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", text)
     text = re.sub(r"[_./\\\-]+", " ", text)
     text = re.sub(r"\s+", " ", text).strip().lower()
     return text
+
+
+def extract_currency_hint(header: str) -> str | None:
+    """Fix spec 2.2: if a header's stripped trailing suffix looks like an
+    ISO 4217 code (e.g. "Paid to Date (GBP)"), return it so ingest.py can
+    populate the row's currency from it when the sheet has no separate
+    Currency column -- rather than silently discarding a real currency
+    signal just because it arrived as a header suffix instead of its own
+    column."""
+    nbsp_clean = _NBSP_RE.sub(" ", header).strip()
+    match = re.search(r"\(([^()]*)\)\s*$", nbsp_clean)
+    if not match:
+        return None
+    candidate = match.group(1).strip().upper()
+    return candidate if candidate in VALID_CURRENCY_CODES else None
 
 
 @dataclass

@@ -23,7 +23,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .schema import FIELDS, FIELDS_BY_CODE
+from .iso4217 import VALID_CURRENCY_CODES
+from .mapping import split_trailing_parenthetical
+from .schema import CURRENCY_CODE, FIELDS, FIELDS_BY_CODE
 
 # Tried in order; whichever format parses the most values for a given
 # column wins. A final flexible-parser pass catches anything left over.
@@ -91,7 +93,7 @@ def load_workbook_sheets(path: str | Path) -> list[SheetData]:
         return [_build_csv_sheet_data(path)]
 
     if path.lower().endswith(".xls"):
-        return [_build_sheet_data(name, rows) for name, rows in _iter_legacy_xls_rows(path)]
+        return [_safe_build_sheet(name, lambda r=rows: r) for name, rows in _iter_legacy_xls_rows(path)]
 
     import openpyxl
 
@@ -99,12 +101,25 @@ def load_workbook_sheets(path: str | Path) -> list[SheetData]:
     sheets: list[SheetData] = []
     try:
         for name in wb.sheetnames:
-            ws = wb[name]
-            rows = list(ws.iter_rows(values_only=True))
-            sheets.append(_build_sheet_data(name, rows))
+            sheets.append(_safe_build_sheet(name, lambda n=name: list(wb[n].iter_rows(values_only=True))))
     finally:
         wb.close()
     return sheets
+
+
+def _safe_build_sheet(name: str, load_rows) -> SheetData:
+    """A crash reading or scoring one sheet (a corrupt cell, an
+    unexpected value type, anything) must never abort the rest of the
+    workbook -- every other sheet the file actually contains would
+    otherwise silently vanish along with the one that failed. Isolate it
+    per sheet, name the sheet and the real exception, and let the
+    workbook keep loading."""
+    try:
+        rows = load_rows()
+        return _build_sheet_data(name, rows)
+    except Exception as exc:  # noqa: BLE001 -- isolated per sheet, surfaced by name, never swallowed
+        return SheetData(name, 0, pd.DataFrame(), skipped=True,
+                          skip_reason=f"error while reading this sheet: {exc}", raw_row_count=0)
 
 
 def _iter_legacy_xls_rows(path: str) -> list[tuple[str, list[tuple]]]:
@@ -299,7 +314,11 @@ def _dedupe_columns(columns: list[str]) -> list[str]:
 def _detect_header_row(rows: list[tuple]) -> tuple[int | None, int]:
     """Score each of the first HEADER_SCAN_ROWS rows by how many of its
     cells fuzzy-match a known field alias; return the best-scoring row
-    index (and its score), or (None, 0) if nothing clears the bar."""
+    index (and its score). Falls back to a structural (non-semantic)
+    header guess -- see _structural_header_row() -- when no row's text
+    matches enough known English aliases, so a real data sheet in another
+    language is never treated the same as a genuinely empty/notes sheet
+    just because its headers don't match the alias dictionary."""
     from .mapping import fuzzy_match_headers
 
     best_idx, best_score = None, -1
@@ -312,9 +331,116 @@ def _detect_header_row(rows: list[tuple]) -> tuple[int | None, int]:
         if score > best_score:
             best_idx, best_score = i, score
 
-    if best_idx is None or best_score < MIN_HEADER_MATCHES:
-        return None, best_score
-    return best_idx, best_score
+    if best_idx is not None and best_score >= MIN_HEADER_MATCHES:
+        return best_idx, best_score
+
+    structural_idx = _structural_header_row(rows)
+    if structural_idx is not None:
+        return structural_idx, 0  # a header row, but with zero alias-matched fields
+
+    return None, best_score
+
+
+def _structural_header_row(rows: list[tuple]) -> int | None:
+    """No row's text aliased to a known field -- this is either a sheet
+    with an unrecognized layout (a different language, unfamiliar
+    terminology, an abbreviation dictionary can't cover) or a genuine
+    non-data sheet (a notes/cover tab). Distinguish them by shape alone:
+    a real header row populates most of its columns and is followed by
+    data rows of comparable width; a notes tab is typically one or two
+    populated cells (a title/paragraph) with nothing tabular below it.
+    Fix spec: a sheet must never be silently dropped just because its
+    headers don't match English aliases -- only a sheet that also fails
+    this structural test (no plausible tabular shape at all) is skipped."""
+    best_idx, best_width = None, 0
+    for i, row in enumerate(rows[:HEADER_SCAN_ROWS]):
+        width = sum(1 for c in row if c is not None and str(c).strip())
+        if width > best_width:
+            best_idx, best_width = i, width
+
+    if best_idx is None or best_width < MIN_HEADER_MATCHES:
+        return None
+
+    following = rows[best_idx + 1: best_idx + 1 + HEADER_SCAN_ROWS]
+    has_comparable_data = any(
+        sum(1 for c in row if c is not None and str(c).strip()) >= max(2, best_width // 2)
+        for row in following
+    )
+    return best_idx if has_comparable_data else None
+
+
+_CURRENCY_SYMBOL_RE = re.compile(r"[€£$¥₹]")
+
+
+def unparseable_flag_column(field_code: str) -> str:
+    """Name of the tracking column apply_mapping() adds alongside a
+    decimal field: True where the source cell had real (non-blank) text
+    that still could not be parsed as a number, even after stripping
+    currency symbols and normalizing both thousands-separator
+    conventions. Never conflated with "genuinely blank" (which stays the
+    established $0/not-yet-reported convention) or "never mapped"
+    (tracked separately via sheet_field_state) -- validation.py reads
+    this to force NOT_EVALUABLE for arithmetic reconciliation rather than
+    silently treating a parsing failure as a zero."""
+    return f"_unparseable_{field_code}"
+
+
+def _parse_amount_cell(text: str) -> float | None:
+    """'€900,000.00' -> 900000.0, '£1,234.56' -> 1234.56, '1.234,56'
+    (European decimal-comma) -> 1234.56, '(500.00)' -> -500.0. Returns
+    None if the text is genuinely empty OR if it still can't be read as
+    a number after all of that -- the caller distinguishes those two
+    cases itself (it already knows whether the raw cell was blank)."""
+    t = unicodedata.normalize("NFKC", text).strip()
+    if not t:
+        return None
+    t = _CURRENCY_SYMBOL_RE.sub("", t)
+    t = "".join(t.split())  # drop all internal whitespace, incl. non-breaking (already normalized above)
+
+    negative = False
+    if t.startswith("(") and t.endswith(")"):
+        negative, t = True, t[1:-1]
+    if t.startswith("-"):
+        negative, t = True, t[1:]
+    if t.startswith("+"):
+        t = t[1:]
+    if not t:
+        return None
+
+    has_comma, has_dot = "," in t, "." in t
+    if has_comma and has_dot:
+        if t.rfind(",") > t.rfind("."):
+            t = t.replace(".", "").replace(",", ".")  # comma is the decimal separator (1.234,56)
+        else:
+            t = t.replace(",", "")  # dot is the decimal separator (1,234.56)
+    elif has_comma:
+        # Ambiguous with only a comma present: thousands grouping (1,234
+        # or 12,345) vs. a European decimal comma (1234,56). Thousands
+        # groups are conventionally exactly 3 digits; a decimal fraction
+        # is conventionally 1-2. A single comma followed by 1-2 digits is
+        # read as decimal; 3 digits (or more than one comma) is grouping.
+        parts = t.split(",")
+        if len(parts) == 2 and len(parts[1]) in (1, 2):
+            t = t.replace(",", ".")
+        else:
+            t = t.replace(",", "")
+
+    try:
+        value = float(t)
+    except ValueError:
+        return None
+    return -value if negative else value
+
+
+def _parse_amount_series(series: pd.Series) -> tuple[pd.Series, pd.Series]:
+    """Returns (parsed float values, unparseable mask). `series` is
+    expected to already have empty strings normalized to NA by the
+    caller, so `notna()` reliably means "the source cell had text"."""
+    had_text = series.notna()
+    parsed = series.map(lambda v: _parse_amount_cell(str(v)) if pd.notna(v) else None)
+    parsed_numeric = pd.array(parsed, dtype="Float64")
+    unparseable = had_text & pd.isna(parsed_numeric)
+    return parsed_numeric, unparseable
 
 
 def _best_date_parse(series: pd.Series) -> pd.Series:
@@ -350,6 +476,8 @@ def apply_mapping(raw: pd.DataFrame, mapping: dict[str, str], sheet_name: str = 
     (via a MappingBatchResult) before treating a null cell as "genuinely
     blank" rather than "column was never mapped"."""
     out = pd.DataFrame(index=raw.index)
+    currency_hint: str | None = None
+    unparseable_cols: dict[str, pd.Series] = {}
 
     for source_col, code in mapping.items():
         if source_col not in raw.columns or code not in FIELDS_BY_CODE:
@@ -361,7 +489,19 @@ def apply_mapping(raw: pd.DataFrame, mapping: dict[str, str], sheet_name: str = 
         if spec.dtype == "date":
             out[code] = _best_date_parse(series)
         elif spec.dtype == "decimal":
-            out[code] = pd.to_numeric(series, errors="coerce")
+            parsed, unparseable = _parse_amount_series(series)
+            out[code] = parsed
+            unparseable_cols[code] = unparseable
+            # A monetary column's own header sometimes states its currency
+            # directly -- "Paid Amount (GBP)" -- where the sheet has no
+            # separate Currency column at all. That's not the same as
+            # guessing a default: the file itself said so in the header,
+            # so it's read rather than discarded. Only used as a last
+            # resort, see below, when no Currency column was mapped.
+            if currency_hint is None:
+                _, suffix = split_trailing_parenthetical(source_col)
+                if suffix and suffix.strip().upper() in VALID_CURRENCY_CODES:
+                    currency_hint = suffix.strip().upper()
         elif spec.dtype == "enum":
             out[code] = series.str.lower()
         elif spec.dtype == "currency":
@@ -373,10 +513,17 @@ def apply_mapping(raw: pd.DataFrame, mapping: dict[str, str], sheet_name: str = 
         if f.code not in out.columns:
             out[f.code] = _empty_column(f.dtype, len(out), out.index)
 
+    decimal_codes = [f.code for f in FIELDS if f.dtype == "decimal"]
+    for code in decimal_codes:
+        out[unparseable_flag_column(code)] = unparseable_cols.get(code, pd.Series(False, index=out.index))
+
+    if currency_hint and CURRENCY_CODE not in mapping.values() and len(out):
+        out[CURRENCY_CODE] = pd.array([currency_hint] * len(out), dtype="string")
+
     from .schema import SOURCE_SHEET_CODE
     out[SOURCE_SHEET_CODE] = pd.array([sheet_name] * len(out), dtype="string")
 
-    return out[[f.code for f in FIELDS] + [SOURCE_SHEET_CODE]]
+    return out[[f.code for f in FIELDS] + [SOURCE_SHEET_CODE] + [unparseable_flag_column(c) for c in decimal_codes]]
 
 
 def _empty_column(dtype: str, length: int, index) -> pd.Series:

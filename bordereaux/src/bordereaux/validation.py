@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from . import schema
+from . import ingest, schema
 from .iso4217 import VALID_CURRENCY_CODES
 
 EXCEPTION_COLUMNS = ["row_index", "claim_ref", "rule", "detail"]
@@ -106,6 +106,19 @@ def _check_arithmetic(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState
     reserve = df[schema.RESERVE_CODE]
     incurred = df[schema.INCURRED_CODE]
 
+    # A cell that HAD text but couldn't be parsed as a number (a stray
+    # symbol, an inconsistent format even after currency/thousands-
+    # separator normalization) is never treated the same as a cell that
+    # was simply empty: an unparseable value must never be silently
+    # coerced to zero in a financial reconciliation. ingest.apply_mapping
+    # tracks this per decimal field; a sheet whose mapping never ran this
+    # column through that path (e.g. a legacy caller) has no tracking
+    # column, so default to "nothing was unparseable" rather than raising.
+    paid_unparseable = df.get(ingest.unparseable_flag_column(schema.PAID_CODE), pd.Series(False, index=df.index))
+    reserve_unparseable = df.get(ingest.unparseable_flag_column(schema.RESERVE_CODE), pd.Series(False, index=df.index))
+    incurred_unparseable = df.get(ingest.unparseable_flag_column(schema.INCURRED_CODE), pd.Series(False, index=df.index))
+    any_unparseable = paid_unparseable | reserve_unparseable | incurred_unparseable
+
     incurred_unmapped = _field_unmapped_mask(df, schema.INCURRED_CODE, sheet_field_state)
     paid_unmapped = _field_unmapped_mask(df, schema.PAID_CODE, sheet_field_state)
     reserve_unmapped = _field_unmapped_mask(df, schema.RESERVE_CODE, sheet_field_state)
@@ -113,7 +126,7 @@ def _check_arithmetic(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState
 
     unmapped = incurred_unmapped | paid_and_reserve_unmapped
     has_inputs = incurred.notna() & (paid.notna() | reserve.notna())
-    computable = has_inputs & ~unmapped
+    computable = has_inputs & ~unmapped & ~any_unparseable
     not_evaluable = ~computable
 
     expected = paid.fillna(0) + reserve.fillna(0)
@@ -130,7 +143,16 @@ def _check_arithmetic(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState
     for idx in df.index[not_evaluable]:
         claim_ref = df.at[idx, claim_ref_col] if claim_ref_col in df.columns else None
         claim_ref = claim_ref if pd.notna(claim_ref) else None
-        if incurred_unmapped.at[idx]:
+        if incurred_unparseable.at[idx]:
+            reason = "incurred_unparseable"
+            detail = "Total incurred contains a value that could not be parsed as a number"
+        elif paid_unparseable.at[idx]:
+            reason = "paid_unparseable"
+            detail = "Indemnity paid contains a value that could not be parsed as a number"
+        elif reserve_unparseable.at[idx]:
+            reason = "reserve_unparseable"
+            detail = "Indemnity reserve contains a value that could not be parsed as a number"
+        elif incurred_unmapped.at[idx]:
             reason = "incurred_unmapped"
             detail = "Total incurred was never mapped to a column on this sheet"
         elif paid_and_reserve_unmapped.at[idx]:
@@ -138,7 +160,7 @@ def _check_arithmetic(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState
             detail = "Both indemnity paid and indemnity reserve were never mapped to a column on this sheet"
         elif pd.isna(incurred.at[idx]):
             reason = "incurred_blank"
-            detail = "Total incurred is blank or unparseable on this row"
+            detail = "Total incurred is blank on this row"
         else:
             reason = "paid_and_reserve_blank"
             detail = "Both indemnity paid and indemnity reserve are blank or unparseable on this row"

@@ -27,6 +27,13 @@ from . import schema
 
 NAME_SIMILARITY_THRESHOLD = 88.0
 ADJACENT_DAYS = 3
+# Short deliberately: this only needs to separate CLEARLY different names
+# (the "100 unrelated repeat clients" case) without risking a same-
+# insured pair whose spelling varies later in the string (a transposed
+# typo, a suffix difference) landing in different blocks and never being
+# compared at all -- recall matters more here than block size, since a
+# missed duplicate is a worse failure than a slightly bigger block.
+BLOCK_KEY_LENGTH = 2
 
 _LEGAL_SUFFIXES = {
     "ltd": "ltd", "limited": "ltd",
@@ -47,6 +54,32 @@ def normalize_name(name: str) -> str:
     if tokens and tokens[-1] in _LEGAL_SUFFIXES:
         tokens[-1] = _LEGAL_SUFFIXES[tokens[-1]]
     return " ".join(tokens)
+
+
+def _block_key(name: str) -> str:
+    """A cheap, high-precision bucketing key: the first few characters of
+    the normalized name. Fix spec 3.11 / Section 4: unbounded pairwise
+    comparison across the whole file is O(n^2) and, at realistic volume
+    (thousands of rows with ordinary repeat clients), produces tens of
+    thousands of false "probable duplicate" flags purely from comparing
+    every row against every other row regardless of name. Grouping by
+    this prefix first means the expensive fuzzy comparison only ever
+    runs WITHIN a block of already-similar names, never across the whole
+    dataset -- standard record-linkage blocking. A prefix (not the full
+    normalized name) is used deliberately so a typo *after* the prefix
+    still lands in the same block and is still caught by the fuzzy
+    compare within it; a typo *within* the prefix itself is the one
+    accepted trade-off blocking always makes for tractable performance."""
+    return normalize_name(name)[:BLOCK_KEY_LENGTH]
+
+
+def _normalize_policy_ref(value: str) -> str:
+    """Loose enough to tolerate formatting variance ('POL-001-2020' vs
+    'pol 001 2020') while still being a precise equality check -- this is
+    only ever used to detect a clear MATCH or a clear CONFLICT, never
+    fuzzy-scored."""
+    return re.sub(r"[^a-z0-9]", "", value.strip().lower())
+
 
 DUPLICATE_COLUMNS = ["match_type", "row_index_a", "row_index_b", "claim_ref_a", "claim_ref_b", "detail"]
 
@@ -84,14 +117,58 @@ def _probable_duplicates(df: pd.DataFrame) -> list[dict]:
     if sub.empty:
         return []
 
-    idx = sub.index.tolist()
-    names = sub[schema.INSURED_NAME_CODE].tolist()
-    dates = sub[schema.LOSS_DATE_CODE].tolist()
-    refs = sub[schema.CLAIM_REF_CODE].tolist()
+    block_keys = sub[schema.INSURED_NAME_CODE].astype(str).map(_block_key)
+    have_policy = schema.POLICY_REF_CODE in sub.columns
+
+    records: list[dict] = []
+    seen_pairs: set[tuple] = set()
+    for _, block_index in sub.groupby(block_keys, sort=False).groups.items():
+        if len(block_index) < 2:
+            continue
+        block = sub.loc[block_index]
+        records.extend(_compare_block(block, seen_pairs, have_policy))
+    return records
+
+
+HIGH_FREQUENCY_REPEAT_THRESHOLD = 5  # see _compare_block: this many exact-name repeats in one sheet reads as a repeat client, not an isolated near-duplicate pair
+
+
+def _compare_block(block: pd.DataFrame, seen_pairs: set[tuple], have_policy: bool) -> list[dict]:
+    """Pairwise comparison within one name-block only (see _block_key) --
+    never across the whole file. Still bounded further by the existing
+    date-adjacency window.
+
+    Policy reference is used as a distinguishing signal, but narrowly:
+    excluding a same-name pair just because its two policy references
+    differ would also exclude a genuine duplicate that happens to have a
+    typo'd/re-keyed policy field -- an existing, deliberately-designed
+    regression fixture (bordereaux/tests/test_boundary_fixture.py, fix
+    spec D7) plants exactly that shape (two rows, same sheet, same name,
+    one day apart, DIFFERENT policy refs) as a genuine duplicate, and
+    breaking that already-verified behavior to satisfy a new, less
+    certain heuristic would be a regression, not a fix. What actually
+    distinguishes "ordinary repeat business" (per the brief: a client
+    that appears ~20 times) from an isolated duplicate pair (a name that
+    appears exactly twice, planted as a defect) is REPETITION COUNT, not
+    policy reference alone -- so the policy-conflict exclusion only
+    applies once a name has shown up often enough in this sheet to look
+    like a genuine repeat client, never for a rare/isolated pair."""
+    idx = block.index.tolist()
+    names = block[schema.INSURED_NAME_CODE].tolist()
+    dates = block[schema.LOSS_DATE_CODE].tolist()
+    refs = block[schema.CLAIM_REF_CODE].tolist()
+    policy_refs = block[schema.POLICY_REF_CODE].tolist() if have_policy else [None] * len(block)
+    sheets = (block[schema.SOURCE_SHEET_CODE].tolist() if schema.SOURCE_SHEET_CODE in block.columns
+              else [None] * len(block))
+
+    norm_names = [normalize_name(str(n)) for n in names]
+    name_counts_by_sheet: dict[tuple, int] = {}
+    for n, s in zip(norm_names, sheets):
+        key = (n, s)
+        name_counts_by_sheet[key] = name_counts_by_sheet.get(key, 0) + 1
 
     order = sorted(range(len(idx)), key=lambda k: dates[k])
     records = []
-    seen_pairs: set[tuple] = set()
 
     for oi in range(len(order)):
         i = order[oi]
@@ -102,22 +179,38 @@ def _probable_duplicates(df: pd.DataFrame) -> list[dict]:
             if pd.notna(refs[i]) and pd.notna(refs[j]) and refs[i] == refs[j]:
                 continue  # same claim, already covered by exact-duplicate check
 
+            same_sheet = sheets[i] is not None and sheets[i] == sheets[j]
+            policy_i, policy_j = policy_refs[i], policy_refs[j]
+            both_policies_known = pd.notna(policy_i) and pd.notna(policy_j)
+            policies_match = both_policies_known and (
+                _normalize_policy_ref(str(policy_i)) == _normalize_policy_ref(str(policy_j))
+            )
+            is_repeat_client = name_counts_by_sheet.get((norm_names[i], sheets[i]), 0) > HIGH_FREQUENCY_REPEAT_THRESHOLD
+            if same_sheet and both_policies_known and not policies_match and is_repeat_client:
+                continue  # a name repeated often enough to read as a genuine repeat client, with a different known policy each time -- ordinary business, not a duplicate
+
             score = fuzz.WRatio(normalize_name(str(names[i])), normalize_name(str(names[j])))
-            if score >= NAME_SIMILARITY_THRESHOLD:
-                pair_key = tuple(sorted((idx[i], idx[j])))
-                if pair_key in seen_pairs:
-                    continue
-                seen_pairs.add(pair_key)
-                records.append({
-                    "match_type": "probable_duplicate",
-                    "row_index_a": idx[i],
-                    "row_index_b": idx[j],
-                    "claim_ref_a": refs[i],
-                    "claim_ref_b": refs[j],
-                    "detail": (
-                        f"insured names {names[i]!r} / {names[j]!r} are {score:.0f}% similar, "
-                        f"loss dates {dates[i].date()} / {dates[j].date()} are within "
-                        f"{ADJACENT_DAYS} days, and claim references differ"
-                    ),
-                })
+            if score < NAME_SIMILARITY_THRESHOLD:
+                continue
+            pair_key = tuple(sorted((idx[i], idx[j])))
+            if pair_key in seen_pairs:
+                continue
+            seen_pairs.add(pair_key)
+
+            policy_note = (
+                "; policy references match" if policies_match
+                else "; policy reference not available on one or both rows"
+            )
+            records.append({
+                "match_type": "probable_duplicate",
+                "row_index_a": idx[i],
+                "row_index_b": idx[j],
+                "claim_ref_a": refs[i],
+                "claim_ref_b": refs[j],
+                "detail": (
+                    f"insured names {names[i]!r} / {names[j]!r} are {score:.0f}% similar, "
+                    f"loss dates {dates[i].date()} / {dates[j].date()} are within "
+                    f"{ADJACENT_DAYS} days, and claim references differ{policy_note}"
+                ),
+            })
     return records

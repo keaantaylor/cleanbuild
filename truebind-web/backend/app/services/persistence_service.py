@@ -14,6 +14,7 @@ import pandas as pd
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from ..models._util import new_uuid
 from ..models.alerts import Alert
 from ..models.reports import ClaimRow, Mapping, Report, Sheet, ValidationResult
 from . import audit_service
@@ -136,6 +137,31 @@ def _severity_for_rule(rule: str) -> str:
     return "INFO"
 
 
+def _check_type_for_rule(rule: str) -> str:
+    """Fix spec Section 5/7: every validation rule maps to its OWN
+    check_type. Rules that are neither arithmetic nor a missing-mandatory-
+    field used to all collapse into "MAPPING_COMPLETENESS" just because
+    that was the catch-all `else` branch -- silently mislabeling
+    date/currency/status findings as a mapping problem and leaving the
+    Exceptions dashboard's real "Mapping completeness" category with
+    nothing in it but this noise. DATA_QUALITY is their real, distinct
+    category; MAPPING_COMPLETENESS is reserved for the genuine per-sheet
+    mapping-outcome finding created below."""
+    if rule == "arithmetic_mismatch":
+        return "ARITHMETIC"
+    if rule == "missing_mandatory_field":
+        return "MANDATORY_FIELD"
+    return "DATA_QUALITY"
+
+
+# Fix spec Section 5: a sheet is flagged as a mapping-completeness
+# problem when it mapped meaningfully fewer fields than the best sheet in
+# the same file -- "significantly fewer" is operationalized as at most
+# half of that file's best sheet, which also always catches the 0-mapped
+# case from Section 1's confirmed symptom.
+_MAPPING_COMPLETENESS_RATIO = 0.5
+
+
 def persist_pipeline_result(
     db: Session, report: Report, sheets, workbook_result, sheet_id_by_name: dict[str, str],
 ) -> None:
@@ -148,10 +174,22 @@ def persist_pipeline_result(
         if not canonical.empty else pd.Series(dtype="int64")
     )
 
+    # Fix spec Section 6.4: this used to db.flush() inside the per-row
+    # loop -- one synchronous round-trip per row just to read back the
+    # auto-generated id, immediately (measured at ~5.5s of a 12.8s total
+    # run on a 12k-row file, on top of the ~7.2s the pipeline itself
+    # takes -- the single biggest per-row cost in this whole path,
+    # exactly the "redundant work per row" pattern this section asks to
+    # be audited for). The id is generated client-side up front instead,
+    # so every row can be batched into one add_all() + one flush().
+    claim_rows: list[ClaimRow] = []
     claim_row_ids: list[str] = []
+    first_claim_row_id_by_sheet: dict[str, str] = {}
     for pos, (idx, row) in enumerate(canonical.iterrows()):
         sheet_name = row["_source_sheet"]
+        row_id = new_uuid()
         claim_row = ClaimRow(
+            id=row_id,
             report_id=report.id,
             sheet_id=sheet_id_by_name.get(sheet_name),
             row_index=int(local_row_index.iloc[pos]) if len(local_row_index) else pos,
@@ -161,9 +199,12 @@ def persist_pipeline_result(
                 for code, col in _FIELD_TO_CLAIMROW_COL.items()
             },
         )
-        db.add(claim_row)
-        db.flush()
-        claim_row_ids.append(claim_row.id)
+        claim_rows.append(claim_row)
+        claim_row_ids.append(row_id)
+        first_claim_row_id_by_sheet.setdefault(sheet_name, row_id)
+
+    db.add_all(claim_rows)
+    db.flush()
 
     exceptions = workbook_result.validation_result.exceptions
     if not exceptions.empty:
@@ -173,13 +214,51 @@ def persist_pipeline_result(
                 continue
             db.add(ValidationResult(
                 claim_row_id=claim_row_ids[row_pos],
-                check_type="ARITHMETIC" if exc["rule"] == "arithmetic_mismatch"
-                    else "MANDATORY_FIELD" if exc["rule"] == "missing_mandatory_field" else "MAPPING_COMPLETENESS",
+                check_type=_check_type_for_rule(exc["rule"]),
                 status="FAIL",
                 severity=_severity_for_rule(exc["rule"]),
                 message=exc["detail"],
                 extra={"rule": exc["rule"]},
             ))
+
+    # Fix spec Section 5: a genuine, first-class MAPPING_COMPLETENESS
+    # finding per sheet that mapped significantly fewer fields than the
+    # file's best sheet -- attached to that sheet's first row so it shows
+    # up in the same per-row Exceptions table/tab the frontend already
+    # queries, rather than only being inferable indirectly from an
+    # inflated not-evaluable count (the confirmed Section 5 symptom).
+    sheet_field_state = coverage.sheet_field_state
+    if sheet_field_state and first_claim_row_id_by_sheet:
+        mapped_counts = {
+            name: sum(1 for f in FIELDS if state.get(f.code) != "unmapped")
+            for name, state in sheet_field_state.items()
+            if name in first_claim_row_id_by_sheet
+        }
+        if mapped_counts:
+            best = max(mapped_counts.values())
+            # "Significantly fewer than others in the same file" (the
+            # comparative signal) degenerates to a no-op on a single-
+            # sheet file, or a file where every sheet is equally bad --
+            # a sheet is always "as good as the file's best" when it IS
+            # the only sheet. An absolute floor (half of all fields)
+            # catches those cases too, which is exactly Section 1's own
+            # example: a single unmappable sheet reading "0 of 9 fields
+            # mapped".
+            absolute_threshold = len(FIELDS) * _MAPPING_COMPLETENESS_RATIO
+            comparative_threshold = best * _MAPPING_COMPLETENESS_RATIO
+            for name, mapped in mapped_counts.items():
+                if mapped >= absolute_threshold and mapped >= comparative_threshold:
+                    continue
+                severity = "CRITICAL" if mapped == 0 else "HIGH"
+                db.add(ValidationResult(
+                    claim_row_id=first_claim_row_id_by_sheet[name],
+                    check_type="MAPPING_COMPLETENESS",
+                    status="FAIL",
+                    severity=severity,
+                    message=f"Sheet '{name}': only {mapped} of {len(FIELDS)} expected fields "
+                             "mapped -- needs manual review.",
+                    extra={"sheet_name": name, "mapped_fields": mapped, "total_fields": len(FIELDS)},
+                ))
 
     duplicates = workbook_result.duplicates
     if not duplicates.empty:

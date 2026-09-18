@@ -16,10 +16,20 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from ..database import Base
 from ._util import created_at_col, uuid_pk
 
-REPORT_STATUSES = ("PENDING_MAPPING", "READY_FOR_REVIEW", "COMPLETE")
+# PROCESSING/FAILED: fix spec Section 6.2 -- /process moves the actual
+# pipeline run to a background task, so a report needs an in-between
+# state the frontend can poll (report.status) instead of the request
+# blocking until the whole workbook is done.
+REPORT_STATUSES = ("PENDING_MAPPING", "READY_FOR_REVIEW", "PROCESSING", "COMPLETE", "FAILED")
 SHEET_STATUSES = ("PENDING_CONFIRMATION", "CONFIRMED", "SKIPPED")
 MAPPING_STATES = ("MAPPED_BY_ALIAS", "MAPPED_BY_AI", "UNMAPPED")
-VALIDATION_CHECK_TYPES = ("MANDATORY_FIELD", "ARITHMETIC", "DUPLICATE", "MAPPING_COMPLETENESS")
+# MAPPING_COMPLETENESS is a genuine sheet-/column-level mapping-outcome
+# finding (fix spec Section 5); DATA_QUALITY covers the other per-row
+# validation rules (date order/future, invalid currency, currency
+# inconsistency, invalid status) that used to be mislabeled as
+# MAPPING_COMPLETENESS just because they weren't ARITHMETIC or
+# MANDATORY_FIELD -- see persistence_service.persist_pipeline_result.
+VALIDATION_CHECK_TYPES = ("MANDATORY_FIELD", "ARITHMETIC", "DUPLICATE", "MAPPING_COMPLETENESS", "DATA_QUALITY")
 VALIDATION_STATUSES = ("PASS", "FAIL", "NOT_EVALUABLE")
 VALIDATION_SEVERITIES = ("CRITICAL", "HIGH", "MEDIUM", "INFO")
 
@@ -42,6 +52,15 @@ class Report(Base):
     # per-row exception (see bordereaux.validation._check_arithmetic) --
     # the only place this count exists is here on the report summary.
     arithmetic_not_evaluable: Mapped[int] = mapped_column(Integer, default=0)
+    # Fix spec 6.2: what phase the background pipeline run is in, so the
+    # frontend can show real progress instead of an indefinite spinner
+    # (e.g. "loading", "mapping", "validating", "persisting"). Cleared
+    # once status leaves PROCESSING.
+    processing_phase: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Fix spec 6.2/6.5: the background run's own exception text when
+    # status == FAILED, so the frontend shows a named failure for this
+    # specific upload instead of an indefinite spinner with no explanation.
+    processing_error: Mapped[str | None] = mapped_column(String(2000), nullable=True)
 
     sheets: Mapped[list["Sheet"]] = relationship(back_populates="report", cascade="all, delete-orphan")
     claim_rows: Mapped[list["ClaimRow"]] = relationship(back_populates="report", cascade="all, delete-orphan")

@@ -1,4 +1,4 @@
-import type { Alert, AuditLogEntry, DuplicatePair, ExceptionRow, MappingField, Obligation, Report, ReportSummary, Sheet, Template } from "./types";
+import type { Alert, AuditLogEntry, DuplicatePair, ExceptionRow, ExceptionSummary, MappingField, Obligation, Report, ReportSummary, Sheet, Template } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
@@ -58,6 +58,11 @@ export const api = {
 
   listExceptions: (reportId: string, checkType?: string) =>
     request<ExceptionRow[]>(`/reports/${reportId}/exceptions${checkType ? `?check_type=${checkType}` : ""}`),
+
+  getExceptionSummary: (reportId: string) =>
+    request<ExceptionSummary | undefined>(`/reports/${reportId}/exceptions/summary`),
+  generateExceptionSummary: (reportId: string) =>
+    request<ExceptionSummary>(`/reports/${reportId}/exceptions/summary`, { method: "POST" }),
   listDuplicates: (reportId: string) => request<DuplicatePair[]>(`/reports/${reportId}/duplicates`),
   reviewDuplicate: (reportId: string, validationResultId: string, reviewStatus: string) =>
     request<DuplicatePair>(`/reports/${reportId}/duplicates/${validationResultId}/review`, {

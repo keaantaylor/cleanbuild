@@ -14,7 +14,9 @@ router = APIRouter(prefix="/api/v1/reports", tags=["exceptions"])
 @router.get("/{report_id}/exceptions", response_model=list[ExceptionRowOut])
 def list_exceptions(
     report_id: str,
-    check_type: str | None = Query(default=None, description="MANDATORY_FIELD | ARITHMETIC | MAPPING_COMPLETENESS"),
+    check_type: str | None = Query(
+        default=None, description="MANDATORY_FIELD | ARITHMETIC | MAPPING_COMPLETENESS | DATA_QUALITY",
+    ),
     db: Session = Depends(get_db),
 ) -> list[ExceptionRowOut]:
     get_report_or_404(db, report_id)

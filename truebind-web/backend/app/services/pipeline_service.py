@@ -24,8 +24,8 @@ FIELDS = schema.FIELDS
 FIELDS_BY_CODE = schema.FIELDS_BY_CODE
 
 
-def load_workbook(path: str | Path) -> list[SheetData]:
-    return bpipeline.load_workbook(path)
+def load_workbook(path: str | Path, source_stem: str | None = None) -> list[SheetData]:
+    return bpipeline.load_workbook(path, source_stem=source_stem)
 
 
 def propose_mapping_for_workbook(sheets: list[SheetData]) -> list[SheetMappingProposal]:

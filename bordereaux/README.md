@@ -70,6 +70,21 @@ tests/test_phase{2,3,4,5,6}.py   Each phase's acceptance test
 tests/test_boundary_fixture.py   Fix spec 3.10: regression suite against
                                   test_boundary_cases.xlsx, one assertion per
                                   D1-D8 defect in the fix spec
+tests/test_unmappable_sheet.py   Senior-pass fix spec Section 1: a sheet
+                                  with unmappable (e.g. non-English) headers
+                                  is never silently dropped, and a per-sheet
+                                  read/scoring crash is isolated, not fatal
+tests/test_header_suffix.py      Senior-pass fix spec Section 2: a trailing
+                                  "(GBP)"-style header suffix doesn't block
+                                  mapping, and backfills Currency when unmapped
+tests/test_amount_parsing.py     Senior-pass fix spec Section 3: currency
+                                  symbols/thousands separators parse; a
+                                  missing/unparseable input is NOT_EVALUABLE,
+                                  never silently treated as zero
+tests/test_dedupe_scale.py       Senior-pass fix spec Section 4: duplicate
+                                  detection stays close to the planted count
+                                  (not orders of magnitude higher) at
+                                  realistic and pathological-scale row counts
 ```
 
 ## Running things
@@ -97,6 +112,10 @@ python3 tests/test_phase4.py
 python3 tests/test_phase5.py
 python3 tests/test_phase6.py
 python3 tests/test_boundary_fixture.py
+python3 tests/test_unmappable_sheet.py
+python3 tests/test_header_suffix.py
+python3 tests/test_amount_parsing.py
+python3 tests/test_dedupe_scale.py
 ```
 
 To regenerate the fix-spec fixture (already committed under `data/synthetic/`):

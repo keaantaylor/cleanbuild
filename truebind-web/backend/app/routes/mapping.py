@@ -1,13 +1,17 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+import logging
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..models.reports import Mapping, Sheet
+from ..database import get_db, get_session_factory
+from ..models.reports import Mapping, Report, Sheet
 from ..schemas.reports import MappingConfirmRequest, MappingFieldOut, ReportOut, SheetOut
 from ..services import persistence_service, pipeline_service
 from .deps import get_report_or_404, get_sheet_or_404, stored_upload_path
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/reports", tags=["mapping"])
 
@@ -83,26 +87,76 @@ def confirm_sheet_mapping(
     return SheetOut.model_validate(sheet)
 
 
-@router.post("/{report_id}/process", response_model=ReportOut)
-def process_report(report_id: str, db: Session = Depends(get_db)) -> ReportOut:
+def _run_pipeline_in_background(report_id: str, upload_path) -> None:
+    """Fix spec Section 6.2: the actual ingest/mapping/validate/dedupe/
+    report run -- the heavy, O(sheets x rows) part of a request that
+    previously ran synchronously inside the /process handler and could
+    block the whole backend process for large files (the confirmed
+    ~10-minute-hang symptom, during which unrelated pages also failed to
+    load). Runs on FastAPI's background-task threadpool, off the request
+    thread, with its own DB session (a session isn't safe to share across
+    threads). Every phase transition is committed immediately so GET
+    /reports/{id} -- which the frontend polls -- always reflects real,
+    current progress, never a stale snapshot from before the background
+    task started."""
+    session_factory = get_session_factory()
+    db = session_factory()
+    try:
+        report = db.get(Report, report_id)
+        if report is None:
+            return
+
+        def _phase(name: str) -> None:
+            report.processing_phase = name
+            db.commit()
+
+        _phase("loading workbook")
+        sheets = pipeline_service.load_workbook(upload_path)
+
+        _phase("proposing mapping")
+        proposals = pipeline_service.propose_mapping_for_workbook(sheets)
+
+        db_sheets = db.query(Sheet).filter_by(report_id=report_id).all()
+        sheet_id_by_name = {s.sheet_name: s.id for s in db_sheets}
+        confirmed_mappings = {
+            s.sheet_name: persistence_service.confirmed_mapping_for_sheet(db, s)
+            for s in db_sheets if s.status == "CONFIRMED"
+        }
+
+        _phase("validating and deduplicating")
+        result = pipeline_service.run_workbook_pipeline(
+            sheets, confirmed_mappings, proposals, source_name=report.file_name,
+        )
+
+        _phase("persisting results")
+        persistence_service.persist_pipeline_result(db, report, sheets, result, sheet_id_by_name)
+        report.processing_phase = None
+        db.commit()
+    except Exception as exc:  # noqa: BLE001 -- must never leave the report stuck at PROCESSING
+        logger.exception("Background pipeline run failed for report %s", report_id)
+        db.rollback()
+        report = db.get(Report, report_id)
+        if report is not None:
+            report.status = "FAILED"
+            report.processing_phase = None
+            report.processing_error = f"{exc.__class__.__name__}: {exc}"
+            db.commit()
+    finally:
+        db.close()
+
+
+@router.post("/{report_id}/process", response_model=ReportOut, status_code=202)
+def process_report(report_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)) -> ReportOut:
     report = get_report_or_404(db, report_id)
     pending = db.query(Sheet).filter_by(report_id=report_id, status="PENDING_CONFIRMATION").count()
     if pending:
         raise HTTPException(status_code=400, detail=f"{pending} sheet(s) still need mapping confirmation")
 
-    sheets = pipeline_service.load_workbook(stored_upload_path(report))
-    proposals = pipeline_service.propose_mapping_for_workbook(sheets)
-
-    db_sheets = db.query(Sheet).filter_by(report_id=report_id).all()
-    sheet_id_by_name = {s.sheet_name: s.id for s in db_sheets}
-    confirmed_mappings = {
-        s.sheet_name: persistence_service.confirmed_mapping_for_sheet(db, s)
-        for s in db_sheets if s.status == "CONFIRMED"
-    }
-
-    result = pipeline_service.run_workbook_pipeline(
-        sheets, confirmed_mappings, proposals, source_name=report.file_name,
-    )
-    persistence_service.persist_pipeline_result(db, report, sheets, result, sheet_id_by_name)
+    report.status = "PROCESSING"
+    report.processing_phase = "queued"
+    report.processing_error = None
+    db.commit()
     db.refresh(report)
+
+    background_tasks.add_task(_run_pipeline_in_background, report_id, stored_upload_path(report))
     return ReportOut.model_validate(report)

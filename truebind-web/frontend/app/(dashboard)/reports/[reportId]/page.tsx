@@ -1,28 +1,119 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { api } from "@/lib/api";
-import type { ExcludedRow, ReportSummary } from "@/lib/types";
+import { api, ApiError } from "@/lib/api";
+import type { ExcludedRow, Report, ReportSummary } from "@/lib/types";
 import { CoverageBanner } from "@/components/report/CoverageBanner";
 import { GradeCard } from "@/components/report/GradeCard";
 import { CompletenessChart } from "@/components/report/CompletenessChart";
 import { MetricCard } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { AlertBanner } from "@/components/ui/Alert";
 import { ExcludedRowsPanel } from "@/components/report/ExcludedRowsPanel";
 import styles from "./page.module.css";
 
+const POLL_INTERVAL_MS = 1500;
+
 export default function ReportDetailPage({ params }: { params: Promise<{ reportId: string }> }) {
   const { reportId } = use(params);
+  const [report, setReport] = useState<Report | null>(null);
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [excludedRows, setExcludedRows] = useState<ExcludedRow[]>([]);
+  const [pollError, setPollError] = useState<string | null>(null);
 
+  // Section 6: /process now runs on a background thread and returns
+  // before the pipeline has actually finished, so this page has to poll
+  // for completion instead of assuming a COMPLETE report is already
+  // sitting there the moment it mounts -- fetching the summary of a
+  // report that's still PROCESSING would silently render a misleadingly
+  // "clean" all-zero health report instead of showing that it isn't
+  // ready yet. A poll request that fails (a network blip, the backend
+  // briefly unreachable) must surface too, rather than leaving this page
+  // stuck on "Processing…" forever with nothing to say why it stopped
+  // updating -- Section 7's silent-failure standard applied to the
+  // frontend, not just the pipeline.
   useEffect(() => {
-    api.getReportSummary(reportId).then(setSummary);
-    api.listExcludedRows(reportId).then(setExcludedRows);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    // Tracks the last known status across retries -- a local variable, not
+    // the `report` state, since this closure is created once per reportId
+    // and would otherwise always see the stale value from the render that
+    // started it.
+    let lastKnownStatus: string | null = null;
+
+    async function poll() {
+      try {
+        const r = await api.getReport(reportId);
+        if (cancelled) return;
+        lastKnownStatus = r.status;
+        setReport(r);
+        setPollError(null);
+        if (r.status === "PROCESSING") {
+          timer = setTimeout(poll, POLL_INTERVAL_MS);
+          return;
+        }
+        if (r.status === "COMPLETE") {
+          const [s, excluded] = await Promise.all([api.getReportSummary(reportId), api.listExcludedRows(reportId)]);
+          if (!cancelled) {
+            setSummary(s);
+            setExcludedRows(excluded);
+          }
+        }
+      } catch (e) {
+        if (cancelled) return;
+        setPollError(e instanceof ApiError ? e.message : "Could not reach the server.");
+        // Keep retrying on a transient failure rather than stopping outright --
+        // once a report is known to exist, only a COMPLETE/FAILED terminal
+        // status (handled above) should ever stop this loop.
+        if (lastKnownStatus === null || lastKnownStatus === "PROCESSING") {
+          timer = setTimeout(poll, POLL_INTERVAL_MS);
+        }
+      }
+    }
+    poll();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [reportId]);
 
+  if (pollError && !report) {
+    return (
+      <div className={styles.page}>
+        <AlertBanner tone="error" title="Could not load this report">{pollError}</AlertBanner>
+      </div>
+    );
+  }
+
+  if (!report) return <p>Loading…</p>;
+
+  if (report.status === "PROCESSING") {
+    return (
+      <div className={styles.page}>
+        <AlertBanner tone="info" title="Processing your file…">
+          This can take a little while for a large workbook. This page will update automatically —
+          no need to refresh.
+        </AlertBanner>
+        {pollError && (
+          <AlertBanner tone="warning" title="Having trouble checking status">
+            {pollError} Still retrying automatically.
+          </AlertBanner>
+        )}
+      </div>
+    );
+  }
+
+  if (report.status === "FAILED") {
+    return (
+      <div className={styles.page}>
+        <AlertBanner tone="error" title="Processing failed">
+          {report.processing_error || "An unexpected error occurred while processing this report."}
+        </AlertBanner>
+      </div>
+    );
+  }
+
   if (!summary) return <p>Loading…</p>;
-  const { report } = summary;
   const cappedByCoverage = summary.sheets_processed !== summary.sheets_total || report.rows_processed !== report.rows_total;
 
   const bySheet = Object.entries(summary.missing_mandatory_by_sheet).sort((a, b) => b[1] - a[1]);
@@ -72,6 +163,24 @@ export default function ReportDetailPage({ params }: { params: Promise<{ reportI
           />
         </div>
       </div>
+
+      {summary.skipped_sheets.length > 0 && (
+        <section className={styles.section}>
+          <h2>Sheets skipped entirely</h2>
+          <p className={styles.sectionIntro}>
+            These sheets contributed zero rows to this report — never silently: each is named here
+            with the reason it could not be processed.
+          </p>
+          <ul className={styles.bySheetList}>
+            {summary.skipped_sheets.map((s) => (
+              <li key={s.sheet_name}>
+                <span>{s.sheet_name}</span>
+                <span>{s.reason}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className={styles.section}>
         <h2>Completeness by canonical field</h2>

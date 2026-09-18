@@ -9,6 +9,7 @@ even though the underlying algorithm is shared, not reimplemented."""
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from bordereaux import pipeline as bpipeline
@@ -48,8 +49,23 @@ def _upload_and_process(client):
         assert confirm.status_code == 200, confirm.text
 
     process = client.post(f"/api/v1/reports/{report_id}/process")
-    assert process.status_code == 200, process.text
-    return report_id, process.json()
+    assert process.status_code == 202, process.text
+    assert process.json()["status"] == "PROCESSING"
+    return report_id, _wait_for_report(client, report_id)
+
+
+def _wait_for_report(client, report_id: str, timeout: float = 10.0) -> dict:
+    """Section 6: /process now returns as soon as the background thread
+    is started, not once the pipeline has actually finished -- so every
+    test that used to read the process response directly now polls
+    GET /{report_id} the same way the frontend does."""
+    deadline = time.time() + timeout
+    report = client.get(f"/api/v1/reports/{report_id}").json()
+    while report["status"] == "PROCESSING" and time.time() < deadline:
+        time.sleep(0.02)
+        report = client.get(f"/api/v1/reports/{report_id}").json()
+    assert report["status"] == "COMPLETE", f"pipeline did not complete in time: {report}"
+    return report
 
 
 def test_full_workbook_matches_direct_pipeline_call(client):

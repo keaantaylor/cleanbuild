@@ -9,7 +9,7 @@ from ..database import Base
 from ._util import created_at_col, uuid_pk
 
 ALERT_SEVERITIES = ("CRITICAL", "HIGH", "MEDIUM", "INFO")
-ALERT_SOURCES = ("COVERAGE", "MANDATORY_FAIL", "NOT_EVALUABLE", "DUPLICATE", "OVERDUE")
+ALERT_SOURCES = ("COVERAGE", "MANDATORY_FAIL", "NOT_EVALUABLE", "DUPLICATE", "OVERDUE", "MAPPING_COMPLETENESS")
 
 
 class Alert(Base):

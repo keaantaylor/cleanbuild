@@ -16,7 +16,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from ..database import Base
 from ._util import created_at_col, uuid_pk
 
-REPORT_STATUSES = ("PENDING_MAPPING", "READY_FOR_REVIEW", "COMPLETE")
+REPORT_STATUSES = ("PENDING_MAPPING", "READY_FOR_REVIEW", "PROCESSING", "COMPLETE", "FAILED")
 SHEET_STATUSES = ("PENDING_CONFIRMATION", "CONFIRMED", "SKIPPED")
 MAPPING_STATES = ("MAPPED_BY_ALIAS", "MAPPED_BY_AI", "UNMAPPED")
 VALIDATION_CHECK_TYPES = ("MANDATORY_FIELD", "ARITHMETIC", "DUPLICATE", "MAPPING_COMPLETENESS")
@@ -42,6 +42,11 @@ class Report(Base):
     # per-row exception (see bordereaux.validation._check_arithmetic) --
     # the only place this count exists is here on the report summary.
     arithmetic_not_evaluable: Mapped[int] = mapped_column(Integer, default=0)
+    # Section 6: /process now runs the pipeline on a background thread
+    # instead of the request path, so a run that raises must still land
+    # somewhere the reviewer can see it -- FAILED status + this message --
+    # rather than leaving the report stuck at PROCESSING forever.
+    processing_error: Mapped[str | None] = mapped_column(String(2000), nullable=True)
 
     sheets: Mapped[list["Sheet"]] = relationship(back_populates="report", cascade="all, delete-orphan")
     claim_rows: Mapped[list["ClaimRow"]] = relationship(back_populates="report", cascade="all, delete-orphan")

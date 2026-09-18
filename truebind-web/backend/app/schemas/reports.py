@@ -19,6 +19,7 @@ class ReportOut(BaseModel):
     grade: str | None
     score: float | None
     status: str
+    processing_error: str | None = None
 
 
 class SheetOut(BaseModel):
@@ -198,3 +199,4 @@ class ReportSummaryOut(BaseModel):
     missing_mandatory_by_sheet: dict[str, int]
     not_evaluable_by_reason: dict[str, int] = {}
     excluded_row_counts: dict[str, int] = {}
+    skipped_sheets: list[dict] = []

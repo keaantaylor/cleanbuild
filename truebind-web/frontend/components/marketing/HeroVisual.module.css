@@ -1,0 +1,131 @@
+.wrap {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--spacing-4);
+}
+
+.panel {
+  background: var(--mkt-surface);
+  border: 1px solid var(--mkt-border);
+  border-radius: var(--mkt-radius);
+  box-shadow: 0 24px 60px -30px rgba(11, 15, 25, 0.25);
+  overflow: hidden;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid var(--mkt-border);
+  background: var(--mkt-surface-sunken);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mkt-ink-secondary);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mkt-border-strong);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  font-size: 0.6875rem;
+}
+
+.cell {
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid var(--mkt-border);
+  border-right: 1px solid var(--mkt-border);
+  color: var(--mkt-ink-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cell.head {
+  font-weight: 700;
+  color: var(--mkt-ink);
+  background: var(--mkt-surface-sunken);
+}
+
+.cell.problem {
+  background: var(--color-error-bg);
+  color: var(--color-error);
+  font-weight: 600;
+}
+
+.cell.foreign {
+  font-style: italic;
+}
+
+.connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--mkt-accent);
+}
+
+.connectorLine {
+  width: 34px;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, var(--mkt-accent) 0 6px, transparent 6px 11px);
+}
+
+.after {
+  padding: 1rem 1.1rem 1.2rem;
+}
+
+.gradeRow {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.gradeValue {
+  font-family: var(--font-display), var(--font-sans);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--color-success);
+}
+
+.gradeLabel {
+  font-size: 0.8125rem;
+  color: var(--mkt-ink-secondary);
+}
+
+.statLine {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8125rem;
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--mkt-border);
+  color: var(--mkt-ink-secondary);
+}
+
+.statLine strong {
+  color: var(--mkt-ink);
+}
+
+@media (max-width: 760px) {
+  .wrap {
+    grid-template-columns: 1fr;
+  }
+  .connector {
+    flex-direction: row;
+    justify-content: center;
+  }
+  .connectorLine {
+    width: 2px;
+    height: 24px;
+    background: repeating-linear-gradient(180deg, var(--mkt-accent) 0 6px, transparent 6px 11px);
+  }
+}

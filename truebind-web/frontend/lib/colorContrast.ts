@@ -50,6 +50,20 @@ const LIGHT_PAIRS: [string, string, string][] = [
   ["grade-3 on white", "#7E7407", "#FFFFFF"],
   ["grade-2 on white", "#B85B0A", "#FFFFFF"],
   ["grade-1 on white", "#DC2626", "#FFFFFF"],
+
+  // Marketing site (styles/marketing.css) -- a separate, light-mode-only
+  // palette (see that file's header comment for why), but validated the
+  // same way as everything else here.
+  ["mkt-ink on mkt-surface", "#0B0F19", "#FFFFFF"],
+  ["mkt-ink-secondary on mkt-surface", "#4B5468", "#FFFFFF"],
+  ["mkt-accent on mkt-surface", "#2E3FE0", "#FFFFFF"],
+  ["mkt-accent on mkt-accent-bg", "#2E3FE0", "#EEF0FD"],
+  ["mkt-ink on mkt-surface-sunken", "#0B0F19", "#F5F6FA"],
+  ["mkt-ink-secondary on mkt-surface-sunken", "#4B5468", "#F5F6FA"],
+  ["mkt-surface on mkt-ink (dark hero)", "#FFFFFF", "#0B0F19"],
+  ["mkt-ink-secondary-light on mkt-ink (dark hero)", "#CBD1E0", "#0B0F19"],
+  ["mkt trust-section eyebrow on mkt-ink", "#A9B4FF", "#0B0F19"],
+  ["mkt trust-section muted on mkt-ink", "#8891AE", "#0B0F19"],
 ];
 
 const DARK_PAIRS: [string, string, string][] = [

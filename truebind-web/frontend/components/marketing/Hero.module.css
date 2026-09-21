@@ -1,0 +1,53 @@
+.hero {
+  padding-top: clamp(3rem, 8vw, 5.5rem);
+  padding-bottom: clamp(3rem, 8vw, 5.5rem);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(2rem, 6vw, 3.5rem);
+  align-items: center;
+}
+
+.copy {
+  max-width: 640px;
+}
+
+.headline {
+  font-size: var(--mkt-display-size-1);
+  font-weight: 700;
+}
+
+.subheadline {
+  margin-top: var(--spacing-6);
+  font-size: 1.125rem;
+  line-height: 1.65;
+  color: var(--mkt-ink-secondary);
+  max-width: 56ch;
+}
+
+.ctas {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  margin-top: var(--spacing-8);
+  flex-wrap: wrap;
+}
+
+.secondaryCta {
+  color: var(--mkt-ink);
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.secondaryCta:hover {
+  text-decoration: underline;
+}
+
+.visualRow {
+  margin-top: clamp(2.5rem, 6vw, 4rem);
+}

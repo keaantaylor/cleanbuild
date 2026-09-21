@@ -169,6 +169,7 @@ REQUIRED_CODES = [f.code for f in FIELDS if f.requirement == "required"]
 CONDITIONAL_PAIR_CODES = tuple(f.code for f in FIELDS if f.requirement == "conditional_pair")
 RECONCILED_CODES = tuple(f.code for f in FIELDS if f.requirement == "reconciled")
 
+POLICY_REF_CODE = "CR0029M"
 PAID_CODE = "CR0126CM"
 RESERVE_CODE = "CR0130CM"
 INCURRED_CODE = "CR0155CM"

@@ -75,8 +75,8 @@ class WorkbookProcessResult:
     coverage: "report.WorkbookCoverage"
 
 
-def load_workbook(path: str | Path) -> list[SheetData]:
-    return ingest.load_workbook_sheets(path)
+def load_workbook(path: str | Path, source_stem: str | None = None) -> list[SheetData]:
+    return ingest.load_workbook_sheets(path, source_stem=source_stem)
 
 
 def propose_mapping_for_workbook(

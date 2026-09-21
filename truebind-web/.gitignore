@@ -5,3 +5,4 @@ backend/__pycache__/
 backend/**/__pycache__/
 backend/*.egg-info/
 backend/requirements.docker.txt
+backend/.venv/

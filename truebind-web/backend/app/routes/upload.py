@@ -42,7 +42,17 @@ async def upload_report(file: UploadFile, db: Session = Depends(get_db)) -> Repo
         raise HTTPException(status_code=400, detail="Uploaded file is empty")
 
     try:
-        sheets = pipeline_service.load_workbook(tmp_path)
+        # For a CSV, the implicit single sheet is named after the file
+        # (see ingest.load_workbook_sheets). Reading from tmp_path here
+        # but Path(file.filename).stem everywhere else the report is
+        # ever re-read (mapping confirmation, /process) means the sheet
+        # name recorded now must match what those later reads will use --
+        # pass it explicitly rather than letting each read derive its own
+        # name from whatever path it happens to be reading, which used to
+        # silently diverge (a random temp filename here vs. the real
+        # stored filename later) and break every CSV upload past this
+        # point.
+        sheets = pipeline_service.load_workbook(tmp_path, source_stem=Path(file.filename).stem)
     except Exception as exc:  # noqa: BLE001 -- surfaced to the caller, not swallowed
         tmp_path.unlink(missing_ok=True)
         raise HTTPException(status_code=422, detail=f"Could not read the uploaded file: {exc}") from exc

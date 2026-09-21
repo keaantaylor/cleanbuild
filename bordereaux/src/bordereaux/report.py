@@ -41,12 +41,23 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 import pandas as pd
 
 from . import schema
 from .ingest import EXCLUDED_ROW_REASON_LABELS, ExcludedRow
 from .validation import ValidationResult
+
+# A sheet's mapping outcome, one of four (never collapsed into a single
+# "skipped" bucket -- Section 9/11 of the audit brief): "mapped" (every
+# unconditionally-required field found a column), "partial" (some fields
+# mapped, at least one required field didn't), "unmapped" (data is
+# present and retained, but not one field could be mapped -- see
+# ingest._structural_header_row), "empty" (no plausible tabular shape at
+# all, or a crash reading the sheet -- see SheetAuditRecord.reason for
+# which).
+SheetMappingStatus = Literal["mapped", "partial", "unmapped", "empty", "error"]
 
 GRADE_LABELS = {5: "Excellent", 4: "Good", 3: "Fair", 2: "Poor", 1: "Very poor"}
 EXCEPTION_WEIGHT = 1.0
@@ -73,6 +84,8 @@ class WorkbookCoverage:
     rows_assessed: int
     sheet_field_state: dict[str, dict[str, str]] = field(default_factory=dict)
     excluded_rows: list[ExcludedRow] = field(default_factory=list)
+    sheet_audit: list[SheetAuditRecord] = field(default_factory=list)
+    reconciliation: "ReconciliationSummary | None" = None
 
     @staticmethod
     def single_sheet(row_count: int, sheet_name: str = "") -> "WorkbookCoverage":
@@ -111,6 +124,105 @@ class WorkbookCoverage:
             name for name, state in self.sheet_field_state.items()
             if state and all(v == "unmapped" for v in state.values())
         )
+
+
+@dataclass
+class SheetAuditRecord:
+    """Answers, for one worksheet, every question Section 10 of the audit
+    brief asks: was it detected, was it empty, which row was the header,
+    how many source rows existed, how many fields mapped (and which),
+    why it landed in its final status, and how many of its rows were
+    processed vs. rejected before mapping. Built once per sheet from the
+    same SheetData / sheet_field_state every other consumer already
+    reads -- classification is entirely general (driven by field counts
+    and schema.REQUIRED_CODES), never a per-file or per-sheet-name
+    special case."""
+    sheet_name: str
+    is_empty: bool
+    header_row_index: int | None
+    source_row_count: int
+    rows_processed: int
+    rows_rejected: int
+    fields_mapped: int
+    fields_total: int
+    mapped_field_codes: list[str]
+    unmapped_field_codes: list[str]
+    status: SheetMappingStatus
+    reason: str
+
+    @property
+    def requires_review(self) -> bool:
+        return self.status in ("unmapped", "partial", "error")
+
+
+def classify_sheet_status(
+    skipped: bool, skip_reason: str | None, mapped_field_codes: list[str],
+) -> tuple[SheetMappingStatus, str]:
+    """The general mechanism behind SheetAuditRecord.status -- a sheet
+    with 0 mapped fields is explicitly NOT the same thing as an empty
+    sheet (Section 9), and a sheet missing some but not all required
+    fields is its own "partial" state rather than being silently folded
+    into either "mapped" or "unmapped"."""
+    if skipped:
+        is_crash = bool(skip_reason and skip_reason.startswith("error while reading"))
+        return ("error" if is_crash else "empty"), (skip_reason or "sheet contained no tabular data")
+    if not mapped_field_codes:
+        return "unmapped", "no recognized business fields were detected in the header row"
+    if all(code in mapped_field_codes for code in schema.REQUIRED_CODES):
+        return "mapped", "every unconditionally-required field was mapped"
+    missing = [schema.FIELDS_BY_CODE[c].name for c in schema.REQUIRED_CODES if c not in mapped_field_codes]
+    return "partial", f"{len(mapped_field_codes)} field(s) mapped, but still missing: {', '.join(missing)}"
+
+
+@dataclass
+class ReconciliationSummary:
+    """Section 5's row-count reconciliation, computed from two
+    independent sources so a real discrepancy is actually catchable: the
+    per-sheet SheetAuditRecords give source_data_rows directly from the
+    raw sheet data (rows kept + rows rejected, before mapping ever runs),
+    while mapped/unmapped/rejected are aggregated from the same records
+    the other direction. Under the current architecture these must
+    agree by construction (see reconciles/discrepancy) -- if a future
+    change ever breaks that invariant, this is what would catch it,
+    rather than the two numbers silently drifting apart."""
+    source_worksheets: int
+    source_data_rows: int
+    skipped_sheet_rows: int  # rows on sheets classified empty/error -- never a real claim, reported separately, never silently folded into any total above
+    mapped_rows: int
+    unmapped_rows: int
+    rejected_rows: int
+    duplicate_rows: int
+    exported_rows: int
+    rows_requiring_review: int
+
+    @property
+    def discrepancy(self) -> int:
+        return self.source_data_rows - (self.mapped_rows + self.unmapped_rows + self.rejected_rows)
+
+    @property
+    def reconciles(self) -> bool:
+        return self.discrepancy == 0
+
+    def as_lines(self) -> list[str]:
+        lines = [
+            f"Source worksheets: {self.source_worksheets}",
+            f"Source data rows: {self.source_data_rows}",
+            f"Mapped rows: {self.mapped_rows}",
+            f"Unmapped rows: {self.unmapped_rows}",
+            f"Duplicate rows: {self.duplicate_rows}",
+            f"Rejected rows: {self.rejected_rows}",
+            f"Exported rows: {self.exported_rows}",
+            f"Rows requiring review: {self.rows_requiring_review}",
+        ]
+        if self.skipped_sheet_rows:
+            lines.append(f"(Excluded from the above: {self.skipped_sheet_rows} row(s) on empty/unreadable sheets)")
+        if not self.reconciles:
+            lines.append(
+                f"RECONCILIATION MISMATCH: source data rows ({self.source_data_rows}) != "
+                f"mapped + unmapped + rejected ({self.mapped_rows + self.unmapped_rows + self.rejected_rows}), "
+                f"difference of {self.discrepancy}"
+            )
+        return lines
 
 
 @dataclass
@@ -290,10 +402,20 @@ def _reliability_caveat(health: HealthReport) -> str | None:
 
 def write_health_report_excel(health: HealthReport, exceptions: pd.DataFrame,
                                duplicates: pd.DataFrame, canonical: pd.DataFrame,
-                               out_path: str | Path) -> None:
+                               out_path: str | Path,
+                               unmapped_sheet_raw: dict[str, pd.DataFrame] | None = None) -> None:
     """One workbook: a readable Summary sheet, plus full row-level detail
     (exceptions, duplicates, and the underlying data) for anyone who wants
-    to dig in."""
+    to dig in.
+
+    unmapped_sheet_raw: {sheet_name: raw DataFrame}, one entry per sheet
+    whose SheetAuditRecord.status is "unmapped" -- its ORIGINAL headers
+    and values, not the canonical (all-null-for-this-sheet) columns.
+    Section 12: an unmapped sheet's rows already appear in "Full data"
+    with every canonical field blank; without this, the actual received
+    values (what the source file's "ZX_001"-style columns actually said)
+    would never appear anywhere in the export at all, silently making
+    the data unrecoverable even though the row count is preserved."""
     out_path = Path(out_path)
 
     summary_rows = [
@@ -306,6 +428,29 @@ def write_health_report_excel(health: HealthReport, exceptions: pd.DataFrame,
     caveat = _reliability_caveat(health)
     if caveat:
         summary_rows.append(["Reliability caveat", caveat])
+    recon = health.coverage.reconciliation
+    if recon:
+        summary_rows.append(["", ""])
+        summary_rows += [
+            ["Source worksheets", recon.source_worksheets],
+            ["Source data rows", recon.source_data_rows],
+            ["Mapped rows", recon.mapped_rows],
+            ["Unmapped rows", recon.unmapped_rows],
+            ["Duplicate rows", recon.duplicate_rows],
+            ["Rejected rows", recon.rejected_rows],
+            ["Exported rows", recon.exported_rows],
+            ["Rows requiring review", recon.rows_requiring_review],
+        ]
+        if recon.skipped_sheet_rows:
+            summary_rows.append(
+                ["  (excluded from the above)", f"{recon.skipped_sheet_rows} row(s) on empty/unreadable sheets"]
+            )
+        if not recon.reconciles:
+            summary_rows.append(["RECONCILIATION MISMATCH", (
+                f"source data rows ({recon.source_data_rows}) != mapped + unmapped + rejected "
+                f"({recon.mapped_rows + recon.unmapped_rows + recon.rejected_rows}), "
+                f"difference of {recon.discrepancy}"
+            )])
     summary_rows += [
         ["", ""],
         ["Total claims assessed", health.total_claims],
@@ -346,15 +491,44 @@ def write_health_report_excel(health: HealthReport, exceptions: pd.DataFrame,
         for er in health.coverage.excluded_rows
     ], columns=["Sheet", "Row", "Reason", "Detail"])
 
+    sheet_audit_df = pd.DataFrame([
+        {
+            "Sheet": rec.sheet_name, "Status": rec.status.upper(), "Header row": (
+                rec.header_row_index + 1 if rec.header_row_index is not None else "—"
+            ),
+            "Source rows": rec.source_row_count, "Rows processed": rec.rows_processed,
+            "Rows rejected": rec.rows_rejected, "Fields mapped": f"{rec.fields_mapped}/{rec.fields_total}",
+            "Reason": rec.reason,
+        }
+        for rec in health.coverage.sheet_audit
+    ], columns=["Sheet", "Status", "Header row", "Source rows", "Rows processed",
+                "Rows rejected", "Fields mapped", "Reason"])
+
     with pd.ExcelWriter(out_path, engine="openpyxl") as writer:
         summary_df.to_excel(writer, sheet_name="Summary", index=False)
+        if not sheet_audit_df.empty:
+            sheet_audit_df.to_excel(writer, sheet_name="Sheet audit", index=False)
         completeness_df.to_excel(writer, sheet_name="Field completeness", index=False)
         exceptions.to_excel(writer, sheet_name="Exceptions", index=False)
         duplicates.to_excel(writer, sheet_name="Possible duplicates", index=False)
         excluded_df.to_excel(writer, sheet_name="Excluded rows", index=False)
         canonical_display.to_excel(writer, sheet_name="Full data", index=False)
+        for sheet_name, raw_df in (unmapped_sheet_raw or {}).items():
+            raw_df.to_excel(writer, sheet_name=_unmapped_sheet_tab_name(sheet_name), index=False)
 
     _autosize_columns(out_path)
+
+
+_MAX_EXCEL_SHEET_NAME = 31
+
+
+def _unmapped_sheet_tab_name(sheet_name: str) -> str:
+    """Excel sheet names cap at 31 chars and can't hold '[]:*?/\\' --
+    strip the illegal characters and truncate, keeping the tab
+    recognizable rather than raising or silently dropping the sheet."""
+    prefix = "Unmapped-"
+    safe = "".join(c for c in sheet_name if c not in "[]:*?/\\")
+    return (prefix + safe)[:_MAX_EXCEL_SHEET_NAME]
 
 
 def _autosize_columns(path: Path) -> None:

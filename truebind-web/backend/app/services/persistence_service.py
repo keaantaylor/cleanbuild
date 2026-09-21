@@ -18,7 +18,7 @@ from ..models._util import new_uuid
 from ..models.alerts import Alert
 from ..models.reports import ClaimRow, ExcludedRow, Mapping, Report, Sheet, ValidationResult
 from . import audit_service
-from .pipeline_service import FIELDS, FIELDS_BY_CODE, field_suggestions_by_code
+from .pipeline_service import FIELDS, FIELDS_BY_CODE, REQUIRED_CODES, field_suggestions_by_code
 
 _FIELD_TO_CLAIMROW_COL = {
     "CR0104M": "claim_reference",
@@ -131,6 +131,39 @@ def confirmed_mapping_for_sheet(db: Session, sheet: Sheet) -> dict[str, str]:
     """{source_column: field_code} -- the shape bordereaux.ingest.apply_mapping expects."""
     rows = db.query(Mapping).filter_by(sheet_id=sheet.id).all()
     return {m.source_column: m.field_code for m in rows if m.source_column and m.mapping_state != "UNMAPPED"}
+
+
+SheetMappingStatus = str  # "mapped" | "partial" | "unmapped" | "empty" | "error"
+
+
+def sheet_mapping_status(sheet: Sheet, mapping_rows: list[Mapping]) -> tuple[SheetMappingStatus, int, int]:
+    """The same four-way classification as bordereaux.report.
+    classify_sheet_status (Section 9/11: a sheet with 0 mapped fields is
+    never the same thing as an empty sheet, and a sheet missing only
+    some required fields is its own "partial" state), computed here from
+    persisted Mapping rows since this runs well after the original
+    SheetData is gone. A skipped sheet has no Mapping rows at all (see
+    create_report_from_upload), so it's classified from sheet.status/
+    skip_reason directly rather than an empty mapped-count that would
+    otherwise misread it as "unmapped"."""
+    if sheet.status == "SKIPPED":
+        is_crash = bool(sheet.skip_reason and sheet.skip_reason.startswith("error while reading"))
+        return ("error" if is_crash else "empty"), 0, len(FIELDS)
+
+    mapped_codes = {m.field_code for m in mapping_rows if m.mapping_state != "UNMAPPED"}
+    fields_mapped, fields_total = len(mapped_codes), len(FIELDS)
+    if fields_mapped == 0:
+        return "unmapped", fields_mapped, fields_total
+    if all(code in mapped_codes for code in REQUIRED_CODES):
+        return "mapped", fields_mapped, fields_total
+    return "partial", fields_mapped, fields_total
+
+
+def sheet_out_fields(db: Session, sheet: Sheet) -> dict:
+    """{mapping_status, fields_mapped, fields_total} for SheetOut."""
+    mapping_rows = db.query(Mapping).filter_by(sheet_id=sheet.id).all()
+    status, mapped, total = sheet_mapping_status(sheet, mapping_rows)
+    return {"mapping_status": status, "fields_mapped": mapped, "fields_total": total}
 
 
 def _severity_for_rule(rule: str) -> str:
@@ -447,6 +480,64 @@ def compute_report_summary(db: Session, report: Report) -> dict:
         seen_rows_per_sheet.setdefault(name, set()).add(vr.claim_row_id)
     missing_mandatory_by_sheet = {name: len(rows) for name, rows in seen_rows_per_sheet.items()}
 
+    # Section 9/11: a sheet with 0 mapped fields is its own status,
+    # never folded into "skipped" -- computed once here and reused for
+    # both the unmapped_sheets list and the reconciliation below.
+    mapping_rows_by_sheet: dict[str, list[Mapping]] = {}
+    for m in mapping_rows:
+        mapping_rows_by_sheet.setdefault(m.sheet_id, []).append(m)
+    sheet_status = {s.id: sheet_mapping_status(s, mapping_rows_by_sheet.get(s.id, [])) for s in sheets}
+    unmapped_sheets = [
+        {"sheet_name": s.sheet_name, "reason": "no recognized business fields were detected in the header row"}
+        for s in sheets if sheet_status[s.id][0] == "unmapped"
+    ]
+
+    claim_rows_all = db.query(ClaimRow).filter_by(report_id=report.id).all()
+    rows_by_sheet: dict[str, int] = {}
+    for cr in claim_rows_all:
+        rows_by_sheet[cr.sheet_id] = rows_by_sheet.get(cr.sheet_id, 0) + 1
+
+    rejected_rows = sum(excluded_row_counts.values())
+    mapped_rows = sum(rows_by_sheet.get(s.id, 0) for s in sheets if sheet_status[s.id][0] in ("mapped", "partial"))
+    unmapped_rows = sum(rows_by_sheet.get(s.id, 0) for s in sheets if sheet_status[s.id][0] == "unmapped")
+    # Independent of mapped_rows/unmapped_rows: computed straight from
+    # each sheet's own persisted row_count (kept rows) plus the excluded-
+    # row count, before mapping status is consulted at all -- so a real
+    # drift between the two would surface as a genuine mismatch below,
+    # not a tautology.
+    source_data_rows = sum(s.row_count for s in sheets if s.status != "SKIPPED") + rejected_rows
+
+    duplicate_claim_ids: set[str] = set()
+    for vr in duplicate_vr:
+        duplicate_claim_ids.add(vr.claim_row_id)
+        match_id = (vr.extra or {}).get("match_claim_row_id")
+        if match_id:
+            duplicate_claim_ids.add(match_id)
+
+    review_claim_ids: set[str] = set(duplicate_claim_ids)
+    review_claim_ids |= {vr.claim_row_id for vr in mandatory_vr}
+    arithmetic_mismatch_vr = (
+        db.query(ValidationResult)
+        .join(ClaimRow, ValidationResult.claim_row_id == ClaimRow.id)
+        .filter(ClaimRow.report_id == report.id, ValidationResult.check_type == "ARITHMETIC",
+                ValidationResult.status != "NOT_EVALUABLE")
+        .all()
+    )
+    review_claim_ids |= {vr.claim_row_id for vr in arithmetic_mismatch_vr}
+    review_claim_ids |= {cr.id for cr in claim_rows_all if sheet_status.get(cr.sheet_id, ("", 0, 0))[0] == "unmapped"}
+
+    reconciliation = {
+        "source_worksheets": len(sheets),
+        "source_data_rows": source_data_rows,
+        "mapped_rows": mapped_rows,
+        "unmapped_rows": unmapped_rows,
+        "rejected_rows": rejected_rows,
+        "duplicate_rows": len(duplicate_claim_ids),
+        "exported_rows": len(claim_rows_all),
+        "rows_requiring_review": len(review_claim_ids),
+        "reconciles": source_data_rows == mapped_rows + unmapped_rows + rejected_rows,
+    }
+
     return {
         "sheets_total": len(sheets),
         "sheets_processed": sheets_processed,
@@ -460,4 +551,6 @@ def compute_report_summary(db: Session, report: Report) -> dict:
         "not_evaluable_by_reason": not_evaluable_by_reason,
         "excluded_row_counts": excluded_row_counts,
         "skipped_sheets": skipped_sheets,
+        "unmapped_sheets": unmapped_sheets,
+        "reconciliation": reconciliation,
     }

@@ -164,6 +164,25 @@ export default function ReportDetailPage({ params }: { params: Promise<{ reportI
         </div>
       </div>
 
+      {summary.unmapped_sheets.length > 0 && (
+        <section className={styles.section}>
+          <h2>Sheets requiring mapping</h2>
+          <p className={styles.sectionIntro}>
+            These sheets&rsquo; rows were received and are counted above — none were dropped — but no
+            column could be automatically matched to a canonical field. Open the sheet on the mapping
+            screen to map it manually.
+          </p>
+          <ul className={styles.bySheetList}>
+            {summary.unmapped_sheets.map((s) => (
+              <li key={s.sheet_name}>
+                <span>{s.sheet_name}</span>
+                <span>{s.reason}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {summary.skipped_sheets.length > 0 && (
         <section className={styles.section}>
           <h2>Sheets skipped entirely</h2>
@@ -181,6 +200,25 @@ export default function ReportDetailPage({ params }: { params: Promise<{ reportI
           </ul>
         </section>
       )}
+
+      <section className={styles.section}>
+        <h2>Row-count reconciliation</h2>
+        {!summary.reconciliation.reconciles && (
+          <p className={styles.sectionIntro} style={{ color: "var(--color-error)", fontWeight: 600 }}>
+            Mismatch found — the numbers below do not add up as expected. This needs investigation.
+          </p>
+        )}
+        <ul className={styles.bySheetList}>
+          <li><span>Source worksheets</span><span className="tabular-nums">{summary.reconciliation.source_worksheets}</span></li>
+          <li><span>Source data rows</span><span className="tabular-nums">{summary.reconciliation.source_data_rows}</span></li>
+          <li><span>Mapped rows</span><span className="tabular-nums">{summary.reconciliation.mapped_rows}</span></li>
+          <li><span>Unmapped rows</span><span className="tabular-nums">{summary.reconciliation.unmapped_rows}</span></li>
+          <li><span>Duplicate rows</span><span className="tabular-nums">{summary.reconciliation.duplicate_rows}</span></li>
+          <li><span>Rejected rows</span><span className="tabular-nums">{summary.reconciliation.rejected_rows}</span></li>
+          <li><span>Exported rows</span><span className="tabular-nums">{summary.reconciliation.exported_rows}</span></li>
+          <li><span>Rows requiring review</span><span className="tabular-nums">{summary.reconciliation.rows_requiring_review}</span></li>
+        </ul>
+      </section>
 
       <section className={styles.section}>
         <h2>Completeness by canonical field</h2>

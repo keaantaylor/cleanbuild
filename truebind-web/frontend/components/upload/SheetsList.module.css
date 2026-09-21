@@ -68,3 +68,15 @@
   color: var(--color-text-tertiary);
   margin-top: 2px;
 }
+
+.markUnmapped {
+  color: var(--color-error);
+  margin-top: 2px;
+  font-weight: 700;
+}
+
+.markPartial {
+  color: var(--color-warning);
+  margin-top: 2px;
+  font-weight: 700;
+}

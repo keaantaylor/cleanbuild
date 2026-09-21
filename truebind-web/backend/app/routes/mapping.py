@@ -15,11 +15,20 @@ from .deps import get_report_or_404, get_sheet_or_404, stored_upload_path
 router = APIRouter(prefix="/api/v1/reports", tags=["mapping"])
 
 
+def _sheet_out(db: Session, sheet: Sheet) -> SheetOut:
+    return SheetOut(
+        id=sheet.id, sheet_name=sheet.sheet_name, sheet_index=sheet.sheet_index,
+        header_row_index=sheet.header_row_index, row_count=sheet.row_count,
+        status=sheet.status, skip_reason=sheet.skip_reason,
+        **persistence_service.sheet_out_fields(db, sheet),
+    )
+
+
 @router.get("/{report_id}/sheets", response_model=list[SheetOut])
 def list_sheets(report_id: str, db: Session = Depends(get_db)) -> list[SheetOut]:
     get_report_or_404(db, report_id)
     sheets = db.query(Sheet).filter_by(report_id=report_id).order_by(Sheet.sheet_index).all()
-    return [SheetOut.model_validate(s) for s in sheets]
+    return [_sheet_out(db, s) for s in sheets]
 
 
 def _load_raw_sheet(report_id: str, report, sheet_name: str):
@@ -83,7 +92,7 @@ def confirm_sheet_mapping(
     report.status = "READY_FOR_REVIEW" if remaining == 0 else "PENDING_MAPPING"
     db.commit()
 
-    return SheetOut.model_validate(sheet)
+    return _sheet_out(db, sheet)
 
 
 @router.post("/{report_id}/process", response_model=ReportOut, status_code=202)

@@ -35,6 +35,19 @@ def test_excel_serial_dates_resolve_to_correct_calendar_dates() -> None:
     print("OK: 3/3 Excel serial dates resolved to the correct calendar date")
 
 
+def test_forensic_report_serial_dates() -> None:
+    # 45292 = 2024-01-01, 45300 = 2024-01-09 (the exact serials from the forensic report)
+    raw = pd.DataFrame({
+        "Claim Ref": ["C1", "C2"], "Insured Name": ["Alice", "Bob"],
+        "Date of Loss": ["45292", "45300"],
+    }).astype("string")
+    canonical = apply_mapping(raw, MAPPING, sheet_name="test")
+    dates = canonical["CR0119CM"]
+    assert dates.iloc[0] == pd.Timestamp("2024-01-01"), dates.tolist()
+    assert dates.iloc[1] == pd.Timestamp("2024-01-09"), dates.tolist()
+    print("OK: forensic-report serials 45292/45300 resolve to 2024-01-01/2024-01-09")
+
+
 def test_mixed_serial_and_formatted_dates_in_one_column() -> None:
     """A real bordereau column is rarely 100% one format -- some rows
     carry a real date string, others a bare serial left over from a CSV
@@ -84,6 +97,7 @@ def test_implausible_small_numbers_do_not_become_dates() -> None:
 
 if __name__ == "__main__":
     test_excel_serial_dates_resolve_to_correct_calendar_dates()
+    test_forensic_report_serial_dates()
     test_mixed_serial_and_formatted_dates_in_one_column()
     test_ordinary_numeric_identifiers_are_never_converted_to_dates()
     test_implausible_small_numbers_do_not_become_dates()

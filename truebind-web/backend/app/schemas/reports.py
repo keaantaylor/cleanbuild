@@ -32,6 +32,12 @@ class SheetOut(BaseModel):
     row_count: int
     status: str
     skip_reason: str | None
+    # Section 9/11: a sheet with 0 mapped fields ("unmapped") is never the
+    # same status as a genuinely empty sheet ("empty") -- see
+    # persistence_service.sheet_mapping_status.
+    mapping_status: str = "mapped"
+    fields_mapped: int = 0
+    fields_total: int = 0
 
 
 class MappingFieldOut(BaseModel):
@@ -186,6 +192,22 @@ class SheetCoverageOut(BaseModel):
     skip_reason: str | None
 
 
+class ReconciliationOut(BaseModel):
+    """Section 5: the row-count reconciliation every upload must be able
+    to answer. reconciles is False only if a genuine discrepancy was
+    found between two independently-computed totals -- see
+    persistence_service.compute_report_summary."""
+    source_worksheets: int
+    source_data_rows: int
+    mapped_rows: int
+    unmapped_rows: int
+    rejected_rows: int
+    duplicate_rows: int
+    exported_rows: int
+    rows_requiring_review: int
+    reconciles: bool
+
+
 class ReportSummaryOut(BaseModel):
     report: ReportOut
     sheets_total: int
@@ -200,3 +222,5 @@ class ReportSummaryOut(BaseModel):
     not_evaluable_by_reason: dict[str, int] = {}
     excluded_row_counts: dict[str, int] = {}
     skipped_sheets: list[dict] = []
+    unmapped_sheets: list[dict] = []
+    reconciliation: ReconciliationOut

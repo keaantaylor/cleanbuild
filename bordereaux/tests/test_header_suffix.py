@@ -19,6 +19,7 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 import openpyxl  # noqa: E402
 
 from bordereaux import pipeline  # noqa: E402
+from bordereaux.mapping import fuzzy_match_headers  # noqa: E402
 
 FIXTURE = REPO_ROOT / "tests" / "fixtures" / "suffixed_headers.xlsx"
 FIXTURE_EUR = REPO_ROOT / "tests" / "fixtures" / "suffixed_headers_eur.xlsx"
@@ -125,6 +126,33 @@ def test_gbp_and_eur_sheets_in_one_workbook_do_not_conflict() -> None:
     print("OK: GBP-suffixed and EUR-suffixed sheets in one workbook resolve independently, no cross-contamination")
 
 
+def test_currency_suffix_casing_whitespace_and_punctuation_variants() -> None:
+    """Forensic-report edge cases: lowercase, mixed casing, extra
+    whitespace, underscores in place of spaces, and no space before the
+    parenthetical must all still resolve to the same canonical field --
+    normalize_header casefolds and collapses separators before matching,
+    so none of these should behave differently from the plain case."""
+    cases = {
+        "Paid Amount (GBP)": "CR0126CM",
+        "paid amount (gbp)": "CR0126CM",
+        "PAID AMOUNT (Gbp)": "CR0126CM",
+        "Paid_Amount_(GBP)": "CR0126CM",
+        "Paid Amount(EUR)": "CR0126CM",
+        "  Paid Amount   (GBP)  ": "CR0126CM",
+        "Paid-Amount-(GBP)": "CR0126CM",
+        "Paid Amount ( GBP )": "CR0126CM",
+        "Reserve Amount (EUR)": "CR0130CM",
+        "Incurred Amount (EUR)": "CR0155CM",
+        "Currency (EUR)": "CR0110CM",
+    }
+    for header, expected_code in cases.items():
+        got = fuzzy_match_headers([header])[header]
+        assert got.field_code == expected_code, (
+            f"{header!r} should map to {expected_code}, got {got.field_code} (method={got.method})"
+        )
+    print(f"OK: {len(cases)} currency-suffix casing/whitespace/punctuation variants all map correctly")
+
+
 def main() -> None:
     _build_fixture()
     sheets = pipeline.load_workbook(FIXTURE)
@@ -155,6 +183,7 @@ def main() -> None:
     assert result.health.arithmetic_mismatches == 0, "paid+reserve==incurred on every row of this fixture"
     print("OK: arithmetic reconciliation runs cleanly -- previously this whole sheet came back not-evaluable")
 
+    test_currency_suffix_casing_whitespace_and_punctuation_variants()
     test_eur_suffixed_headers_map_and_parse()
     test_gbp_and_eur_sheets_in_one_workbook_do_not_conflict()
 

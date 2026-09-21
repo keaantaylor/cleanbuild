@@ -21,6 +21,8 @@ export interface Report {
   processing_error: string | null;
 }
 
+export type SheetMappingStatus = "mapped" | "partial" | "unmapped" | "empty" | "error";
+
 export interface Sheet {
   id: string;
   sheet_name: string;
@@ -29,6 +31,11 @@ export interface Sheet {
   row_count: number;
   status: SheetStatus;
   skip_reason: string | null;
+  // A sheet with 0 mapped fields ("unmapped") is never the same status as
+  // a genuinely empty sheet ("empty") -- its rows are still retained.
+  mapping_status: SheetMappingStatus;
+  fields_mapped: number;
+  fields_total: number;
 }
 
 export interface MappingField {
@@ -121,6 +128,18 @@ export interface FieldCompleteness {
   never_mapped: boolean;
 }
 
+export interface ReconciliationSummary {
+  source_worksheets: number;
+  source_data_rows: number;
+  mapped_rows: number;
+  unmapped_rows: number;
+  rejected_rows: number;
+  duplicate_rows: number;
+  exported_rows: number;
+  rows_requiring_review: number;
+  reconciles: boolean;
+}
+
 export interface ReportSummary {
   report: Report;
   sheets_total: number;
@@ -135,6 +154,8 @@ export interface ReportSummary {
   not_evaluable_by_reason: Record<string, number>;
   excluded_row_counts: Record<string, number>;
   skipped_sheets: { sheet_name: string; reason: string }[];
+  unmapped_sheets: { sheet_name: string; reason: string }[];
+  reconciliation: ReconciliationSummary;
 }
 
 export interface Template {

@@ -75,6 +75,40 @@ def test_unparseable_value_is_not_evaluable_never_zero() -> None:
     print("OK: unparseable Paid Amount -> not evaluable, never a false arithmetic mismatch")
 
 
+def test_space_as_thousands_separator() -> None:
+    """A space (regular or non-breaking) used as the thousands separator
+    -- common in French/European exports -- must parse the same as a
+    comma or dot would."""
+    cases = {
+        "1 234,56": 1234.56,
+        "1 234.56": 1234.56,
+        "1 234,56": 1234.56,  # non-breaking space
+    }
+    for text, expected in cases.items():
+        got = _parse_amount_cell(text)
+        assert got == expected, f"{text!r} parsed to {got}, expected {expected}"
+    print(f"OK: {len(cases)} space-thousands-separator formats parse correctly")
+
+
+def test_already_numeric_excel_cell_is_not_corrupted() -> None:
+    """A genuinely numeric Excel cell (not text) still passes through
+    astype('string') before parsing -- confirms that round trip doesn't
+    introduce float-representation artifacts (e.g. trailing .99999998)
+    for ordinary monetary values."""
+    raw = pd.DataFrame({
+        "Claim Ref": ["C1", "C2", "C3"], "Insured Name": ["Alice", "Bob", "Carl"],
+        "Paid Amount": pd.array([227122.35, 1234.5, 1000000.0], dtype="float64"),
+        "Reserve Amount": pd.array([0.0, 0.0, 0.0], dtype="float64"),
+        "Incurred Amount": pd.array([227122.35, 1234.5, 1000000.0], dtype="float64"),
+    })
+    raw["Claim Ref"] = raw["Claim Ref"].astype("string")
+    raw["Insured Name"] = raw["Insured Name"].astype("string")
+    canonical = apply_mapping(raw, MAPPING, sheet_name="test")
+    assert canonical["CR0126CM"].tolist() == [227122.35, 1234.5, 1000000.0]
+    assert not canonical["_unparseable_CR0126CM"].any()
+    print("OK: genuinely numeric Excel cells round-trip through parsing without corruption")
+
+
 def test_forensic_report_currency_and_european_format_figures() -> None:
     """The exact figures from the forensic report -- currency-symbol and
     European-format (dot-thousands, comma-decimal) values, including
@@ -133,6 +167,8 @@ def test_genuinely_blank_paid_still_computable_as_zero() -> None:
 
 if __name__ == "__main__":
     test_currency_symbols_and_both_thousands_conventions()
+    test_space_as_thousands_separator()
+    test_already_numeric_excel_cell_is_not_corrupted()
     test_forensic_report_currency_and_european_format_figures()
     test_single_row_all_three_amounts_european_format()
     test_unparseable_value_is_not_evaluable_never_zero()

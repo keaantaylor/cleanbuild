@@ -84,7 +84,7 @@ def load_raw(path: str | Path) -> pd.DataFrame:
     return pd.read_excel(path, dtype="string", engine="openpyxl")
 
 
-def load_workbook_sheets(path: str | Path) -> list[SheetData]:
+def load_workbook_sheets(path: str | Path, source_stem: str | None = None) -> list[SheetData]:
     """Every sheet in the workbook (fix spec 3.1), each with its own
     detected header row (fix spec 3.2). A CSV has exactly one implicit
     "sheet" named after the file."""

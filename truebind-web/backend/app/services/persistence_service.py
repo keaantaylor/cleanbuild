@@ -16,9 +16,9 @@ from sqlalchemy.orm import Session
 
 from ..models._util import new_uuid
 from ..models.alerts import Alert
-from ..models.reports import ClaimRow, Mapping, Report, Sheet, ValidationResult
+from ..models.reports import ClaimRow, ExcludedRow, Mapping, Report, Sheet, ValidationResult
 from . import audit_service
-from .pipeline_service import FIELDS, FIELDS_BY_CODE, field_suggestions_by_code
+from .pipeline_service import FIELDS, FIELDS_BY_CODE, REQUIRED_CODES, field_suggestions_by_code
 
 _FIELD_TO_CLAIMROW_COL = {
     "CR0104M": "claim_reference",
@@ -58,6 +58,12 @@ def create_report_from_upload(db: Session, file_name: str, file_size_bytes: int,
         )
         db.add(sheet_row)
         db.flush()
+
+        for er in s.excluded_rows:
+            db.add(ExcludedRow(
+                report_id=report.id, sheet_name=er.sheet_name, row_number=er.row_number,
+                reason=er.reason, detail=er.detail, values=er.values,
+            ))
 
         proposal = proposal_by_sheet.get(s.sheet_name)
         if proposal is None:
@@ -127,6 +133,39 @@ def confirmed_mapping_for_sheet(db: Session, sheet: Sheet) -> dict[str, str]:
     return {m.source_column: m.field_code for m in rows if m.source_column and m.mapping_state != "UNMAPPED"}
 
 
+SheetMappingStatus = str  # "mapped" | "partial" | "unmapped" | "empty" | "error"
+
+
+def sheet_mapping_status(sheet: Sheet, mapping_rows: list[Mapping]) -> tuple[SheetMappingStatus, int, int]:
+    """The same four-way classification as bordereaux.report.
+    classify_sheet_status (Section 9/11: a sheet with 0 mapped fields is
+    never the same thing as an empty sheet, and a sheet missing only
+    some required fields is its own "partial" state), computed here from
+    persisted Mapping rows since this runs well after the original
+    SheetData is gone. A skipped sheet has no Mapping rows at all (see
+    create_report_from_upload), so it's classified from sheet.status/
+    skip_reason directly rather than an empty mapped-count that would
+    otherwise misread it as "unmapped"."""
+    if sheet.status == "SKIPPED":
+        is_crash = bool(sheet.skip_reason and sheet.skip_reason.startswith("error while reading"))
+        return ("error" if is_crash else "empty"), 0, len(FIELDS)
+
+    mapped_codes = {m.field_code for m in mapping_rows if m.mapping_state != "UNMAPPED"}
+    fields_mapped, fields_total = len(mapped_codes), len(FIELDS)
+    if fields_mapped == 0:
+        return "unmapped", fields_mapped, fields_total
+    if all(code in mapped_codes for code in REQUIRED_CODES):
+        return "mapped", fields_mapped, fields_total
+    return "partial", fields_mapped, fields_total
+
+
+def sheet_out_fields(db: Session, sheet: Sheet) -> dict:
+    """{mapping_status, fields_mapped, fields_total} for SheetOut."""
+    mapping_rows = db.query(Mapping).filter_by(sheet_id=sheet.id).all()
+    status, mapped, total = sheet_mapping_status(sheet, mapping_rows)
+    return {"mapping_status": status, "fields_mapped": mapped, "fields_total": total}
+
+
 def _severity_for_rule(rule: str) -> str:
     if rule in ("missing_mandatory_field",):
         return "CRITICAL"
@@ -137,29 +176,80 @@ def _severity_for_rule(rule: str) -> str:
     return "INFO"
 
 
-def _check_type_for_rule(rule: str) -> str:
-    """Fix spec Section 5/7: every validation rule maps to its OWN
-    check_type. Rules that are neither arithmetic nor a missing-mandatory-
-    field used to all collapse into "MAPPING_COMPLETENESS" just because
-    that was the catch-all `else` branch -- silently mislabeling
-    date/currency/status findings as a mapping problem and leaving the
-    Exceptions dashboard's real "Mapping completeness" category with
-    nothing in it but this noise. DATA_QUALITY is their real, distinct
-    category; MAPPING_COMPLETENESS is reserved for the genuine per-sheet
-    mapping-outcome finding created below."""
-    if rule == "arithmetic_mismatch":
-        return "ARITHMETIC"
-    if rule == "missing_mandatory_field":
-        return "MANDATORY_FIELD"
-    return "DATA_QUALITY"
+# Not-evaluable is deliberately never CRITICAL/HIGH: it means "we don't have
+# enough information to check this", not "this is wrong" -- see
+# bordereaux.validation._check_arithmetic's not_evaluable_detail, which is
+# kept separate from `exceptions` for the same reason (doesn't penalize the
+# composite score the way a real exception does).
+_NOT_EVALUABLE_SEVERITY = "MEDIUM"
 
 
-# Fix spec Section 5: a sheet is flagged as a mapping-completeness
-# problem when it mapped meaningfully fewer fields than the best sheet in
-# the same file -- "significantly fewer" is operationalized as at most
-# half of that file's best sheet, which also always catches the 0-mapped
-# case from Section 1's confirmed symptom.
-_MAPPING_COMPLETENESS_RATIO = 0.5
+def _persist_sheet_mapping_completeness(
+    db: Session, canonical: pd.DataFrame, coverage, claim_row_ids: list[str], report_id: str,
+) -> None:
+    """Section 5: a sheet whose columns mostly failed to map (an
+    unrecognized layout, a language the alias dictionary doesn't cover,
+    or -- see bordereaux.ingest's header fallback -- any sheet Truebind
+    processed with much lower mapping confidence than the rest of the
+    file) must be a first-class, visible exception, not an inference a
+    reviewer has to make from an inflated not-evaluable count. One
+    exception per affected sheet (not one per row -- a per-row entry
+    would just flood the Exceptions table with identical messages),
+    attached to that sheet's first row so it's findable there, plus one
+    Alert so it also surfaces in the To-do inbox like every other
+    report-level issue."""
+    sheet_field_state = coverage.sheet_field_state
+    if not sheet_field_state or canonical.empty:
+        return
+
+    total_fields = len(FIELDS)
+    mapped_counts = {
+        sheet_name: sum(1 for v in state.values() if v != "unmapped")
+        for sheet_name, state in sheet_field_state.items()
+    }
+    if not mapped_counts:
+        return
+    best = max(mapped_counts.values())
+
+    for sheet_name, mapped in mapped_counts.items():
+        poorly_mapped = mapped == 0 or (best > 0 and mapped < best / 2)
+        if not poorly_mapped:
+            continue
+
+        severity = "CRITICAL" if mapped == 0 else "HIGH"
+        message = (
+            f"Sheet {sheet_name!r}: {mapped} of {total_fields} canonical fields mapped — "
+            + ("no columns on this sheet matched a known field; needs manual review."
+               if mapped == 0 else "well below the rest of this file; needs manual review.")
+        )
+        # Section 7: the Alert fires unconditionally -- it's report-level,
+        # not tied to any one row, so a poorly-mapped sheet is never
+        # dropped from the To-do inbox just because there happens to be no
+        # row to also anchor a per-row exception to (below).
+        db.add(Alert(report_id=report_id, severity=severity, source="MAPPING_COMPLETENESS", message=message))
+
+        sheet_rows = canonical.index[canonical["_source_sheet"] == sheet_name]
+        if len(sheet_rows) == 0:
+            continue  # nothing to attach a row-level exception to; the Alert above still surfaces this sheet
+        first_pos = canonical.index.get_loc(sheet_rows[0])
+        if first_pos >= len(claim_row_ids):
+            # Same invariant as the exceptions/not-evaluable/duplicates
+            # loops above: first_pos is a position in the same canonical
+            # DataFrame claim_row_ids was built from, so this should never
+            # happen. Raise rather than silently drop the exception.
+            raise RuntimeError(
+                f"sheet {sheet_name!r} row_index {first_pos} has no matching claim row "
+                f"(only {len(claim_row_ids)} persisted) -- data integrity bug, not a normal input case"
+            )
+
+        db.add(ValidationResult(
+            claim_row_id=claim_row_ids[first_pos],
+            check_type="MAPPING_COMPLETENESS",
+            status="FAIL",
+            severity=severity,
+            message=message,
+            extra={"sheet_name": sheet_name, "mapped": mapped, "total_fields": total_fields},
+        ))
 
 
 def persist_pipeline_result(
@@ -174,22 +264,22 @@ def persist_pipeline_result(
         if not canonical.empty else pd.Series(dtype="int64")
     )
 
-    # Fix spec Section 6.4: this used to db.flush() inside the per-row
-    # loop -- one synchronous round-trip per row just to read back the
-    # auto-generated id, immediately (measured at ~5.5s of a 12.8s total
-    # run on a 12k-row file, on top of the ~7.2s the pipeline itself
-    # takes -- the single biggest per-row cost in this whole path,
-    # exactly the "redundant work per row" pattern this section asks to
-    # be audited for). The id is generated client-side up front instead,
-    # so every row can be batched into one add_all() + one flush().
-    claim_rows: list[ClaimRow] = []
+    # Section 6: this used to be db.add() + db.flush() per row, one round
+    # trip per claim -- fine at the small fixture sizes the original test
+    # suite used, but the dominant cost by far at realistic volume
+    # (profiling an 8,000-row workbook showed this loop alone accounting
+    # for the majority of a ~10s request). The id has to be known before
+    # the row is inserted anyway (it's a client-side default, not a
+    # database identity/sequence -- see models._util.uuid_pk), so
+    # generating it up front and inserting every row in one flush is a
+    # correctness-neutral change, not a shortcut: the same ids land in
+    # the same columns, just via one round trip instead of N.
     claim_row_ids: list[str] = []
-    first_claim_row_id_by_sheet: dict[str, str] = {}
+    claim_rows: list[ClaimRow] = []
     for pos, (idx, row) in enumerate(canonical.iterrows()):
         sheet_name = row["_source_sheet"]
-        row_id = new_uuid()
         claim_row = ClaimRow(
-            id=row_id,
+            id=new_uuid(),
             report_id=report.id,
             sheet_id=sheet_id_by_name.get(sheet_name),
             row_index=int(local_row_index.iloc[pos]) if len(local_row_index) else pos,
@@ -200,9 +290,7 @@ def persist_pipeline_result(
             },
         )
         claim_rows.append(claim_row)
-        claim_row_ids.append(row_id)
-        first_claim_row_id_by_sheet.setdefault(sheet_name, row_id)
-
+        claim_row_ids.append(claim_row.id)
     db.add_all(claim_rows)
     db.flush()
 
@@ -211,61 +299,57 @@ def persist_pipeline_result(
         for _, exc in exceptions.iterrows():
             row_pos = int(exc["row_index"])
             if row_pos >= len(claim_row_ids):
-                continue
+                # Section 7: row_pos is a position in the same canonical
+                # DataFrame claim_row_ids was built from (see
+                # run_workbook_pipeline's `ignore_index=True` concat), so
+                # this should never happen -- but silently skipping it
+                # here would understate the persisted exception count
+                # against bordereaux's own health.missing_mandatory_rows
+                # with nothing to say why. Raising surfaces it as a
+                # visible FAILED report instead (see routes/mapping.py's
+                # _run_pipeline_job), which is strictly better than a
+                # report that looks clean but is quietly wrong.
+                raise RuntimeError(
+                    f"exception row_index {row_pos} has no matching claim row "
+                    f"(only {len(claim_row_ids)} persisted) -- data integrity bug, not a normal input case"
+                )
             db.add(ValidationResult(
                 claim_row_id=claim_row_ids[row_pos],
-                check_type=_check_type_for_rule(exc["rule"]),
+                check_type="ARITHMETIC" if exc["rule"] == "arithmetic_mismatch"
+                    else "MANDATORY_FIELD" if exc["rule"] == "missing_mandatory_field" else "MAPPING_COMPLETENESS",
                 status="FAIL",
                 severity=_severity_for_rule(exc["rule"]),
                 message=exc["detail"],
                 extra={"rule": exc["rule"]},
             ))
 
-    # Fix spec Section 5: a genuine, first-class MAPPING_COMPLETENESS
-    # finding per sheet that mapped significantly fewer fields than the
-    # file's best sheet -- attached to that sheet's first row so it shows
-    # up in the same per-row Exceptions table/tab the frontend already
-    # queries, rather than only being inferable indirectly from an
-    # inflated not-evaluable count (the confirmed Section 5 symptom).
-    sheet_field_state = coverage.sheet_field_state
-    if sheet_field_state and first_claim_row_id_by_sheet:
-        mapped_counts = {
-            name: sum(1 for f in FIELDS if state.get(f.code) != "unmapped")
-            for name, state in sheet_field_state.items()
-            if name in first_claim_row_id_by_sheet
-        }
-        if mapped_counts:
-            best = max(mapped_counts.values())
-            # "Significantly fewer than others in the same file" (the
-            # comparative signal) degenerates to a no-op on a single-
-            # sheet file, or a file where every sheet is equally bad --
-            # a sheet is always "as good as the file's best" when it IS
-            # the only sheet. An absolute floor (half of all fields)
-            # catches those cases too, which is exactly Section 1's own
-            # example: a single unmappable sheet reading "0 of 9 fields
-            # mapped".
-            absolute_threshold = len(FIELDS) * _MAPPING_COMPLETENESS_RATIO
-            comparative_threshold = best * _MAPPING_COMPLETENESS_RATIO
-            for name, mapped in mapped_counts.items():
-                if mapped >= absolute_threshold and mapped >= comparative_threshold:
-                    continue
-                severity = "CRITICAL" if mapped == 0 else "HIGH"
-                db.add(ValidationResult(
-                    claim_row_id=first_claim_row_id_by_sheet[name],
-                    check_type="MAPPING_COMPLETENESS",
-                    status="FAIL",
-                    severity=severity,
-                    message=f"Sheet '{name}': only {mapped} of {len(FIELDS)} expected fields "
-                             "mapped -- needs manual review.",
-                    extra={"sheet_name": name, "mapped_fields": mapped, "total_fields": len(FIELDS)},
-                ))
+    not_evaluable = workbook_result.validation_result.not_evaluable_detail
+    if not not_evaluable.empty:
+        for _, ne in not_evaluable.iterrows():
+            row_pos = int(ne["row_index"])
+            if row_pos >= len(claim_row_ids):
+                raise RuntimeError(
+                    f"not-evaluable row_index {row_pos} has no matching claim row "
+                    f"(only {len(claim_row_ids)} persisted) -- data integrity bug, not a normal input case"
+                )
+            db.add(ValidationResult(
+                claim_row_id=claim_row_ids[row_pos],
+                check_type="ARITHMETIC",
+                status="NOT_EVALUABLE",
+                severity=_NOT_EVALUABLE_SEVERITY,
+                message=ne["detail"],
+                extra={"rule": ne["reason"]},
+            ))
 
     duplicates = workbook_result.duplicates
     if not duplicates.empty:
         for _, dup in duplicates.iterrows():
             a, b = int(dup["row_index_a"]), int(dup["row_index_b"])
             if a >= len(claim_row_ids) or b >= len(claim_row_ids):
-                continue
+                raise RuntimeError(
+                    f"duplicate pair references row_index {a}/{b} with no matching claim row "
+                    f"(only {len(claim_row_ids)} persisted) -- data integrity bug, not a normal input case"
+                )
             severity = "HIGH" if dup["match_type"] == "exact_duplicate" else "MEDIUM"
             db.add(ValidationResult(
                 claim_row_id=claim_row_ids[a],
@@ -276,6 +360,8 @@ def persist_pipeline_result(
                 extra={"match_type": dup["match_type"], "match_claim_row_id": claim_row_ids[b]},
             ))
 
+    _persist_sheet_mapping_completeness(db, canonical, coverage, claim_row_ids, report.id)
+
     report.rows_processed = len(canonical)
     report.rows_total = coverage.rows_total
     report.coverage_pct = (100.0 * coverage.rows_assessed / coverage.rows_total) if coverage.rows_total else 0.0
@@ -285,9 +371,13 @@ def persist_pipeline_result(
     report.status = "COMPLETE"
 
     if not coverage.fully_covered:
+        skipped_note = ""
+        if coverage.skipped_sheets:
+            named = "; ".join(f"{name!r} ({reason})" for name, reason in coverage.skipped_sheets)
+            skipped_note = f" Skipped: {named}."
         db.add(Alert(report_id=report.id, severity="HIGH", source="COVERAGE",
                       message=f"Assessed {coverage.rows_assessed} of {coverage.rows_total} rows across "
-                              f"{coverage.sheets_processed} of {coverage.sheets_total} sheets."))
+                              f"{coverage.sheets_processed} of {coverage.sheets_total} sheets.{skipped_note}"))
     if health.missing_mandatory_rows:
         db.add(Alert(report_id=report.id, severity="CRITICAL", source="MANDATORY_FAIL",
                       message=f"{health.missing_mandatory_rows} row(s) missing a mandatory field."))
@@ -301,6 +391,15 @@ def persist_pipeline_result(
     db.commit()
 
 
+def list_excluded_rows(db: Session, report_id: str) -> list[ExcludedRow]:
+    return (
+        db.query(ExcludedRow)
+        .filter(ExcludedRow.report_id == report_id)
+        .order_by(ExcludedRow.sheet_name, ExcludedRow.row_number)
+        .all()
+    )
+
+
 def compute_report_summary(db: Session, report: Report) -> dict:
     """Rebuilds the dashboard's headline numbers from already-persisted
     rows -- no re-read of the source file needed, since claim_rows,
@@ -308,6 +407,8 @@ def compute_report_summary(db: Session, report: Report) -> dict:
     report screen shows."""
     sheets = db.query(Sheet).filter_by(report_id=report.id).all()
     sheets_processed = sum(1 for s in sheets if s.status == "CONFIRMED")
+    skipped_sheets = [{"sheet_name": s.sheet_name, "reason": s.skip_reason or "skipped"}
+                       for s in sheets if s.status == "SKIPPED"]
 
     mandatory_vr = (
         db.query(ValidationResult)
@@ -320,7 +421,8 @@ def compute_report_summary(db: Session, report: Report) -> dict:
     arithmetic_mismatches = (
         db.query(ValidationResult)
         .join(ClaimRow, ValidationResult.claim_row_id == ClaimRow.id)
-        .filter(ClaimRow.report_id == report.id, ValidationResult.check_type == "ARITHMETIC")
+        .filter(ClaimRow.report_id == report.id, ValidationResult.check_type == "ARITHMETIC",
+                ValidationResult.status != "NOT_EVALUABLE")
         .count()
     )
 
@@ -332,6 +434,22 @@ def compute_report_summary(db: Session, report: Report) -> dict:
     )
     exact_duplicates = sum(1 for vr in duplicate_vr if (vr.extra or {}).get("match_type") == "exact_duplicate")
     probable_duplicates = len(duplicate_vr) - exact_duplicates
+
+    not_evaluable_vr = (
+        db.query(ValidationResult)
+        .join(ClaimRow, ValidationResult.claim_row_id == ClaimRow.id)
+        .filter(ClaimRow.report_id == report.id, ValidationResult.status == "NOT_EVALUABLE")
+        .all()
+    )
+    not_evaluable_by_reason: dict[str, int] = {}
+    for vr in not_evaluable_vr:
+        reason = (vr.extra or {}).get("rule", "unknown")
+        not_evaluable_by_reason[reason] = not_evaluable_by_reason.get(reason, 0) + 1
+
+    excluded_rows = list_excluded_rows(db, report.id)
+    excluded_row_counts: dict[str, int] = {}
+    for er in excluded_rows:
+        excluded_row_counts[er.reason] = excluded_row_counts.get(er.reason, 0) + 1
 
     sheet_row_counts = {s.id: s.row_count for s in sheets if s.status == "CONFIRMED"}
     mapping_rows = db.query(Mapping).filter(Mapping.report_id == report.id, Mapping.sheet_id.in_(sheet_row_counts)).all()
@@ -362,6 +480,64 @@ def compute_report_summary(db: Session, report: Report) -> dict:
         seen_rows_per_sheet.setdefault(name, set()).add(vr.claim_row_id)
     missing_mandatory_by_sheet = {name: len(rows) for name, rows in seen_rows_per_sheet.items()}
 
+    # Section 9/11: a sheet with 0 mapped fields is its own status,
+    # never folded into "skipped" -- computed once here and reused for
+    # both the unmapped_sheets list and the reconciliation below.
+    mapping_rows_by_sheet: dict[str, list[Mapping]] = {}
+    for m in mapping_rows:
+        mapping_rows_by_sheet.setdefault(m.sheet_id, []).append(m)
+    sheet_status = {s.id: sheet_mapping_status(s, mapping_rows_by_sheet.get(s.id, [])) for s in sheets}
+    unmapped_sheets = [
+        {"sheet_name": s.sheet_name, "reason": "no recognized business fields were detected in the header row"}
+        for s in sheets if sheet_status[s.id][0] == "unmapped"
+    ]
+
+    claim_rows_all = db.query(ClaimRow).filter_by(report_id=report.id).all()
+    rows_by_sheet: dict[str, int] = {}
+    for cr in claim_rows_all:
+        rows_by_sheet[cr.sheet_id] = rows_by_sheet.get(cr.sheet_id, 0) + 1
+
+    rejected_rows = sum(excluded_row_counts.values())
+    mapped_rows = sum(rows_by_sheet.get(s.id, 0) for s in sheets if sheet_status[s.id][0] in ("mapped", "partial"))
+    unmapped_rows = sum(rows_by_sheet.get(s.id, 0) for s in sheets if sheet_status[s.id][0] == "unmapped")
+    # Independent of mapped_rows/unmapped_rows: computed straight from
+    # each sheet's own persisted row_count (kept rows) plus the excluded-
+    # row count, before mapping status is consulted at all -- so a real
+    # drift between the two would surface as a genuine mismatch below,
+    # not a tautology.
+    source_data_rows = sum(s.row_count for s in sheets if s.status != "SKIPPED") + rejected_rows
+
+    duplicate_claim_ids: set[str] = set()
+    for vr in duplicate_vr:
+        duplicate_claim_ids.add(vr.claim_row_id)
+        match_id = (vr.extra or {}).get("match_claim_row_id")
+        if match_id:
+            duplicate_claim_ids.add(match_id)
+
+    review_claim_ids: set[str] = set(duplicate_claim_ids)
+    review_claim_ids |= {vr.claim_row_id for vr in mandatory_vr}
+    arithmetic_mismatch_vr = (
+        db.query(ValidationResult)
+        .join(ClaimRow, ValidationResult.claim_row_id == ClaimRow.id)
+        .filter(ClaimRow.report_id == report.id, ValidationResult.check_type == "ARITHMETIC",
+                ValidationResult.status != "NOT_EVALUABLE")
+        .all()
+    )
+    review_claim_ids |= {vr.claim_row_id for vr in arithmetic_mismatch_vr}
+    review_claim_ids |= {cr.id for cr in claim_rows_all if sheet_status.get(cr.sheet_id, ("", 0, 0))[0] == "unmapped"}
+
+    reconciliation = {
+        "source_worksheets": len(sheets),
+        "source_data_rows": source_data_rows,
+        "mapped_rows": mapped_rows,
+        "unmapped_rows": unmapped_rows,
+        "rejected_rows": rejected_rows,
+        "duplicate_rows": len(duplicate_claim_ids),
+        "exported_rows": len(claim_rows_all),
+        "rows_requiring_review": len(review_claim_ids),
+        "reconciles": source_data_rows == mapped_rows + unmapped_rows + rejected_rows,
+    }
+
     return {
         "sheets_total": len(sheets),
         "sheets_processed": sheets_processed,
@@ -372,4 +548,9 @@ def compute_report_summary(db: Session, report: Report) -> dict:
         "probable_duplicates": probable_duplicates,
         "field_completeness": field_completeness,
         "missing_mandatory_by_sheet": missing_mandatory_by_sheet,
+        "not_evaluable_by_reason": not_evaluable_by_reason,
+        "excluded_row_counts": excluded_row_counts,
+        "skipped_sheets": skipped_sheets,
+        "unmapped_sheets": unmapped_sheets,
+        "reconciliation": reconciliation,
     }

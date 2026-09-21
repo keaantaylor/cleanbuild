@@ -43,7 +43,10 @@ export default function TodoPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1>Alerts &amp; To-do</h1>
+        <div>
+          <span className="eyebrow">Unresolved obligations</span>
+          <h1>Alerts &amp; To-do</h1>
+        </div>
         {alerts.length > 0 && (
           <Button variant="secondary" onClick={acknowledgeAll} disabled={busy}>
             {busy ? "Acknowledging…" : "Acknowledge all"}

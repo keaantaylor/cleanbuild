@@ -48,27 +48,24 @@ def _upload_and_process(client):
         )
         assert confirm.status_code == 200, confirm.text
 
-    # Fix spec Section 6.2: /process now kicks off the pipeline run as a
-    # background task and returns immediately (202, status=PROCESSING)
-    # instead of blocking the request until the whole workbook is done --
-    # poll GET /reports/{id} the same way the frontend does. TestClient
-    # runs FastAPI's BackgroundTasks synchronously as part of the request
-    # it was scheduled from, so this resolves on the first poll in
-    # practice; the loop is here so the test doesn't depend on that.
     process = client.post(f"/api/v1/reports/{report_id}/process")
     assert process.status_code == 202, process.text
     assert process.json()["status"] == "PROCESSING"
+    return report_id, _wait_for_report(client, report_id)
 
-    report = None
-    for _ in range(50):
+
+def _wait_for_report(client, report_id: str, timeout: float = 10.0) -> dict:
+    """Section 6: /process now returns as soon as the background thread
+    is started, not once the pipeline has actually finished -- so every
+    test that used to read the process response directly now polls
+    GET /{report_id} the same way the frontend does."""
+    deadline = time.time() + timeout
+    report = client.get(f"/api/v1/reports/{report_id}").json()
+    while report["status"] == "PROCESSING" and time.time() < deadline:
+        time.sleep(0.02)
         report = client.get(f"/api/v1/reports/{report_id}").json()
-        if report["status"] in ("COMPLETE", "FAILED"):
-            break
-        time.sleep(0.1)
-    assert report is not None and report["status"] == "COMPLETE", (
-        f"report never reached COMPLETE: {report}"
-    )
-    return report_id, report
+    assert report["status"] == "COMPLETE", f"pipeline did not complete in time: {report}"
+    return report
 
 
 def test_full_workbook_matches_direct_pipeline_call(client):
@@ -141,6 +138,39 @@ def test_summary_endpoint_matches_direct_pipeline_call(client):
     reference_fc = next(fs for fs in reference.health.field_completeness if fs.code == "CR0104M")
     assert claim_ref_field["present"] == reference_fc.present
     assert claim_ref_field["denominator"] == reference_fc.denominator
+
+
+def test_not_evaluable_rows_are_drillable(client):
+    """Section 2B: "Not evaluable: N" on the dashboard must be drillable
+    down to the actual rows and reasons, not just an aggregate count --
+    this is the API surface that closes that gap."""
+    reference = _reference_health()
+    report_id, persisted = _upload_and_process(client)
+
+    not_evaluable = client.get(f"/api/v1/reports/{report_id}/exceptions?status=NOT_EVALUABLE").json()
+    assert len(not_evaluable) == reference.health.arithmetic_not_evaluable
+    assert all(e["check_type"] == "ARITHMETIC" and e["status"] == "NOT_EVALUABLE" for e in not_evaluable)
+
+    # Never double-counted into the real mismatch bucket.
+    mismatches_only = client.get(f"/api/v1/reports/{report_id}/exceptions?check_type=ARITHMETIC&status=FAIL").json()
+    assert len(mismatches_only) == reference.health.arithmetic_mismatches
+
+    summary = client.get(f"/api/v1/reports/{report_id}/summary").json()
+    assert sum(summary["not_evaluable_by_reason"].values()) == reference.health.arithmetic_not_evaluable
+
+
+def test_excluded_rows_endpoint_matches_coverage(client):
+    reference = _reference_health()
+    report_id, _ = _upload_and_process(client)
+
+    excluded = client.get(f"/api/v1/reports/{report_id}/excluded-rows").json()
+    counts: dict[str, int] = {}
+    for er in excluded:
+        counts[er["reason"]] = counts.get(er["reason"], 0) + 1
+    assert counts == reference.coverage.excluded_row_counts
+
+    summary = client.get(f"/api/v1/reports/{report_id}/summary").json()
+    assert summary["excluded_row_counts"] == reference.coverage.excluded_row_counts
 
 
 def test_export_endpoints_return_csv(client):

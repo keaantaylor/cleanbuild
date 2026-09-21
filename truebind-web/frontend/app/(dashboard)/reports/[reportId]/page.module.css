@@ -23,22 +23,27 @@
 
 .topRow {
   display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: var(--spacing-6);
+  grid-template-columns: 260px 1fr;
+  gap: var(--spacing-8);
   align-items: stretch;
 }
 
 .metrics {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--spacing-4);
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-6);
 }
 
 .section {
-  background: var(--color-bg-primary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-6);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--spacing-6);
+}
+
+.sectionIntro {
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  max-width: 640px;
+  margin: calc(var(--spacing-3) * -1) 0 var(--spacing-4);
 }
 
 .bySheetList {

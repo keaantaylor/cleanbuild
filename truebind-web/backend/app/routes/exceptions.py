@@ -14,9 +14,9 @@ router = APIRouter(prefix="/api/v1/reports", tags=["exceptions"])
 @router.get("/{report_id}/exceptions", response_model=list[ExceptionRowOut])
 def list_exceptions(
     report_id: str,
-    check_type: str | None = Query(
-        default=None, description="MANDATORY_FIELD | ARITHMETIC | MAPPING_COMPLETENESS | DATA_QUALITY",
-    ),
+    check_type: str | None = Query(default=None, description="MANDATORY_FIELD | ARITHMETIC | MAPPING_COMPLETENESS"),
+    status: str | None = Query(default=None, description="FAIL | NOT_EVALUABLE -- distinguishes a real "
+                                                           "defect from a row Truebind couldn't check"),
     db: Session = Depends(get_db),
 ) -> list[ExceptionRowOut]:
     get_report_or_404(db, report_id)
@@ -28,6 +28,8 @@ def list_exceptions(
     )
     if check_type:
         q = q.filter(ValidationResult.check_type == check_type)
+    if status:
+        q = q.filter(ValidationResult.status == status)
 
     sheet_names = {s.id: s.sheet_name for s in db.query(Sheet).filter_by(report_id=report_id).all()}
 
@@ -41,6 +43,7 @@ def list_exceptions(
             row_index=row.row_index,
             amount=row.incurred_amount if row.incurred_amount is not None else row.paid_amount,
             check_type=vr.check_type,
+            status=vr.status,
             severity=vr.severity,
             message=vr.message,
             validation_result_id=vr.id,

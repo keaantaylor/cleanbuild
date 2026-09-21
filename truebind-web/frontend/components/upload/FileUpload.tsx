@@ -19,9 +19,8 @@ export function FileUpload({ onFile, busy }: { onFile: (file: File) => void; bus
         if (file) onFile(file);
       }}
     >
-      <div className={styles.icon} aria-hidden="true">📤</div>
-      <p className={styles.text}>Drag and drop a bordereau file here</p>
-      <p className={styles.hint}>.xlsx, .xls, or .csv — one sheet or a whole multi-sheet workbook</p>
+      <p className={styles.text}>Drop a workbook to begin</p>
+      <p className={styles.hint}>XLSX, XLSM or CSV · multi-sheet supported</p>
       <button
         type="button"
         className={styles.browseButton}
@@ -33,7 +32,7 @@ export function FileUpload({ onFile, busy }: { onFile: (file: File) => void; bus
       <input
         ref={inputRef}
         type="file"
-        accept=".xlsx,.xls,.csv"
+        accept=".xlsx,.xlsm,.xls,.csv"
         className={styles.hiddenInput}
         onChange={(e) => {
           const file = e.target.files?.[0];

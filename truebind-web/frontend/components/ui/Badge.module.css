@@ -1,23 +1,32 @@
+/* A status token, not a pill: square corners (radius-xs), a hairline
+   border in the tone's own color, and a hollow (not filled) background so
+   an UNMAPPED/MISMATCH/NOT-EVALUABLE state never reads as visually
+   "clean" the way a solid green fill would elsewhere. The one exception
+   is `.sanctions`, reserved and deliberately solid/theme-invariant --
+   see variables.css. */
 .badge {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-1);
-  padding: 2px var(--spacing-2);
-  border-radius: 999px;
+  padding: 1px var(--spacing-2);
+  border-radius: var(--radius-xs);
+  border: 1px solid transparent;
   font-size: var(--text-xs);
   font-weight: 600;
-  line-height: var(--line-height-normal);
+  letter-spacing: 0.02em;
+  line-height: var(--line-height-relaxed);
   white-space: nowrap;
+  background: transparent;
 }
 
-.success { background: var(--color-success-bg); color: var(--color-success); }
-.warning { background: var(--color-warning-bg); color: var(--color-warning); }
-.error { background: var(--color-error-bg); color: var(--color-error); }
-.info { background: var(--color-info-bg); color: var(--color-info); }
-.notEvaluable { background: var(--color-not-evaluable-bg); color: var(--color-not-evaluable); }
-.neutral { background: var(--color-bg-tertiary); color: var(--color-text-secondary); }
+.success { color: var(--color-success); border-color: var(--color-success); }
+.warning { color: var(--color-warning); border-color: var(--color-warning); }
+.error { color: var(--color-error); border-color: var(--color-error); }
+.info { color: var(--color-info); border-color: var(--color-info); }
+.notEvaluable { color: var(--color-not-evaluable); border-color: var(--color-not-evaluable); }
+.neutral { color: var(--color-text-secondary); border-color: var(--color-border); }
 
-.leakagePossible { background: var(--color-leakage-possible-bg); color: var(--color-leakage-possible); }
-.leakageProbable { background: var(--color-leakage-probable-bg); color: var(--color-leakage-probable); }
-.leakageCertain { background: var(--color-leakage-certain-bg); color: var(--color-leakage-certain); }
-.sanctions { background: var(--color-sanctions-bg); color: var(--color-sanctions); }
+.leakagePossible { color: var(--color-leakage-possible); border-color: var(--color-leakage-possible); }
+.leakageProbable { color: var(--color-leakage-probable); border-color: var(--color-leakage-probable); }
+.leakageCertain { background: var(--color-leakage-certain-bg); color: var(--color-leakage-certain); border-color: var(--color-leakage-certain); }
+.sanctions { background: var(--color-sanctions-bg); color: var(--color-sanctions); border-color: var(--color-sanctions-bg); }

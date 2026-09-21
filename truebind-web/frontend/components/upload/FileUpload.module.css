@@ -1,25 +1,21 @@
 .dropzone {
-  border: 2px dashed var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-16) var(--spacing-8);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-12) var(--spacing-8);
   text-align: center;
   background: var(--color-bg-primary);
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .dragOver {
-  border-color: var(--color-primary);
-  background: var(--color-info-bg);
-}
-
-.icon {
-  font-size: var(--text-3xl);
-  margin-bottom: var(--spacing-4);
+  border-color: var(--color-text-primary);
+  background: var(--color-bg-secondary);
 }
 
 .text {
+  font-family: var(--font-display);
   font-size: var(--text-lg);
-  font-weight: 600;
+  font-weight: 500;
   margin: 0 0 var(--spacing-1);
 }
 
@@ -30,13 +26,17 @@
 }
 
 .browseButton {
-  background: var(--color-primary);
-  color: #FFFFFF;
+  background: var(--color-text-primary);
+  color: var(--color-bg-primary);
   border: none;
-  border-radius: var(--radius-md);
-  padding: var(--spacing-3) var(--spacing-6);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-2) var(--spacing-6);
+  font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
+}
+.browseButton:hover:not(:disabled) {
+  background: var(--color-primary);
 }
 .browseButton:disabled {
   opacity: 0.6;

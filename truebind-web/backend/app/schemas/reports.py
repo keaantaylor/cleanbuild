@@ -19,8 +19,7 @@ class ReportOut(BaseModel):
     grade: str | None
     score: float | None
     status: str
-    processing_phase: str | None
-    processing_error: str | None
+    processing_error: str | None = None
 
 
 class SheetOut(BaseModel):
@@ -33,6 +32,12 @@ class SheetOut(BaseModel):
     row_count: int
     status: str
     skip_reason: str | None
+    # Section 9/11: a sheet with 0 mapped fields ("unmapped") is never the
+    # same status as a genuinely empty sheet ("empty") -- see
+    # persistence_service.sheet_mapping_status.
+    mapping_status: str = "mapped"
+    fields_mapped: int = 0
+    fields_total: int = 0
 
 
 class MappingFieldOut(BaseModel):
@@ -70,9 +75,21 @@ class ExceptionRowOut(BaseModel):
     row_index: int
     amount: float | None
     check_type: str
+    status: str
     severity: str
     message: str
     validation_result_id: str
+
+
+class ExcludedRowOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    sheet_name: str
+    row_number: int
+    reason: str
+    detail: str
+    values: dict
 
 
 class DuplicatePairOut(BaseModel):
@@ -175,19 +192,20 @@ class SheetCoverageOut(BaseModel):
     skip_reason: str | None
 
 
-class ExceptionSummaryOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    report_id: str
-    narrative_status: str
-    aggregate: dict
-    narrative: dict | None
-    narrative_model: str | None
-    narrative_error: str | None
-    narrative_warning: str | None
-    created_at: datetime
-    completed_at: datetime | None
+class ReconciliationOut(BaseModel):
+    """Section 5: the row-count reconciliation every upload must be able
+    to answer. reconciles is False only if a genuine discrepancy was
+    found between two independently-computed totals -- see
+    persistence_service.compute_report_summary."""
+    source_worksheets: int
+    source_data_rows: int
+    mapped_rows: int
+    unmapped_rows: int
+    rejected_rows: int
+    duplicate_rows: int
+    exported_rows: int
+    rows_requiring_review: int
+    reconciles: bool
 
 
 class ReportSummaryOut(BaseModel):
@@ -201,3 +219,8 @@ class ReportSummaryOut(BaseModel):
     probable_duplicates: int
     field_completeness: list[FieldCompletenessOut]
     missing_mandatory_by_sheet: dict[str, int]
+    not_evaluable_by_reason: dict[str, int] = {}
+    excluded_row_counts: dict[str, int] = {}
+    skipped_sheets: list[dict] = []
+    unmapped_sheets: list[dict] = []
+    reconciliation: ReconciliationOut

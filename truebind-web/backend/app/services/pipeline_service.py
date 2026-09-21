@@ -22,6 +22,7 @@ from bordereaux.pipeline import SheetMappingProposal, WorkbookProcessResult
 
 FIELDS = schema.FIELDS
 FIELDS_BY_CODE = schema.FIELDS_BY_CODE
+REQUIRED_CODES = schema.REQUIRED_CODES
 
 
 def load_workbook(path: str | Path, source_stem: str | None = None) -> list[SheetData]:

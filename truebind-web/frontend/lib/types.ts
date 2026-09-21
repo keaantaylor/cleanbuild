@@ -2,9 +2,9 @@ export type ReportStatus = "PENDING_MAPPING" | "READY_FOR_REVIEW" | "PROCESSING"
 export type SheetStatus = "PENDING_CONFIRMATION" | "CONFIRMED" | "SKIPPED";
 export type MappingState = "MAPPED_BY_ALIAS" | "MAPPED_BY_AI" | "UNMAPPED" | "MANUAL";
 export type Severity = "CRITICAL" | "HIGH" | "MEDIUM" | "INFO";
-export type CheckType = "MANDATORY_FIELD" | "ARITHMETIC" | "DUPLICATE" | "MAPPING_COMPLETENESS" | "DATA_QUALITY";
+export type CheckType = "MANDATORY_FIELD" | "ARITHMETIC" | "DUPLICATE" | "MAPPING_COMPLETENESS";
 export type ObligationStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "OVERDUE";
-export type AlertSource = "COVERAGE" | "MANDATORY_FAIL" | "NOT_EVALUABLE" | "DUPLICATE" | "OVERDUE";
+export type AlertSource = "COVERAGE" | "MANDATORY_FAIL" | "NOT_EVALUABLE" | "DUPLICATE" | "OVERDUE" | "MAPPING_COMPLETENESS";
 
 export interface Report {
   id: string;
@@ -18,9 +18,10 @@ export interface Report {
   grade: string | null;
   score: number | null;
   status: ReportStatus;
-  processing_phase: string | null;
   processing_error: string | null;
 }
+
+export type SheetMappingStatus = "mapped" | "partial" | "unmapped" | "empty" | "error";
 
 export interface Sheet {
   id: string;
@@ -30,6 +31,11 @@ export interface Sheet {
   row_count: number;
   status: SheetStatus;
   skip_reason: string | null;
+  // A sheet with 0 mapped fields ("unmapped") is never the same status as
+  // a genuinely empty sheet ("empty") -- its rows are still retained.
+  mapping_status: SheetMappingStatus;
+  fields_mapped: number;
+  fields_total: number;
 }
 
 export interface MappingField {
@@ -42,6 +48,8 @@ export interface MappingField {
   confirmed: boolean;
 }
 
+export type ValidationStatus = "PASS" | "FAIL" | "NOT_EVALUABLE";
+
 export interface ExceptionRow {
   claim_row_id: string;
   claim_reference: string | null;
@@ -49,9 +57,21 @@ export interface ExceptionRow {
   row_index: number;
   amount: number | null;
   check_type: CheckType;
+  status: ValidationStatus;
   severity: Severity;
   message: string;
   validation_result_id: string;
+}
+
+export type ExcludedRowReason = "blank" | "subtotal" | "repeated_header";
+
+export interface ExcludedRow {
+  id: string;
+  sheet_name: string;
+  row_number: number;
+  reason: ExcludedRowReason;
+  detail: string;
+  values: Record<string, string>;
 }
 
 export type DuplicateReviewStatus = "not_duplicate" | "flagged_for_sender" | "confirmed_duplicate";
@@ -108,6 +128,18 @@ export interface FieldCompleteness {
   never_mapped: boolean;
 }
 
+export interface ReconciliationSummary {
+  source_worksheets: number;
+  source_data_rows: number;
+  mapped_rows: number;
+  unmapped_rows: number;
+  rejected_rows: number;
+  duplicate_rows: number;
+  exported_rows: number;
+  rows_requiring_review: number;
+  reconciles: boolean;
+}
+
 export interface ReportSummary {
   report: Report;
   sheets_total: number;
@@ -119,75 +151,11 @@ export interface ReportSummary {
   probable_duplicates: number;
   field_completeness: FieldCompleteness[];
   missing_mandatory_by_sheet: Record<string, number>;
-}
-
-export type NarrativeStatus = "GENERATING" | "COMPLETE" | "UNAVAILABLE" | "FAILED";
-
-export interface ExceptionAggregateCategory {
-  check_type: string;
-  count: number;
-  value_at_stake: number;
-  pct_of_total_exceptions: number;
-  sheet_count: number;
-}
-
-export interface ExceptionAggregateSheet {
-  sheet_name: string;
-  count: number;
-  value_at_stake: number;
-  pct_of_total_exceptions: number;
-  low_mapping_completeness: boolean;
-}
-
-export interface ExceptionAggregateRootCause {
-  count: number;
-  value_at_stake: number;
-  pct_of_total_exceptions: number;
-  sheet_count: number;
-}
-
-export interface ExceptionAggregate {
-  report_id: string;
-  file_name: string;
-  rows_total: number;
-  rows_processed: number;
-  total_exceptions: number;
-  total_value_at_stake: number;
-  arithmetic_not_evaluable_count: number;
-  by_category: ExceptionAggregateCategory[];
-  by_sheet: ExceptionAggregateSheet[];
-  root_cause_split: { ingestion: ExceptionAggregateRootCause; data_quality: ExceptionAggregateRootCause };
-  severity_counts: Record<string, number>;
-  duplicate_counts: { exact_duplicate: number; probable_duplicate: number };
-  mapping_completeness_findings: { sheet_name: string; message: string }[];
-}
-
-export interface ExceptionNarrativeAction {
-  title: string;
-  rationale: string;
-  category: "ingestion" | "data_quality" | "duplicate" | "other";
-  filter_check_type: string | null;
-  filter_sheet_name: string | null;
-}
-
-export interface ExceptionNarrative {
-  executive_summary: string;
-  actions: ExceptionNarrativeAction[];
-  ingestion_issues: string[];
-  data_issues: string[];
-}
-
-export interface ExceptionSummary {
-  id: string;
-  report_id: string;
-  narrative_status: NarrativeStatus;
-  aggregate: ExceptionAggregate;
-  narrative: ExceptionNarrative | null;
-  narrative_model: string | null;
-  narrative_error: string | null;
-  narrative_warning: string | null;
-  created_at: string;
-  completed_at: string | null;
+  not_evaluable_by_reason: Record<string, number>;
+  excluded_row_counts: Record<string, number>;
+  skipped_sheets: { sheet_name: string; reason: string }[];
+  unmapped_sheets: { sheet_name: string; reason: string }[];
+  reconciliation: ReconciliationSummary;
 }
 
 export interface Template {

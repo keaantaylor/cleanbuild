@@ -250,7 +250,7 @@ st.header("4. Download")
 
 out_dir = Path(tempfile.mkdtemp(prefix="bordereaux_"))
 stem = Path(source_name).stem
-paths = pipeline.write_workbook_outputs(result, out_dir, stem)
+paths = pipeline.write_workbook_outputs(result, out_dir, stem, sheets=sheets)
 
 d1, d2, d3 = st.columns(3)
 with d1:

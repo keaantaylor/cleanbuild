@@ -38,7 +38,10 @@ export default function AuditPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1>Compliance &amp; Audit</h1>
+        <div>
+          <span className="eyebrow">Every mapping decision, logged</span>
+          <h1>Compliance &amp; Audit</h1>
+        </div>
         <ReportPicker value={reportId} onChange={setReportId} />
       </div>
 

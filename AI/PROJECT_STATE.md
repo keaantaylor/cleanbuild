@@ -82,11 +82,46 @@ duplicate this list elsewhere — both apps import `schema.FIELDS`.
 ## Mapping states (tri-state + manual)
 
 `MappingState` (`frontend/lib/types.ts`) = `MAPPED_BY_ALIAS |
-MAPPED_BY_AI | UNMAPPED | MANUAL`. Rendered via `MappingStateBadge`
-(`components/ui/statusBadges.tsx`) with a glyph per state (●/◐/▲/◆) — this
-was already correct before this session's redesign; the redesign only
-changed the badge's visual treatment (hairline tag, not filled pill), not
-the state model.
+MAPPED_BY_AI | UNMAPPED | MANUAL` — per-*field*, i.e. did this one
+canonical field get a source column. Rendered via `MappingStateBadge`
+(`components/ui/statusBadges.tsx`) with a glyph per state (●/◐/▲/◆).
+
+Distinct from this, added in session 5: `SheetMappingStatus` (per-
+*sheet*, `Sheet.mapping_status` in the API / `SheetAuditRecord.status`
+in bordereaux) = `mapped | partial | unmapped | empty | error`. A sheet
+can be retained with real rows (never dropped, per fix #1 in sessions
+3-4 below) while every one of its fields is `UNMAPPED` — that sheet's
+`mapping_status` is `"unmapped"`, never conflated with `"empty"` (a
+sheet with no data at all) or `"skipped"` (the old DB-level `Sheet.
+status` enum, which is a different, coarser concept: `PENDING_
+CONFIRMATION | CONFIRMED | SKIPPED`). Computed on the fly from existing
+`Mapping` rows (`persistence_service.sheet_mapping_status()`) — no DB
+column, no migration.
+
+## Row-count reconciliation (session 5)
+
+`bordereaux.report.ReconciliationSummary` / `truebind-web`'s
+`ReportSummaryOut.reconciliation`: for every processed report, answers
+source worksheets / source data rows / mapped rows / unmapped rows /
+rejected rows / duplicate rows / exported rows / rows requiring review.
+`source_data_rows` is computed two independent ways (straight from each
+sheet's raw+excluded row counts, vs. aggregated from the per-sheet audit
+records) specifically so a real future discrepancy between the two would
+surface as `reconciliation.reconciles == False`, not get silently
+defined away. See `bordereaux/tests/test_reconciliation.py` for the
+exact numbers a known fixture should produce — use that fixture to sanity-
+check this mechanism if you change anything upstream of it (mapping,
+row exclusion, dedupe).
+
+## Report processing status (session 3-4)
+
+`Report.status` = `PENDING_MAPPING | READY_FOR_REVIEW | PROCESSING |
+COMPLETE | FAILED`. `POST /process` returns immediately at `PROCESSING`
+(background thread, own DB session) — the frontend polls `GET
+/{report_id}` until it flips. A crash mid-pipeline sets `FAILED` +
+`Report.processing_error` (raw exception text — not sanitized for
+end-user display, flagged as a known gap, see `TODO.md`) rather than
+leaving the report stuck at `PROCESSING` forever.
 
 ## Row exclusion (blank / subtotal / repeated header)
 
@@ -145,6 +180,39 @@ separate from "Arithmetic mismatch."
   first place to check before changing any color token.
 - Full rationale for every above choice: `DECISIONS.md`.
 
+## Financial/date parsing (sessions 3-5)
+
+`bordereaux.ingest._parse_amount_cell()` handles currency symbols
+(€/£/$/¥/₹), both thousands-separator conventions, space-as-thousands-
+separator (incl. non-breaking space), parenthesized negatives, and
+already-numeric Excel cells — a value that had real text but still can't
+parse sets `_unparseable_<field>` and forces the arithmetic check to
+`NOT_EVALUABLE`, never a silent `0`. `_best_date_parse()` tries a list of
+explicit formats, then a flexible parse, then — only for values still
+unresolved — interprets a bare number as an Excel serial date (1899-12-30
+epoch, 1,000–100,000 plausible range), but only ever on a column already
+confirmed-mapped to a date field. See `bordereaux/tests/test_amount_
+parsing.py` and `test_excel_dates.py` for the exact cases this covers.
+
+## ⚠️ `main` has diverged — do not assume it agrees with this branch
+
+All work above is on `claude/truebind-improvements-y992ya`. GitHub's
+`main` branch has a **separate, independently-built** set of fixes for
+several of the same problems (built in a different Claude session), plus
+two features this branch does not have at all: an AI exception-triage
+summarizer and a public marketing homepage. The two branches have not
+been reconciled or diffed against each other in detail. Before doing any
+of the following, stop and check which branch you're actually meant to
+be working on:
+- Don't assume a bug reported against "Truebind" is on this branch —
+  confirm the branch/commit first.
+- Don't merge this branch into `main` (or vice versa) without a deliberate
+  side-by-side review — they may have taken different approaches to the
+  same fix (e.g. different Alembic migration chains for background-
+  processing fields, built independently, will conflict).
+- If asked to deploy, confirm which branch the deploy target should track
+  before assuming it's this one.
+
 ## Known deferred scope (pre-existing, not this session's problem)
 
 - Payment-leakage detection, Lloyd's v5.2 template, PDF governance pack:
@@ -153,5 +221,11 @@ separate from "Arithmetic mismatch."
 - Sanctions/PEP screening, technical account reconciliation: Phase 2 of
   the original brief, not started anywhere.
 - Auth: every action logs as `web_user`; no real multi-user identity.
-- Production deployment: `truebind-web/docker-compose.yml` covers local
-  dev only.
+- Production deployment: no CI/CD, no `railway.json`/`Procfile` anywhere
+  in the repo. `truebind-web/Dockerfile`s (both) are now production-ready
+  (session 3-4, commit `b29779d`: respect `$PORT`, real `next build`) but
+  nothing auto-deploys them anywhere — a Railway/Render service must be
+  manually connected and "deploy on push" explicitly enabled per service.
+- `Report.processing_error` shows the raw Python exception string to the
+  end user, unsanitized — fine for internal QA, not for a real customer-
+  facing deploy.

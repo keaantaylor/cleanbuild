@@ -8,6 +8,176 @@ they're no longer "recent."
 
 ---
 
+## Session 5 (2026-09-21) — row-count reconciliation, per-sheet audit status, unmapped-sheet data recovery
+
+Commit `72ba26b` (+ merge `4e24f6a`). Closed the remaining gaps from a
+forensic repair brief that re-tested sessions 3/4's fixes empirically
+rather than trusting the commit messages.
+
+**What was found still missing**, verified empirically before writing any
+code:
+- A sheet retained but 0% mapped (session 3's fix) had no visible signal
+  in bordereaux's own `report.py` output — only `truebind-web`'s separate
+  `persistence_service.py` alert knew about it. CLI/Streamlit users saw
+  nothing.
+- An unmapped sheet's row **count** was preserved, but its actual raw
+  values (the real "ZX_001"/French-header content) existed nowhere in any
+  export — only the all-null canonical columns.
+- No formal row-count reconciliation existed anywhere (source rows vs.
+  mapped vs. unmapped vs. duplicate vs. rejected vs. exported).
+- The sheets list / mapping UI gave no at-a-glance signal that a sheet had
+  0 fields mapped — it looked identical to any other pending sheet.
+
+**What was built** (all additive, no existing behavior changed):
+- `bordereaux/src/bordereaux/report.py`: `SheetAuditRecord` (per-sheet
+  `mapped`/`partial`/`unmapped`/`empty`/`error` classification, driven by
+  `sheet_field_state` + `schema.REQUIRED_CODES` — general mechanism, no
+  per-file special-casing) and `ReconciliationSummary` (8 numbers,
+  computed via two independent code paths so a real future discrepancy
+  would actually surface, not be defined away).
+- `write_health_report_excel()` now takes `unmapped_sheet_raw` and writes
+  each fully-unmapped sheet's **original** headers/values to its own tab,
+  plus a new "Sheet audit" tab. `pipeline.write_workbook_outputs()` and
+  `app.py` (Streamlit) updated to pass `sheets` through.
+- `truebind-web` backend: `Sheet.mapping_status`/`fields_mapped`/
+  `fields_total` and `ReportSummaryOut.unmapped_sheets`/`.reconciliation`
+  — all computed from existing `Mapping`/`ClaimRow`/`ExcludedRow` rows,
+  **no migration needed**.
+- Frontend: `SheetsList` shows a red/amber marker + actual field count
+  instead of looking like a normal pending sheet; report page gained
+  "Sheets requiring mapping" and "Row-count reconciliation" sections.
+
+**Verified, not assumed:** built a 3-sheet fixture (200-row opaque-header
+sheet + 900-row French-header sheet + a normal sheet with one exact
+duplicate and one blank/rejected row) and confirmed the reconciliation
+holds exactly (`source_data_rows == mapped + unmapped + rejected`) both
+directly through `bordereaux.pipeline` and through the real FastAPI
+`TestClient` end to end (`bordereaux/tests/test_reconciliation.py`,
+`truebind-web/backend/tests/test_reconciliation_api.py`).
+
+**Also fixed in this pass** (from the same forensic brief, verified
+empirically against the *actual current* code before touching anything —
+two of the four reported failures turned out to already be fixed by
+session 3/4 and just needed bigger regression tests, not new code):
+- Excel serial dates (e.g. `45292` → 2024-01-01) were genuinely broken —
+  `_best_date_parse` had zero serial-number handling. Fixed with a bounded
+  fallback (1899-12-30 epoch, 1,000–100,000 plausible range) that only
+  ever runs on values that already failed every recognized date-string
+  format, and only within a column already confirmed-mapped to a date
+  field — verified a claim-reference column containing serial-looking
+  text is never touched.
+- Currency-suffix header matching (`Paid Amount (GBP)`, lowercase,
+  underscores, no-space-before-paren, mixed casing) and currency-
+  symbol/European-decimal amount parsing (`€227,122.35`, `478.776,12`,
+  space-as-thousands-separator) were **already correct** as of session
+  3 — confirmed by direct function calls before assuming a fix was
+  needed, then locked in with explicit regression tests using the exact
+  figures from the forensic report.
+
+**Tests:** 27 bordereaux pytest + 9 script-style suites + 15
+`truebind-web` backend pytest, all passing. Frontend `tsc --noEmit` and
+`eslint` clean.
+
+**Not done / next session:**
+- No manual/visual QA pass yet through real dev servers for this
+  session's specific UI additions (the sheets-list marker, the two new
+  report-page sections) — verified via Playwright/API tests, not human
+  eyes in a browser. Do this first if you're picking up here.
+- `main` on GitHub has a **separate, independently-built** set of fixes
+  for some of these same problems (from a different Claude session/PR),
+  plus an AI exception-triage feature and a public marketing homepage
+  this branch doesn't have. The two have not been reconciled — see
+  `TODO.md` item 1. Don't assume `main` and this branch agree on
+  anything until that's resolved.
+- Item 11 below (68 vs 74 missing-mandatory count mismatch) is still
+  open and now has a cousin: verify the new `reconciliation.rows_
+  requiring_review` figure doesn't have a similar silent double-count
+  once real (non-fixture) messy data is thrown at it.
+
+---
+
+## Sessions 3–4 (2026-09-18) — "Round 3": unmappable sheets, currency suffixes, robust parsing, background processing
+
+Four commits: `fa56d4a`, `9c1a450`, `ec2912f`, and the unrelated
+`b29779d` (Dockerfile production-readiness, landed on this branch from a
+separate deploy-prep effort — see its own one-line note below). This was
+the biggest single batch of pipeline-correctness fixes on this branch;
+session 5 above re-verified all of it empirically rather than trusting
+this section's own claims, which is the standard to hold *this* section
+to as well if you're reading it cold.
+
+**Root causes fixed, one per defect, each with its own regression test:**
+
+1. **A sheet with unrecognizable headers was silently skipped.**
+   `_detect_header_row()` in `ingest.py` only tried alias-fuzzy-matching;
+   if nothing matched, the whole sheet (and every row in it) vanished
+   with `skipped=True`, and `run_workbook_pipeline`'s `if s.skipped:
+   continue` dropped it from the canonical model entirely — no row count,
+   no audit trail, no export presence. Fixed with `_structural_header_row()`:
+   a shape-only fallback (most-populated row in the first few, followed
+   by comparably-populated data rows) that retains the sheet with every
+   field `UNMAPPED` rather than skipping it, while a *genuinely* non-
+   tabular sheet (a one-cell notes tab) still correctly skips. Verified
+   against a 200-row sheet with literally opaque codes as headers
+   (`ZX_001`, `ZX_002`...) and a 900-row French-language sheet — both
+   fully retained, zero rows lost.
+
+2. **`Paid Amount (GBP)`-style headers failed to alias-match at all.**
+   `rapidfuzz`'s `token_sort_ratio` scored the suffix low enough to miss
+   `FUZZY_THRESHOLD`. Fixed in `mapping.py`:
+   `split_trailing_parenthetical()` strips a single trailing `(...)`
+   group before matching, and reads a currency code from it (GBP/EUR/etc.)
+   as a last-resort hint when no separate Currency column exists.
+   Verified against lowercase, mixed-case, underscore, no-space, and
+   extra-whitespace variants (session 5), plus a two-sheet GBP-vs-EUR
+   workbook confirming no cross-contamination.
+
+3. **Currency-symbol/European-format amounts parsed as null.**
+   `ingest._parse_amount_cell()` rewritten: strips currency symbols
+   (€/£/$/¥/₹), handles both thousands-separator conventions
+   (comma-thousands/dot-decimal **and** dot-thousands/comma-decimal, with
+   an explicit tie-break rule when both separators are present), handles
+   parenthesized negatives, and — critically — a value that had real text
+   but still can't parse is flagged `_unparseable_<field>` and forces
+   `NOT_EVALUABLE` on arithmetic reconciliation, **never** silently
+   coerced to zero (that was the actual prior bug: a parse failure used to
+   read as a real `0`, which then looked like a fabricated arithmetic
+   mismatch).
+
+4. **Duplicate detection was O(n²) and flooded false positives.**
+   `dedupe.py`: added normalized-name-prefix blocking before the
+   expensive fuzzy compare, and weighted same-sheet policy-reference
+   similarity into the match decision so 100 legitimate repeat clients
+   don't each fuzzy-match each other. Exact-claim-reference matching
+   (unambiguous, no fuzziness) was untouched.
+
+5. **`POST /process` blocked the request thread for the whole pipeline**
+   (measured ~10s on an 8,000-row workbook, browser just hangs with zero
+   feedback). Moved to a background thread with its own DB session;
+   `/process` now returns in <20ms at `202 PROCESSING`, frontend polls
+   `GET /{report_id}` until `COMPLETE`/`FAILED`. New `processing_error`
+   column + migration `a1c3e7f92b4d`. Also: three defensive
+   `if x >= len(claim_row_ids): continue` guards in
+   `persistence_service.py` that would have **silently understated**
+   persisted exception/duplicate counts on a data-integrity bug now
+   `raise` instead — surfaces as a visible `FAILED` report, never a
+   quietly-wrong `COMPLETE` one.
+
+6. **`b29779d`** — unrelated Dockerfile fix (backend respects `$PORT`,
+   frontend gets a real `next build`/`next start` instead of `npm run
+   dev`) that landed on this branch via a merge from a separate
+   deploy-prep push. Only touches the two `Dockerfile`s.
+
+**Do NOT re-fix any of the above** — get the actual current file and
+actual current test failure first if something looks broken again; the
+bug classes above are each covered by a permanent regression test
+(`bordereaux/tests/test_{unmappable_sheet,header_suffix,amount_parsing,
+excel_dates,dedupe_scale,reconciliation}.py`,
+`truebind-web/backend/tests/test_{background_processing,
+reconciliation_api}.py`).
+
+---
+
 ## Session 2 (same day, follow-up work) — repeated-header-row bug, contrast audit, drill-down
 
 Three asks, all completed and tested. Session 1's notes (below the divider)

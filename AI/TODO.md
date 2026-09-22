@@ -3,6 +3,26 @@
 Update this file whenever you complete, add, or reprioritize an item —
 don't let it drift from what `HANDOFF.md`'s "still broken" section says.
 
+## Manual QA in progress (2026-09-22 onward)
+
+The user is running the app locally (both servers, real browser) to find
+things that don't work before considering this "a viable option." Log
+every finding here as it comes in — file/line if known, repro steps,
+whether it's fixed yet — so nothing gets reported twice or lost between
+sessions. Don't pre-fill this with guesses; only add a real finding once
+it's actually been hit.
+
+*(empty — nothing logged yet)*
+
+## Highest priority (blocks everything else)
+
+0. **Reconcile this branch against `main`.** They have diverged with two
+   different fixes for some of the same bugs, plus `main` has an AI
+   exception-triage feature and a marketing homepage this branch lacks.
+   See `PROJECT_STATE.md`'s "`main` has diverged" section. Needs a
+   deliberate side-by-side decision, not an automatic merge — different
+   Alembic migration chains alone will conflict if merged blindly.
+
 ## High priority
 
 1. **Verify the `.xls` fix through the Streamlit app's own upload path**
@@ -30,6 +50,19 @@ don't let it drift from what `HANDOFF.md`'s "still broken" section says.
    default string dtype behavior first.
 
 ## Medium priority
+
+3a. **Sanitize `Report.processing_error` before it reaches an end user.**
+    Right now it's the raw Python exception string, shown as-is in the
+    frontend's FAILED-state banner. Fine for internal QA (you'll want the
+    real error while testing), but needs a friendlier message layer
+    before any real customer sees it.
+
+3b. **No CI/CD, no Railway/Render config anywhere in the repo.** Both
+    Dockerfiles are production-ready now (session 3-4) but nothing
+    auto-deploys. If a Railway service is already paid for, check its
+    dashboard directly for: which branch it tracks, whether "deploy on
+    push" is even on, and what commit is actually live — none of that is
+    visible from the repo.
 
 4. Port payment-leakage detection, the Lloyd's v5.2 template, and the PDF
    governance-review-pack export from the Streamlit build's

@@ -149,6 +149,21 @@ def test_single_row_all_three_amounts_european_format() -> None:
     print("OK: CLM-P0-00031-style row (all-European-format paid/reserve/incurred) parses fully, nothing blank")
 
 
+def test_excel_error_sentinels_and_unicode_minus_never_crash_or_zero() -> None:
+    """TB-004(d)/WP-0(d): a cell holding an unresolved formula-error
+    sentinel (openpyxl returns the literal string when data_only=True
+    can't recalculate it) or a Unicode minus sign (U+2212, as opposed to
+    ASCII hyphen-minus) must never raise inside float() and must never
+    silently become a wrong number."""
+    sentinels = ["#DIV/0!", "#N/A", "#REF!", "#VALUE!", "#NAME?", "#NULL!", "#NUM!"]
+    for text in sentinels:
+        assert _parse_amount_cell(text) is None, f"{text!r} must be unparseable, not raise or parse as a number"
+
+    assert _parse_amount_cell("−500.00") == -500.00, "Unicode minus sign must parse as a real negative"
+    assert _parse_amount_cell("−1,234.56") == -1234.56
+    print(f"OK: {len(sentinels)} Excel error sentinels are unparseable; Unicode minus parses as negative")
+
+
 def test_genuinely_blank_paid_still_computable_as_zero() -> None:
     """A cell that's simply empty (no text at all) is the established
     "$0 / not yet reported" bordereau convention, distinct from a cell
@@ -172,5 +187,6 @@ if __name__ == "__main__":
     test_forensic_report_currency_and_european_format_figures()
     test_single_row_all_three_amounts_european_format()
     test_unparseable_value_is_not_evaluable_never_zero()
+    test_excel_error_sentinels_and_unicode_minus_never_crash_or_zero()
     test_genuinely_blank_paid_still_computable_as_zero()
     print("\nAmount-parsing regression tests PASSED.")

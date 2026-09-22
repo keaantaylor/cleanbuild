@@ -371,6 +371,15 @@ def _structural_header_row(rows: list[tuple]) -> int | None:
 
 _CURRENCY_SYMBOL_RE = re.compile(r"[€£$¥₹]")
 
+# TB-004(d): a formula-error cell (openpyxl returns the sentinel string
+# itself when data_only=True can't resolve it -- e.g. the workbook was
+# never recalculated in Excel/LibreOffice) must never reach float() and
+# raise. Recognized and treated as unparseable text, same as any other
+# non-numeric cell content.
+_EXCEL_ERROR_SENTINELS = frozenset({
+    "#DIV/0!", "#N/A", "#REF!", "#VALUE!", "#NAME?", "#NULL!", "#NUM!",
+})
+
 
 def unparseable_flag_column(field_code: str) -> str:
     """Name of the tracking column apply_mapping() adds alongside a
@@ -394,6 +403,9 @@ def _parse_amount_cell(text: str) -> float | None:
     t = unicodedata.normalize("NFKC", text).strip()
     if not t:
         return None
+    if t.upper() in _EXCEL_ERROR_SENTINELS:
+        return None
+    t = t.replace("−", "-")  # Unicode minus sign (U+2212), distinct from ASCII hyphen-minus
     t = _CURRENCY_SYMBOL_RE.sub("", t)
     t = "".join(t.split())  # drop all internal whitespace, incl. non-breaking (already normalized above)
 

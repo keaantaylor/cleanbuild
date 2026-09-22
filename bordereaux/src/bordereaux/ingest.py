@@ -32,7 +32,13 @@ from .schema import CURRENCY_CODE, FIELDS, FIELDS_BY_CODE
 _DATE_FORMATS = ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%b-%Y", "%Y/%m/%d", "%d.%m.%Y",
                   "%Y-%m-%d %H:%M:%S"]
 
-HEADER_SCAN_ROWS = 5  # how many leading rows to consider as candidate headers
+HEADER_SCAN_ROWS = 30  # how many leading rows to consider as candidate headers -- TB-002:
+# a title band, an embedded logo image, or a couple of blank spacer rows
+# routinely push a real header past row 5 (openpyxl returns None for
+# every cell an image merely floats over -- it doesn't occupy a row --
+# but the title/spacer rows above a real header still do), and a header
+# past the scan window was previously indistinguishable from "no header
+# at all", silently dropping the whole sheet with no error and no trace.
 MIN_HEADER_MATCHES = 3  # a candidate row needs at least this many alias-matchable cells
 
 EXCLUDED_ROW_REASON_LABELS = {

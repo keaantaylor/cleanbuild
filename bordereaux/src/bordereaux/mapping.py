@@ -66,6 +66,44 @@ def split_trailing_parenthetical(header: str) -> tuple[str, str | None]:
     return core, (suffix or None)
 
 
+# TB-003: a header's parenthetical suffix can carry a scale multiplier
+# ("Paid (USD m)" means every value is stated in millions) alongside, or
+# instead of, a currency code. Previously the suffix was parsed only for
+# an exact-match currency code and the scale semantics were discarded
+# entirely -- so a $36,686,000 claim exported as $36.69.
+_SCALE_MULTIPLIERS = {
+    "000s": 1_000.0, "000": 1_000.0, "k": 1_000.0, "thousands": 1_000.0,
+    "m": 1_000_000.0, "mn": 1_000_000.0, "million": 1_000_000.0, "millions": 1_000_000.0,
+    "bn": 1_000_000_000.0, "billion": 1_000_000_000.0, "billions": 1_000_000_000.0,
+}
+
+
+def parse_scale_suffix(suffix: str | None) -> float | None:
+    """'USD m' -> 1_000_000.0, 'GBP' -> None, 'EUR 000s' -> 1_000.0.
+    Tokenized (not matched whole) since a real suffix commonly carries a
+    currency code and a scale token side by side."""
+    if not suffix:
+        return None
+    for token in suffix.replace(",", " ").split():
+        mult = _SCALE_MULTIPLIERS.get(token.strip().lower())
+        if mult is not None:
+            return mult
+    return None
+
+
+def parse_currency_suffix(suffix: str | None, valid_codes: frozenset[str]) -> str | None:
+    """'GBP' -> 'GBP', 'USD m' -> 'USD', 'm' -> None. Tokenized for the
+    same reason as parse_scale_suffix -- a currency code sharing a
+    suffix with a scale token must still be recognised."""
+    if not suffix:
+        return None
+    for token in suffix.replace(",", " ").split():
+        code = token.strip().upper()
+        if code in valid_codes:
+            return code
+    return None
+
+
 def normalize_header(header: str) -> str:
     """'ClaimReference' -> 'claim reference', 'O/S Reserve' -> 'o s reserve',
     'Paid to Date (GBP)' -> 'paid to date' (trailing parenthetical unit/

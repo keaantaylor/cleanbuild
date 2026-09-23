@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 
 from .iso4217 import VALID_CURRENCY_CODES
-from .mapping import split_trailing_parenthetical
+from .mapping import parse_currency_suffix, parse_scale_suffix, split_trailing_parenthetical
 from .schema import CURRENCY_CODE, FIELDS, FIELDS_BY_CODE
 
 # Tried in order; whichever format parses the most values for a given
@@ -610,6 +610,17 @@ def apply_mapping(raw: pd.DataFrame, mapping: dict[str, str], sheet_name: str = 
             out[code] = _best_date_parse(series)
         elif spec.dtype == "decimal":
             parsed, unparseable = _parse_amount_series(series)
+            # TB-003: "Paid (USD m)" states every value in millions --
+            # previously the suffix was stripped for header matching and
+            # its meaning simply discarded, so a $36,686,000 claim
+            # exported as $36.69. Applied before the column is stored,
+            # so every downstream consumer (validation, export, report)
+            # sees the true magnitude with no separate unscaling step to
+            # remember.
+            _, suffix = split_trailing_parenthetical(source_col)
+            scale = parse_scale_suffix(suffix)
+            if scale:
+                parsed = parsed * scale
             out[code] = parsed
             unparseable_cols[code] = unparseable
             # A monetary column's own header sometimes states its currency
@@ -619,9 +630,9 @@ def apply_mapping(raw: pd.DataFrame, mapping: dict[str, str], sheet_name: str = 
             # so it's read rather than discarded. Only used as a last
             # resort, see below, when no Currency column was mapped.
             if currency_hint is None:
-                _, suffix = split_trailing_parenthetical(source_col)
-                if suffix and suffix.strip().upper() in VALID_CURRENCY_CODES:
-                    currency_hint = suffix.strip().upper()
+                hint = parse_currency_suffix(suffix, VALID_CURRENCY_CODES)
+                if hint:
+                    currency_hint = hint
         elif spec.dtype == "enum":
             out[code] = series.str.lower()
         elif spec.dtype == "currency":

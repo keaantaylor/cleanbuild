@@ -62,6 +62,11 @@ async def upload_report(file: UploadFile, db: Session = Depends(get_db)) -> Repo
     report = persistence_service.create_report_from_upload(
         db, file_name=file.filename, file_size_bytes=file_size_bytes, sheets=sheets, proposals=proposals,
     )
+    # The file was just read and parsed above; seed the mapping-
+    # confirmation cache with that same result now that report.id exists,
+    # so the first per-sheet GET doesn't re-read a file the process just
+    # finished reading.
+    pipeline_service.seed_workbook_cache(report.id, sheets)
 
     dest_dir = stored_upload_dir(report.id)
     dest_dir.mkdir(parents=True, exist_ok=True)

@@ -21,7 +21,7 @@ export interface Report {
   processing_error: string | null;
 }
 
-export type SheetMappingStatus = "mapped" | "partial" | "unmapped" | "empty" | "error";
+export type SheetMappingStatus = "mapped" | "partial" | "unmapped" | "empty" | "error" | "non_claim_summary";
 
 export interface Sheet {
   id: string;
@@ -137,6 +137,7 @@ export interface ReconciliationSummary {
   duplicate_rows: number;
   exported_rows: number;
   rows_requiring_review: number;
+  non_claim_summary_rows: number;
   reconciles: boolean;
 }
 
@@ -155,7 +156,82 @@ export interface ReportSummary {
   excluded_row_counts: Record<string, number>;
   skipped_sheets: { sheet_name: string; reason: string }[];
   unmapped_sheets: { sheet_name: string; reason: string }[];
+  non_claim_summary_sheets: { sheet_name: string; reason: string }[];
   reconciliation: ReconciliationSummary;
+}
+
+// AI exception-triage summary (routes/exception_summary.py). `aggregate`
+// is deterministic (built from the same validation-result rows the
+// Exceptions page already shows); `narrative` is the LLM's explanation
+// of it, generated separately so report completion is never blocked or
+// delayed by the AI call.
+export type NarrativeStatus = "GENERATING" | "COMPLETE" | "FAILED" | "UNAVAILABLE";
+
+export interface ExceptionCategoryBucket {
+  check_type: string;
+  count: number;
+  value_at_stake: number;
+  pct_of_total_exceptions: number;
+  sheet_count: number;
+}
+
+export interface ExceptionSheetBucket {
+  sheet_name: string;
+  count: number;
+  value_at_stake: number;
+  pct_of_total_exceptions: number;
+  low_mapping_completeness: boolean;
+}
+
+export interface RootCauseBucket {
+  count: number;
+  value_at_stake: number;
+  pct_of_total_exceptions: number;
+  sheet_count: number;
+}
+
+export interface ExceptionAggregate {
+  report_id: string;
+  file_name: string;
+  rows_total: number;
+  rows_processed: number;
+  total_exceptions: number;
+  total_value_at_stake: number;
+  arithmetic_not_evaluable_count: number;
+  by_category: ExceptionCategoryBucket[];
+  by_sheet: ExceptionSheetBucket[];
+  root_cause_split: { ingestion: RootCauseBucket; data_quality: RootCauseBucket };
+  severity_counts: Record<string, number>;
+  duplicate_counts: { exact_duplicate: number; probable_duplicate: number };
+  mapping_completeness_findings: { sheet_name: string; message: string }[];
+}
+
+export interface NarrativeAction {
+  title: string;
+  rationale: string;
+  category: "ingestion" | "data_quality" | "duplicate" | "other";
+  filter_check_type: string | null;
+  filter_sheet_name: string | null;
+}
+
+export interface ExceptionNarrative {
+  executive_summary: string;
+  actions: NarrativeAction[];
+  ingestion_issues: string[];
+  data_issues: string[];
+}
+
+export interface ExceptionSummary {
+  id: string;
+  report_id: string;
+  narrative_status: NarrativeStatus;
+  aggregate: ExceptionAggregate;
+  narrative: ExceptionNarrative | null;
+  narrative_model: string | null;
+  narrative_error: string | null;
+  narrative_warning: string | null;
+  created_at: string;
+  completed_at: string | null;
 }
 
 export interface Template {

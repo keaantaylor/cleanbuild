@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
 import threading
+import traceback
 from pathlib import Path
+from time import perf_counter
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, sessionmaker
@@ -13,6 +16,7 @@ from ..services import persistence_service, pipeline_service
 from .deps import get_report_or_404, get_sheet_or_404, stored_upload_path
 
 router = APIRouter(prefix="/api/v1/reports", tags=["mapping"])
+logger = logging.getLogger("truebind.pipeline")
 
 
 def _sheet_out(db: Session, sheet: Sheet) -> SheetOut:
@@ -32,7 +36,17 @@ def list_sheets(report_id: str, db: Session = Depends(get_db)) -> list[SheetOut]
 
 
 def _load_raw_sheet(report_id: str, report, sheet_name: str):
-    sheets = pipeline_service.load_workbook(stored_upload_path(report))
+    # Perf fix: this used to call pipeline_service.load_workbook() fresh
+    # on every call -- re-reading and re-parsing the entire workbook from
+    # disk just to answer one sheet's question. Measured on a
+    # 20-sheet/26,000-row file: 3.4s per call x 19 sheets = 64.7s spent on
+    # nothing but redundant re-reads during mapping confirmation alone,
+    # the dominant cost of the whole upload flow. The cache is keyed by
+    # report_id and the underlying file is immutable once uploaded, so
+    # there is no staleness risk.
+    sheets = pipeline_service.load_workbook_cached(
+        report_id, stored_upload_path(report), source_stem=Path(report.file_name).stem,
+    )
     for s in sheets:
         if s.sheet_name == sheet_name:
             return s
@@ -155,22 +169,72 @@ def _run_pipeline_job(
     this finishes. Never left un-caught: an exception here would
     otherwise vanish into the thread and leave the report stuck at
     PROCESSING forever with no visible failure (exactly the silent-drop
-    anti-pattern the rest of this round is fixing elsewhere)."""
+    anti-pattern the rest of this round is fixing elsewhere).
+
+    Per-stage wall-clock timings are logged with the report id so a slow
+    or hung upload can be diagnosed from the actual bottleneck instead of
+    guessed at -- see bordereaux.pipeline.run_workbook_pipeline's own
+    stage_timings for the mapping/validation/dedupe/report split inside
+    the "pipeline" stage logged here."""
     db = session_factory()
+    stage = "startup"
+    t_total = perf_counter()
     try:
-        sheets = pipeline_service.load_workbook(upload_path)
+        stage = "ingest"
+        t = perf_counter()
+        # Reuses the mapping-confirmation screen's cache entry when the
+        # human confirmed at least one sheet's mapping (the common path)
+        # -- this used to be a fourth-plus redundant full read of the same
+        # file (once at upload, once per sheet during confirmation, again
+        # here); now a cache hit unless nothing populated it yet.
+        sheets = pipeline_service.load_workbook_cached(
+            report_id, upload_path, source_stem=Path(file_name).stem,
+        )
+        t_ingest = perf_counter() - t
+
+        stage = "mapping_proposal"
+        t = perf_counter()
         proposals = pipeline_service.propose_mapping_for_workbook(sheets)
+        t_mapping_proposal = perf_counter() - t
+
+        stage = "pipeline"
+        t = perf_counter()
         result = pipeline_service.run_workbook_pipeline(
             sheets, confirmed_mappings, proposals, source_name=file_name,
         )
+        t_pipeline = perf_counter() - t
+
+        stage = "persist"
+        t = perf_counter()
         report = db.query(Report).filter_by(id=report_id).one()
         persistence_service.persist_pipeline_result(db, report, sheets, result, sheet_id_by_name)
+        t_persist = perf_counter() - t
+
+        logger.info(
+            "report %s processed in %.2fs -- ingest=%.2fs mapping_proposal=%.2fs "
+            "pipeline=%.2fs (mapping=%.2fs validation=%.2fs dedupe=%.2fs report=%.2fs) persist=%.2fs "
+            "rows=%d sheets=%d",
+            report_id, perf_counter() - t_total, t_ingest, t_mapping_proposal, t_pipeline,
+            result.stage_timings.get("mapping", 0.0), result.stage_timings.get("validation", 0.0),
+            result.stage_timings.get("dedupe", 0.0), result.stage_timings.get("report", 0.0),
+            t_persist, len(result.canonical), len(sheets),
+        )
     except Exception as exc:  # noqa: BLE001 -- must surface as FAILED, never vanish silently
-        db.rollback()
-        report = db.query(Report).filter_by(id=report_id).first()
-        if report is not None:
-            report.status = "FAILED"
-            report.processing_error = str(exc)
-            db.commit()
+        tb = traceback.format_exc()
+        logger.error(
+            "report %s FAILED at stage %r after %.2fs:\n%s",
+            report_id, stage, perf_counter() - t_total, tb,
+        )
+        try:
+            db.rollback()
+            report = db.query(Report).filter_by(id=report_id).first()
+            if report is not None:
+                report.status = "FAILED"
+                report.processing_error = f"{stage}: {exc}"
+                db.commit()
+        except Exception:  # noqa: BLE001 -- recording the failure must never itself hide the failure
+            logger.error("report %s: could not record FAILED status after the above error:\n%s",
+                         report_id, traceback.format_exc())
     finally:
+        pipeline_service.evict_workbook_cache(report_id)
         db.close()

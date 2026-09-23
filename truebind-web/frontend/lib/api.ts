@@ -1,4 +1,4 @@
-import type { Alert, AuditLogEntry, DuplicatePair, ExceptionRow, ExcludedRow, MappingField, Obligation, Report, ReportSummary, Sheet, Template } from "./types";
+import type { Alert, AuditLogEntry, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, MappingField, Obligation, Report, ReportSummary, Sheet, Template } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
@@ -10,11 +10,35 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: init?.body instanceof FormData ? init.headers : { "Content-Type": "application/json", ...init?.headers },
-  });
+// A hung backend request (a stuck DB lock, a dead connection with no
+// response ever arriving) previously left the caller's spinner running
+// forever -- plain fetch() has no timeout of its own, so nothing ever
+// surfaced an error. Every request now aborts after DEFAULT_TIMEOUT_MS
+// unless it passes a longer one explicitly (upload legitimately parses
+// a whole workbook synchronously and can take longer on a large file).
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+async function request<T>(path: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, ...rest } = init ?? {};
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...rest,
+      signal: controller.signal,
+      headers: rest.body instanceof FormData ? rest.headers : { "Content-Type": "application/json", ...rest.headers },
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new ApiError(0, `Request timed out after ${Math.round(timeoutMs / 1000)}s — the server may be overloaded or unreachable.`);
+    }
+    throw new ApiError(0, err instanceof Error ? err.message : "Network error — could not reach the server.");
+  } finally {
+    clearTimeout(timer);
+  }
+
   if (!res.ok) {
     let detail = res.statusText;
     try {
@@ -37,7 +61,9 @@ export const api = {
   uploadReport: (file: File) => {
     const form = new FormData();
     form.append("file", file);
-    return request<Report>("/reports/upload", { method: "POST", body: form });
+    // Longer than the default: upload synchronously reads and parses the
+    // whole workbook before responding, which scales with file size.
+    return request<Report>("/reports/upload", { method: "POST", body: form, timeoutMs: 120_000 });
   },
   listReports: () => request<Report[]>("/reports"),
   getReport: (reportId: string) => request<Report>(`/reports/${reportId}`),
@@ -55,6 +81,11 @@ export const api = {
       body: JSON.stringify({ mappings }),
     }),
   processReport: (reportId: string) => request<Report>(`/reports/${reportId}/process`, { method: "POST" }),
+
+  getExceptionSummary: (reportId: string) =>
+    request<ExceptionSummary | null>(`/reports/${reportId}/exceptions/summary`),
+  generateExceptionSummary: (reportId: string) =>
+    request<ExceptionSummary>(`/reports/${reportId}/exceptions/summary`, { method: "POST" }),
 
   listExceptions: (reportId: string, checkType?: string, status?: string) => {
     const q = new URLSearchParams();

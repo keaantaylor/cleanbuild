@@ -89,3 +89,63 @@ def test_unmapped_sheets_and_reconciliation_in_summary(client) -> None:
     assert recon["source_data_rows"] == 1103
     assert recon["rows_requiring_review"] == 1102
     assert recon["reconciles"] is True, recon
+
+
+DASHBOARD_FIXTURE = BORDEREAUX_ROOT / "tests" / "fixtures" / "dashboard_summary.xlsx"
+
+
+def _build_dashboard_fixture_if_missing() -> None:
+    if DASHBOARD_FIXTURE.exists():
+        return
+    sys.path.insert(0, str(BORDEREAUX_ROOT / "tests"))
+    import test_non_claim_summary_sheet as bordereaux_ncs_test  # noqa: PLC0415
+
+    bordereaux_ncs_test._build_dashboard_fixture()
+
+
+def test_non_claim_summary_sheet_excluded_via_full_api_path(client) -> None:
+    """TB-001 end-to-end: the real upload -> mapping -> process -> summary
+    API path must never emit a Dashboard tab's aggregate rows as claims,
+    and must name it explicitly as recognised-but-excluded rather than
+    silently dropping it or silently inflating the total."""
+    _build_dashboard_fixture_if_missing()
+    with open(DASHBOARD_FIXTURE, "rb") as f:
+        resp = client.post("/api/v1/reports/upload", files={"file": (DASHBOARD_FIXTURE.name, f,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")})
+    assert resp.status_code == 200, resp.text
+    report_id = resp.json()["id"]
+
+    sheets_list = client.get(f"/api/v1/reports/{report_id}/sheets").json()
+    for sheet in sheets_list:
+        if sheet["status"] == "SKIPPED":
+            continue
+        mapping = client.get(f"/api/v1/reports/{report_id}/sheets/{sheet['sheet_name']}/mapping").json()
+        choices = {m["field_code"]: m["source_column"] for m in mapping}
+        confirm = client.post(
+            f"/api/v1/reports/{report_id}/sheets/{sheet['sheet_name']}/mapping/confirm",
+            json={"mappings": choices, "actor": "pytest"},
+        )
+        assert confirm.status_code == 200, confirm.text
+
+    process = client.post(f"/api/v1/reports/{report_id}/process")
+    assert process.status_code == 202, process.text
+
+    deadline = time.time() + 15
+    report = client.get(f"/api/v1/reports/{report_id}").json()
+    while report["status"] == "PROCESSING" and time.time() < deadline:
+        time.sleep(0.02)
+        report = client.get(f"/api/v1/reports/{report_id}").json()
+    assert report["status"] == "COMPLETE", report
+
+    sheets = {s["sheet_name"]: s for s in client.get(f"/api/v1/reports/{report_id}/sheets").json()}
+    assert sheets["Dashboard"]["mapping_status"] == "non_claim_summary"
+    assert sheets["Direct_GBP"]["mapping_status"] == "mapped"
+
+    summary = client.get(f"/api/v1/reports/{report_id}/summary").json()
+    ncs_names = {s["sheet_name"] for s in summary["non_claim_summary_sheets"]}
+    assert ncs_names == {"Dashboard"}
+
+    recon = summary["reconciliation"]
+    assert recon["exported_rows"] == 10, "only the real claims sheet's 10 rows, never the Dashboard's"
+    assert recon["non_claim_summary_rows"] == 3
+    assert recon["reconciles"] is True, recon

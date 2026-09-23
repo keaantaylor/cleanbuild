@@ -183,6 +183,26 @@ export default function ReportDetailPage({ params }: { params: Promise<{ reportI
         </section>
       )}
 
+      {summary.non_claim_summary_sheets.length > 0 && (
+        <section className={styles.section}>
+          <h2>Sheets recognised as summaries, not claims</h2>
+          <p className={styles.sectionIntro}>
+            These sheets bind only monetary columns with no claim reference (or insured name + date) —
+            Truebind recognised them as a dashboard/rollup tab rather than a claims register and excluded
+            their rows from every total on this report entirely, rather than risk counting an aggregate
+            figure as if it were an individual claim.
+          </p>
+          <ul className={styles.bySheetList}>
+            {summary.non_claim_summary_sheets.map((s) => (
+              <li key={s.sheet_name}>
+                <span>{s.sheet_name}</span>
+                <span>{s.reason}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {summary.skipped_sheets.length > 0 && (
         <section className={styles.section}>
           <h2>Sheets skipped entirely</h2>
@@ -217,6 +237,9 @@ export default function ReportDetailPage({ params }: { params: Promise<{ reportI
           <li><span>Rejected rows</span><span className="tabular-nums">{summary.reconciliation.rejected_rows}</span></li>
           <li><span>Exported rows</span><span className="tabular-nums">{summary.reconciliation.exported_rows}</span></li>
           <li><span>Rows requiring review</span><span className="tabular-nums">{summary.reconciliation.rows_requiring_review}</span></li>
+          {summary.reconciliation.non_claim_summary_rows > 0 && (
+            <li><span>Excluded as summary/aggregate rows</span><span className="tabular-nums">{summary.reconciliation.non_claim_summary_rows}</span></li>
+          )}
         </ul>
       </section>
 

@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 
 from .iso4217 import VALID_CURRENCY_CODES
-from .mapping import split_trailing_parenthetical
+from .mapping import parse_currency_suffix, parse_scale_suffix, split_trailing_parenthetical
 from .schema import CURRENCY_CODE, FIELDS, FIELDS_BY_CODE
 
 # Tried in order; whichever format parses the most values for a given
@@ -32,13 +32,24 @@ from .schema import CURRENCY_CODE, FIELDS, FIELDS_BY_CODE
 _DATE_FORMATS = ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%b-%Y", "%Y/%m/%d", "%d.%m.%Y",
                   "%Y-%m-%d %H:%M:%S"]
 
-HEADER_SCAN_ROWS = 5  # how many leading rows to consider as candidate headers
+HEADER_SCAN_ROWS = 50  # how many leading rows to consider as candidate headers -- TB-002:
+# a title band, an embedded logo image, or a couple of blank spacer rows
+# routinely push a real header past row 5 (openpyxl returns None for
+# every cell an image merely floats over -- it doesn't occupy a row --
+# but the title/spacer rows above a real header still do), and a header
+# past the scan window was previously indistinguishable from "no header
+# at all", silently dropping the whole sheet with no error and no trace.
+# Raised from 30 to 50 after a real Lloyd's-style multi-paragraph
+# preamble (syndicate/broker/coverholder detail blocks) was observed
+# pushing a header to row 41 -- 30 was itself an improvement over the
+# original 5, but still not generous enough for every real preamble.
 MIN_HEADER_MATCHES = 3  # a candidate row needs at least this many alias-matchable cells
 
 EXCLUDED_ROW_REASON_LABELS = {
     "blank": "blank row",
     "subtotal": "subtotal/total row",
     "repeated_header": "repeated header row",
+    "title": "section title/banner row",
 }
 
 
@@ -52,7 +63,7 @@ class ExcludedRow:
     from whole-sheet skips down to individual rows)."""
     sheet_name: str
     row_number: int  # 1-based row number within the original sheet, as a user would see it in Excel
-    reason: str  # "blank" | "subtotal" | "repeated_header"
+    reason: str  # "blank" | "subtotal" | "repeated_header" | "title"
     detail: str
     values: dict[str, str] = field(default_factory=dict)  # column name -> raw cell text, for drill-down
 
@@ -101,10 +112,67 @@ def load_workbook_sheets(path: str | Path, source_stem: str | None = None) -> li
     sheets: list[SheetData] = []
     try:
         for name in wb.sheetnames:
-            sheets.append(_safe_build_sheet(name, lambda n=name: list(wb[n].iter_rows(values_only=True))))
+            sheets.append(_safe_build_sheet(name, lambda n=name: _read_bounded_rows(wb[n])))
     finally:
         wb.close()
     return sheets
+
+
+# TB-005: a single stray value far outside a sheet's real data (e.g. one
+# cell at A1048576, or column formatting run out to XFD) inflates
+# openpyxl's declared used-range to the entire worksheet -- Excel's
+# absolute limits, not this file's actual content -- and a naive read
+# then walks all of it: 1,048,576 rows x 16,384 columns for a sheet that
+# might hold a few hundred real rows. That is not a volume problem, it
+# is reading empty space as though it were data, and it is what froze
+# the whole request thread (and with it, the UI) on such a file. Bound
+# both dimensions: stop once real data has clearly ended (a long run of
+# consecutive blank rows) and cap the column width read per row.
+_MAX_CONSECUTIVE_EMPTY_ROWS = 500
+_MAX_SCAN_COLUMNS = 500
+
+
+def _row_looks_blank(row: tuple) -> bool:
+    return all(c is None or (isinstance(c, str) and not c.strip()) for c in row)
+
+
+def _read_bounded_rows(ws) -> list[tuple]:
+    """Reads `ws` lazily (openpyxl's read_only row iterator never
+    materializes the full declared range up front) and stops as soon as
+    real data has clearly run out, rather than trusting the sheet's
+    declared dimension. This is what keeps a stray cell at the edge of
+    Excel's absolute limits from turning one pathological file into an
+    unbounded read.
+
+    max_col is only capped when the sheet's own declared width is
+    already pathological (ws.max_column is a cheap metadata read in
+    read_only mode, not a full scan) -- passing it unconditionally would
+    pad every row of an ordinary, narrow sheet out to _MAX_SCAN_COLUMNS
+    with spurious blank columns, corrupting header detection for every
+    normal file."""
+    read_kwargs: dict = {"values_only": True}
+    if ws.max_column and ws.max_column > _MAX_SCAN_COLUMNS:
+        read_kwargs["max_col"] = _MAX_SCAN_COLUMNS
+
+    rows: list[tuple] = []
+    empty_streak = 0
+    hit_limit = False
+    for row in ws.iter_rows(**read_kwargs):
+        rows.append(row)
+        if _row_looks_blank(row):
+            empty_streak += 1
+            if empty_streak >= _MAX_CONSECUTIVE_EMPTY_ROWS:
+                hit_limit = True
+                break
+        else:
+            empty_streak = 0
+    if hit_limit:
+        # Only strip the specific run that triggered early termination --
+        # an ordinary trailing blank row (well under the threshold) is
+        # left in place for the existing row-classification pass to
+        # count and report as "blank", same as it always has.
+        del rows[-_MAX_CONSECUTIVE_EMPTY_ROWS:]
+    return rows
 
 
 def _safe_build_sheet(name: str, load_rows) -> SheetData:
@@ -258,19 +326,33 @@ def _row_is_subtotal(row: tuple) -> bool:
     return any(_SUBTOTAL_PATTERN.match(_normalize_cell(c)) for c in non_blank)
 
 
+def _row_is_title(row: tuple) -> bool:
+    """TB-007b: a section banner embedded mid-sheet -- 'Table B — GBP
+    claims', 'UNDERWRITING YEAR 2023' -- has exactly one populated cell,
+    holding text, with every other cell in the row genuinely blank.
+    Distinct from a subtotal line (which names a total/sum explicitly
+    among a handful of populated cells): this is any row shaped like a
+    lone banner, whatever it says."""
+    populated = [c for c in row if _normalize_cell(c) != ""]
+    return len(populated) == 1 and isinstance(populated[0], str)
+
+
 def _classify_row(row: tuple, header_row: tuple) -> tuple[str | None, str | None]:
     """Returns (reason, detail) for a row that should be excluded before
     mapping/validation ever sees it, or (None, None) for a genuine data
     row. Checked in this order: blank first (cheapest and unambiguous),
     then an exact repeated-header match (specific), then the subtotal
-    heuristic (broadest) -- so a row that happens to match the header
-    is never also reported as a subtotal."""
+    heuristic, then the lone-title-cell shape (broadest two last) -- so
+    a row that happens to match the header is never also reported as a
+    subtotal or title."""
     if _row_is_blank(row):
         return "blank", "row is entirely blank"
     if _row_matches_header(row, header_row):
         return "repeated_header", "row repeats the sheet's own header text"
     if _row_is_subtotal(row):
         return "subtotal", "row looks like a subtotal/total line, not a claim"
+    if _row_is_title(row):
+        return "title", "row is a section title/banner, not a claim"
     return None, None
 
 
@@ -371,6 +453,15 @@ def _structural_header_row(rows: list[tuple]) -> int | None:
 
 _CURRENCY_SYMBOL_RE = re.compile(r"[€£$¥₹]")
 
+# TB-004(d): a formula-error cell (openpyxl returns the sentinel string
+# itself when data_only=True can't resolve it -- e.g. the workbook was
+# never recalculated in Excel/LibreOffice) must never reach float() and
+# raise. Recognized and treated as unparseable text, same as any other
+# non-numeric cell content.
+_EXCEL_ERROR_SENTINELS = frozenset({
+    "#DIV/0!", "#N/A", "#REF!", "#VALUE!", "#NAME?", "#NULL!", "#NUM!",
+})
+
 
 def unparseable_flag_column(field_code: str) -> str:
     """Name of the tracking column apply_mapping() adds alongside a
@@ -394,6 +485,9 @@ def _parse_amount_cell(text: str) -> float | None:
     t = unicodedata.normalize("NFKC", text).strip()
     if not t:
         return None
+    if t.upper() in _EXCEL_ERROR_SENTINELS:
+        return None
+    t = t.replace("−", "-")  # Unicode minus sign (U+2212), distinct from ASCII hyphen-minus
     t = _CURRENCY_SYMBOL_RE.sub("", t)
     t = "".join(t.split())  # drop all internal whitespace, incl. non-breaking (already normalized above)
 
@@ -535,6 +629,17 @@ def apply_mapping(raw: pd.DataFrame, mapping: dict[str, str], sheet_name: str = 
             out[code] = _best_date_parse(series)
         elif spec.dtype == "decimal":
             parsed, unparseable = _parse_amount_series(series)
+            # TB-003: "Paid (USD m)" states every value in millions --
+            # previously the suffix was stripped for header matching and
+            # its meaning simply discarded, so a $36,686,000 claim
+            # exported as $36.69. Applied before the column is stored,
+            # so every downstream consumer (validation, export, report)
+            # sees the true magnitude with no separate unscaling step to
+            # remember.
+            _, suffix = split_trailing_parenthetical(source_col)
+            scale = parse_scale_suffix(suffix)
+            if scale:
+                parsed = parsed * scale
             out[code] = parsed
             unparseable_cols[code] = unparseable
             # A monetary column's own header sometimes states its currency
@@ -544,9 +649,9 @@ def apply_mapping(raw: pd.DataFrame, mapping: dict[str, str], sheet_name: str = 
             # so it's read rather than discarded. Only used as a last
             # resort, see below, when no Currency column was mapped.
             if currency_hint is None:
-                _, suffix = split_trailing_parenthetical(source_col)
-                if suffix and suffix.strip().upper() in VALID_CURRENCY_CODES:
-                    currency_hint = suffix.strip().upper()
+                hint = parse_currency_suffix(suffix, VALID_CURRENCY_CODES)
+                if hint:
+                    currency_hint = hint
         elif spec.dtype == "enum":
             out[code] = series.str.lower()
         elif spec.dtype == "currency":

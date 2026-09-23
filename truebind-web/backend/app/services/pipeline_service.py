@@ -13,6 +13,7 @@ everything above it talks to these thin wrappers instead."""
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from pathlib import Path
 
 from bordereaux import dedupe, mapping as mapping_mod, pipeline as bpipeline, report as report_mod, schema
@@ -24,9 +25,64 @@ FIELDS = schema.FIELDS
 FIELDS_BY_CODE = schema.FIELDS_BY_CODE
 REQUIRED_CODES = schema.REQUIRED_CODES
 
+# TB-001: the same classification bordereaux.pipeline uses to decide
+# whether a sheet's rows are emitted as claims at all -- reused here
+# rather than re-derived, so the sheet-status the API reports for an
+# already-processed report can never drift from the mapping-state
+# machine that actually produced its data.
+classify_sheet_status = report_mod.classify_sheet_status
+
 
 def load_workbook(path: str | Path, source_stem: str | None = None) -> list[SheetData]:
     return bpipeline.load_workbook(path, source_stem=source_stem)
+
+
+# Perf fix (profiling brief): the mapping-confirmation screen calls GET
+# .../headers and GET .../mapping once PER SHEET, and each one used to
+# call load_workbook() fresh -- re-reading and re-parsing the ENTIRE
+# workbook from disk just to answer one sheet's question. Measured on a
+# 20-sheet/26,000-row file: ~3.4s per call x 19 sheets = 64.7s spent on
+# nothing but redundant re-reads, the dominant cost of the whole upload
+# flow (bordereaux's own ingest is ~3.4s total, not per call). The
+# uploaded file is immutable once stored, so there is no invalidation
+# concern; bounded to a handful of most-recently-touched reports so a
+# long-running server doesn't accumulate memory across many unrelated
+# uploads that finished processing long ago.
+_WORKBOOK_CACHE_MAXSIZE = 8
+_workbook_cache: "OrderedDict[str, list[SheetData]]" = OrderedDict()
+
+
+def load_workbook_cached(report_id: str, path: str | Path, source_stem: str | None = None) -> list[SheetData]:
+    cached = _workbook_cache.get(report_id)
+    if cached is not None:
+        _workbook_cache.move_to_end(report_id)
+        return cached
+    sheets = bpipeline.load_workbook(path, source_stem=source_stem)
+    _workbook_cache[report_id] = sheets
+    if len(_workbook_cache) > _WORKBOOK_CACHE_MAXSIZE:
+        _workbook_cache.popitem(last=False)
+    return sheets
+
+
+def seed_workbook_cache(report_id: str, sheets: list[SheetData]) -> None:
+    """Upload already reads and parses the file once, before report_id
+    even exists -- seeding the cache with that same already-loaded
+    result (once the id is known) means the first mapping-confirmation
+    GET call for this report is a cache hit too, instead of a second
+    full re-read of a file the process just finished reading a moment
+    ago."""
+    _workbook_cache[report_id] = sheets
+    _workbook_cache.move_to_end(report_id)
+    if len(_workbook_cache) > _WORKBOOK_CACHE_MAXSIZE:
+        _workbook_cache.popitem(last=False)
+
+
+def evict_workbook_cache(report_id: str) -> None:
+    """Called once a report finishes processing (successfully or not) --
+    the parsed sheets are no longer needed after persist_pipeline_result
+    has run, so there is no reason to hold them in memory for the rest
+    of the server's life."""
+    _workbook_cache.pop(report_id, None)
 
 
 def propose_mapping_for_workbook(sheets: list[SheetData]) -> list[SheetMappingProposal]:

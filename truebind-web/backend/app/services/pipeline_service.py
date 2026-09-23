@@ -24,6 +24,13 @@ FIELDS = schema.FIELDS
 FIELDS_BY_CODE = schema.FIELDS_BY_CODE
 REQUIRED_CODES = schema.REQUIRED_CODES
 
+# TB-001: the same classification bordereaux.pipeline uses to decide
+# whether a sheet's rows are emitted as claims at all -- reused here
+# rather than re-derived, so the sheet-status the API reports for an
+# already-processed report can never drift from the mapping-state
+# machine that actually produced its data.
+classify_sheet_status = report_mod.classify_sheet_status
+
 
 def load_workbook(path: str | Path) -> list[SheetData]:
     return bpipeline.load_workbook(path)

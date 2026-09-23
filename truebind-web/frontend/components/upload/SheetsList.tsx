@@ -13,6 +13,9 @@ function summaryFor(sheet: Sheet): string {
   if (sheet.mapping_status === "partial") {
     return `${base} · ${sheet.fields_mapped}/${sheet.fields_total} fields mapped`;
   }
+  if (sheet.mapping_status === "non_claim_summary") {
+    return `${base} · summary/aggregate sheet, not claims · excluded from totals`;
+  }
   return sheet.status === "CONFIRMED" ? `${base} · mapped` : base;
 }
 
@@ -20,6 +23,7 @@ function markFor(sheet: Sheet): { className: string; glyph: string } {
   if (sheet.status === "SKIPPED") return { className: styles.markSkipped, glyph: "—" };
   if (sheet.mapping_status === "unmapped") return { className: styles.markUnmapped, glyph: "!" };
   if (sheet.mapping_status === "partial") return { className: styles.markPartial, glyph: "!" };
+  if (sheet.mapping_status === "non_claim_summary") return { className: styles.markExcluded, glyph: "Σ" };
   if (sheet.status === "CONFIRMED") return { className: styles.markConfirmed, glyph: "✓" };
   return { className: styles.markPending, glyph: "●" };
 }

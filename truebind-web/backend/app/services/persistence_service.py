@@ -18,7 +18,7 @@ from ..models._util import new_uuid
 from ..models.alerts import Alert
 from ..models.reports import ClaimRow, ExcludedRow, Mapping, Report, Sheet, ValidationResult
 from . import audit_service
-from .pipeline_service import FIELDS, FIELDS_BY_CODE, REQUIRED_CODES, field_suggestions_by_code
+from .pipeline_service import FIELDS, FIELDS_BY_CODE, REQUIRED_CODES, classify_sheet_status as _classify_sheet_status, field_suggestions_by_code
 
 _FIELD_TO_CLAIMROW_COL = {
     "CR0104M": "claim_reference",
@@ -137,26 +137,22 @@ SheetMappingStatus = str  # "mapped" | "partial" | "unmapped" | "empty" | "error
 
 
 def sheet_mapping_status(sheet: Sheet, mapping_rows: list[Mapping]) -> tuple[SheetMappingStatus, int, int]:
-    """The same four-way classification as bordereaux.report.
-    classify_sheet_status (Section 9/11: a sheet with 0 mapped fields is
-    never the same thing as an empty sheet, and a sheet missing only
-    some required fields is its own "partial" state), computed here from
-    persisted Mapping rows since this runs well after the original
-    SheetData is gone. A skipped sheet has no Mapping rows at all (see
-    create_report_from_upload), so it's classified from sheet.status/
-    skip_reason directly rather than an empty mapped-count that would
-    otherwise misread it as "unmapped"."""
+    """Delegates to bordereaux.report.classify_sheet_status -- the same
+    function that decided, at pipeline-run time, whether this sheet's
+    rows were emitted as claims at all (Section 9/11/TB-001) -- computed
+    here from persisted Mapping rows since this runs well after the
+    original SheetData is gone. A skipped sheet has no Mapping rows at
+    all (see create_report_from_upload), so it's classified from
+    sheet.status/skip_reason directly rather than an empty mapped-count
+    that would otherwise misread it as "unmapped"."""
     if sheet.status == "SKIPPED":
         is_crash = bool(sheet.skip_reason and sheet.skip_reason.startswith("error while reading"))
         return ("error" if is_crash else "empty"), 0, len(FIELDS)
 
-    mapped_codes = {m.field_code for m in mapping_rows if m.mapping_state != "UNMAPPED"}
-    fields_mapped, fields_total = len(mapped_codes), len(FIELDS)
-    if fields_mapped == 0:
-        return "unmapped", fields_mapped, fields_total
-    if all(code in mapped_codes for code in REQUIRED_CODES):
-        return "mapped", fields_mapped, fields_total
-    return "partial", fields_mapped, fields_total
+    mapped_codes = [m.field_code for m in mapping_rows if m.mapping_state != "UNMAPPED"]
+    fields_total = len(FIELDS)
+    status, _reason = _classify_sheet_status(False, None, mapped_codes)
+    return status, len(set(mapped_codes)), fields_total
 
 
 def sheet_out_fields(db: Session, sheet: Sheet) -> dict:
@@ -203,9 +199,15 @@ def _persist_sheet_mapping_completeness(
         return
 
     total_fields = len(FIELDS)
+    # TB-001: a non-claim-summary sheet (Dashboard/rollup tab, monetary
+    # columns only, no claim identity) is already correctly classified
+    # and excluded by the pipeline -- it must not also get a "needs
+    # manual review" exception implying something is unresolved.
+    non_claim_summary_names = set(coverage.non_claim_summary_sheets)
     mapped_counts = {
         sheet_name: sum(1 for v in state.values() if v != "unmapped")
         for sheet_name, state in sheet_field_state.items()
+        if sheet_name not in non_claim_summary_names
     }
     if not mapped_counts:
         return
@@ -491,6 +493,15 @@ def compute_report_summary(db: Session, report: Report) -> dict:
         {"sheet_name": s.sheet_name, "reason": "no recognized business fields were detected in the header row"}
         for s in sheets if sheet_status[s.id][0] == "unmapped"
     ]
+    # TB-001: sheets recognised as summary/aggregate data (monetary
+    # columns bound, no claim identity) -- excluded from the claim set
+    # entirely, never silently dropped, always named here.
+    non_claim_summary_sheets = [
+        {"sheet_name": s.sheet_name,
+         "reason": "binds only monetary column(s) with no claim reference or insured name + date -- "
+                    "recognised as a summary/aggregate sheet, not a claims register"}
+        for s in sheets if sheet_status[s.id][0] == "non_claim_summary"
+    ]
 
     claim_rows_all = db.query(ClaimRow).filter_by(report_id=report.id).all()
     rows_by_sheet: dict[str, int] = {}
@@ -500,6 +511,11 @@ def compute_report_summary(db: Session, report: Report) -> dict:
     rejected_rows = sum(excluded_row_counts.values())
     mapped_rows = sum(rows_by_sheet.get(s.id, 0) for s in sheets if sheet_status[s.id][0] in ("mapped", "partial"))
     unmapped_rows = sum(rows_by_sheet.get(s.id, 0) for s in sheets if sheet_status[s.id][0] == "unmapped")
+    # NCS sheets' rows never become ClaimRow entries at all (excluded
+    # before persistence), so rows_by_sheet would read 0 for them --
+    # sheet.row_count is the raw ingested count, set independently of
+    # whether the pipeline later excluded the sheet from the claim set.
+    non_claim_summary_rows = sum(s.row_count for s in sheets if sheet_status[s.id][0] == "non_claim_summary")
     # Independent of mapped_rows/unmapped_rows: computed straight from
     # each sheet's own persisted row_count (kept rows) plus the excluded-
     # row count, before mapping status is consulted at all -- so a real
@@ -535,7 +551,8 @@ def compute_report_summary(db: Session, report: Report) -> dict:
         "duplicate_rows": len(duplicate_claim_ids),
         "exported_rows": len(claim_rows_all),
         "rows_requiring_review": len(review_claim_ids),
-        "reconciles": source_data_rows == mapped_rows + unmapped_rows + rejected_rows,
+        "non_claim_summary_rows": non_claim_summary_rows,
+        "reconciles": source_data_rows == mapped_rows + unmapped_rows + rejected_rows + non_claim_summary_rows,
     }
 
     return {
@@ -552,5 +569,6 @@ def compute_report_summary(db: Session, report: Report) -> dict:
         "excluded_row_counts": excluded_row_counts,
         "skipped_sheets": skipped_sheets,
         "unmapped_sheets": unmapped_sheets,
+        "non_claim_summary_sheets": non_claim_summary_sheets,
         "reconciliation": reconciliation,
     }

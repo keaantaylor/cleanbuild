@@ -57,7 +57,23 @@ from .validation import ValidationResult
 # ingest._structural_header_row), "empty" (no plausible tabular shape at
 # all, or a crash reading the sheet -- see SheetAuditRecord.reason for
 # which).
-SheetMappingStatus = Literal["mapped", "partial", "unmapped", "empty", "error"]
+SheetMappingStatus = Literal["mapped", "partial", "unmapped", "empty", "error", "non_claim_summary"]
+
+# TB-001: a sheet is only a claims register if it can identify individual
+# claims -- binding only monetary columns (a per-sheet or per-LOB summary/
+# dashboard tab, common in real bordereaux) must never be silently
+# emitted as claim rows. Requiring Claim Reference, or failing that
+# Insured Name plus at least one date, mirrors how a human reviewer would
+# tell "this is a claims register" from "this is a rollup of one".
+_IDENTITY_DATE_CODES = (schema.LOSS_DATE_CODE, schema.NOTIFIED_DATE_CODE)
+_MONETARY_CODES = (schema.PAID_CODE, schema.RESERVE_CODE, schema.INCURRED_CODE)
+
+
+def _has_claim_identity(mapped_field_codes: list[str]) -> bool:
+    codes = set(mapped_field_codes)
+    if schema.CLAIM_REF_CODE in codes:
+        return True
+    return schema.INSURED_NAME_CODE in codes and bool(codes & set(_IDENTITY_DATE_CODES))
 
 GRADE_LABELS = {5: "Excellent", 4: "Good", 3: "Fair", 2: "Poor", 1: "Very poor"}
 EXCEPTION_WEIGHT = 1.0
@@ -125,6 +141,16 @@ class WorkbookCoverage:
             if state and all(v == "unmapped" for v in state.values())
         )
 
+    @property
+    def non_claim_summary_sheets(self) -> list[str]:
+        """TB-001: sheets recognised as summary/aggregate data (monetary
+        columns bound, no claim identity) and therefore excluded from the
+        claim set entirely -- never silently dropped, always named here
+        so a reviewer sees that TrueBlind understood the sheet and chose
+        not to count it, rather than inferring an inflated total or a
+        missing sheet."""
+        return sorted(rec.sheet_name for rec in self.sheet_audit if rec.status == "non_claim_summary")
+
 
 @dataclass
 class SheetAuditRecord:
@@ -168,6 +194,11 @@ def classify_sheet_status(
         return ("error" if is_crash else "empty"), (skip_reason or "sheet contained no tabular data")
     if not mapped_field_codes:
         return "unmapped", "no recognized business fields were detected in the header row"
+    if not _has_claim_identity(mapped_field_codes) and set(mapped_field_codes) & set(_MONETARY_CODES):
+        return "non_claim_summary", (
+            "binds only monetary column(s) with no claim reference (or insured name + date) -- "
+            "recognised as a summary/aggregate sheet, not a claims register, and excluded from the claim set"
+        )
     if all(code in mapped_field_codes for code in schema.REQUIRED_CODES):
         return "mapped", "every unconditionally-required field was mapped"
     missing = [schema.FIELDS_BY_CODE[c].name for c in schema.REQUIRED_CODES if c not in mapped_field_codes]
@@ -194,10 +225,13 @@ class ReconciliationSummary:
     duplicate_rows: int
     exported_rows: int
     rows_requiring_review: int
+    non_claim_summary_rows: int = 0  # TB-001: rows on recognised-but-excluded summary sheets
 
     @property
     def discrepancy(self) -> int:
-        return self.source_data_rows - (self.mapped_rows + self.unmapped_rows + self.rejected_rows)
+        return self.source_data_rows - (
+            self.mapped_rows + self.unmapped_rows + self.rejected_rows + self.non_claim_summary_rows
+        )
 
     @property
     def reconciles(self) -> bool:
@@ -214,6 +248,11 @@ class ReconciliationSummary:
             f"Exported rows: {self.exported_rows}",
             f"Rows requiring review: {self.rows_requiring_review}",
         ]
+        if self.non_claim_summary_rows:
+            lines.append(
+                f"(Excluded from the above: {self.non_claim_summary_rows} row(s) on sheet(s) "
+                "recognised as summaries/aggregates, not claims)"
+            )
         if self.skipped_sheet_rows:
             lines.append(f"(Excluded from the above: {self.skipped_sheet_rows} row(s) on empty/unreadable sheets)")
         if not self.reconciles:
@@ -382,6 +421,10 @@ def _coverage_line(coverage: WorkbookCoverage) -> str:
         line += (f" {len(unmapped_sheets)} sheet(s) retained with every column unmapped "
                  f"({', '.join(unmapped_sheets)}) -- their rows are counted above, but not evaluable "
                  f"until mapped.")
+    ncs_sheets = coverage.non_claim_summary_sheets
+    if ncs_sheets:
+        line += (f" {len(ncs_sheets)} sheet(s) recognised as summary/aggregate data, not a claims "
+                 f"register ({', '.join(ncs_sheets)}) -- excluded from the claim set entirely.")
     return line
 
 

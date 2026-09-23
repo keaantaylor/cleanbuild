@@ -134,6 +134,7 @@ def _build_reconciliation(
     mapped_rows = sum(rec.rows_processed for rec in sheet_audit if rec.status in ("mapped", "partial"))
     unmapped_rows = sum(rec.rows_processed for rec in sheet_audit if rec.status == "unmapped")
     rejected_rows = sum(rec.rows_rejected for rec in sheet_audit)
+    non_claim_summary_rows = sum(rec.rows_processed for rec in sheet_audit if rec.status == "non_claim_summary")
 
     dup_row_positions: set = set()
     if not duplicates.empty:
@@ -160,6 +161,7 @@ def _build_reconciliation(
         duplicate_rows=len(dup_row_positions),
         exported_rows=len(canonical),
         rows_requiring_review=rows_requiring_review,
+        non_claim_summary_rows=non_claim_summary_rows,
     )
 
 
@@ -175,15 +177,28 @@ def run_workbook_pipeline(
 
     canonical_parts = []
     sheet_field_state: dict[str, dict[str, str]] = {}
+    non_claim_summary_sheet_names: set[str] = set()
     for s in sheets:
         if s.skipped:
             continue
         confirmed = confirmed_mappings.get(s.sheet_name, {})
-        canonical_parts.append(ingest.apply_mapping(s.raw, confirmed, sheet_name=s.sheet_name))
 
         proposal = proposal_by_sheet.get(s.sheet_name)
         suggestions = proposal.mapping.suggestions if proposal else []
-        sheet_field_state[s.sheet_name] = derive_field_state(suggestions, confirmed)
+        field_state = derive_field_state(suggestions, confirmed)
+        sheet_field_state[s.sheet_name] = field_state
+
+        # TB-001: a sheet binding only monetary columns, with no claim
+        # reference (or insured name + date), is a summary/aggregate tab,
+        # not a claims register -- its rows must never be emitted as
+        # claims. Recorded via sheet_audit below, never silently dropped.
+        mapped_codes = [code for code, state in field_state.items() if state != "unmapped"]
+        status, _ = report.classify_sheet_status(False, None, mapped_codes)
+        if status == "non_claim_summary":
+            non_claim_summary_sheet_names.add(s.sheet_name)
+            continue
+
+        canonical_parts.append(ingest.apply_mapping(s.raw, confirmed, sheet_name=s.sheet_name))
 
     if canonical_parts:
         canonical = pd.concat(canonical_parts, ignore_index=True)
@@ -195,9 +210,13 @@ def run_workbook_pipeline(
     duplicates = dedupe.find_duplicates(canonical)
 
     skipped_sheets = [(s.sheet_name, s.skip_reason or "skipped") for s in sheets if s.skipped]
+    # TB-001: a non-claim-summary sheet's rows are deliberately excluded
+    # from the claim set -- they must not count against coverage as if
+    # they were unassessed data, or a correctly-recognised dashboard tab
+    # would make every workbook containing one look "not fully covered".
     rows_total = sum(
         len(s.raw) if not s.skipped else max(s.raw_row_count - 1, 0)
-        for s in sheets
+        for s in sheets if s.sheet_name not in non_claim_summary_sheet_names
     )
     excluded_rows = [er for s in sheets for er in s.excluded_rows]
 

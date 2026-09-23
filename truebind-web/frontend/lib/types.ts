@@ -21,7 +21,7 @@ export interface Report {
   processing_error: string | null;
 }
 
-export type SheetMappingStatus = "mapped" | "partial" | "unmapped" | "empty" | "error";
+export type SheetMappingStatus = "mapped" | "partial" | "unmapped" | "empty" | "error" | "non_claim_summary";
 
 export interface Sheet {
   id: string;
@@ -137,6 +137,7 @@ export interface ReconciliationSummary {
   duplicate_rows: number;
   exported_rows: number;
   rows_requiring_review: number;
+  non_claim_summary_rows: number;
   reconciles: boolean;
 }
 
@@ -155,6 +156,7 @@ export interface ReportSummary {
   excluded_row_counts: Record<string, number>;
   skipped_sheets: { sheet_name: string; reason: string }[];
   unmapped_sheets: { sheet_name: string; reason: string }[];
+  non_claim_summary_sheets: { sheet_name: string; reason: string }[];
   reconciliation: ReconciliationSummary;
 }
 

@@ -80,3 +80,9 @@
   margin-top: 2px;
   font-weight: 700;
 }
+
+.markExcluded {
+  color: var(--color-info);
+  margin-top: 2px;
+  font-weight: 700;
+}

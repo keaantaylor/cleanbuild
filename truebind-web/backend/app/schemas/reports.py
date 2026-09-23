@@ -205,6 +205,7 @@ class ReconciliationOut(BaseModel):
     duplicate_rows: int
     exported_rows: int
     rows_requiring_review: int
+    non_claim_summary_rows: int = 0
     reconciles: bool
 
 
@@ -223,4 +224,5 @@ class ReportSummaryOut(BaseModel):
     excluded_row_counts: dict[str, int] = {}
     skipped_sheets: list[dict] = []
     unmapped_sheets: list[dict] = []
+    non_claim_summary_sheets: list[dict] = []
     reconciliation: ReconciliationOut

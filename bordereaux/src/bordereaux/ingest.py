@@ -137,19 +137,36 @@ def _read_bounded_rows(ws) -> list[tuple]:
     real data has clearly run out, rather than trusting the sheet's
     declared dimension. This is what keeps a stray cell at the edge of
     Excel's absolute limits from turning one pathological file into an
-    unbounded read."""
+    unbounded read.
+
+    max_col is only capped when the sheet's own declared width is
+    already pathological (ws.max_column is a cheap metadata read in
+    read_only mode, not a full scan) -- passing it unconditionally would
+    pad every row of an ordinary, narrow sheet out to _MAX_SCAN_COLUMNS
+    with spurious blank columns, corrupting header detection for every
+    normal file."""
+    read_kwargs: dict = {"values_only": True}
+    if ws.max_column and ws.max_column > _MAX_SCAN_COLUMNS:
+        read_kwargs["max_col"] = _MAX_SCAN_COLUMNS
+
     rows: list[tuple] = []
     empty_streak = 0
-    for row in ws.iter_rows(values_only=True, max_col=_MAX_SCAN_COLUMNS):
+    hit_limit = False
+    for row in ws.iter_rows(**read_kwargs):
         rows.append(row)
         if _row_looks_blank(row):
             empty_streak += 1
             if empty_streak >= _MAX_CONSECUTIVE_EMPTY_ROWS:
+                hit_limit = True
                 break
         else:
             empty_streak = 0
-    while rows and _row_looks_blank(rows[-1]):
-        rows.pop()  # trailing blank run that triggered the stop, not real data
+    if hit_limit:
+        # Only strip the specific run that triggered early termination --
+        # an ordinary trailing blank row (well under the threshold) is
+        # left in place for the existing row-classification pass to
+        # count and report as "blank", same as it always has.
+        del rows[-_MAX_CONSECUTIVE_EMPTY_ROWS:]
     return rows
 
 

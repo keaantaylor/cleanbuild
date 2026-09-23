@@ -107,10 +107,50 @@ def load_workbook_sheets(path: str | Path) -> list[SheetData]:
     sheets: list[SheetData] = []
     try:
         for name in wb.sheetnames:
-            sheets.append(_safe_build_sheet(name, lambda n=name: list(wb[n].iter_rows(values_only=True))))
+            sheets.append(_safe_build_sheet(name, lambda n=name: _read_bounded_rows(wb[n])))
     finally:
         wb.close()
     return sheets
+
+
+# TB-005: a single stray value far outside a sheet's real data (e.g. one
+# cell at A1048576, or column formatting run out to XFD) inflates
+# openpyxl's declared used-range to the entire worksheet -- Excel's
+# absolute limits, not this file's actual content -- and a naive read
+# then walks all of it: 1,048,576 rows x 16,384 columns for a sheet that
+# might hold a few hundred real rows. That is not a volume problem, it
+# is reading empty space as though it were data, and it is what froze
+# the whole request thread (and with it, the UI) on such a file. Bound
+# both dimensions: stop once real data has clearly ended (a long run of
+# consecutive blank rows) and cap the column width read per row.
+_MAX_CONSECUTIVE_EMPTY_ROWS = 500
+_MAX_SCAN_COLUMNS = 500
+
+
+def _row_looks_blank(row: tuple) -> bool:
+    return all(c is None or (isinstance(c, str) and not c.strip()) for c in row)
+
+
+def _read_bounded_rows(ws) -> list[tuple]:
+    """Reads `ws` lazily (openpyxl's read_only row iterator never
+    materializes the full declared range up front) and stops as soon as
+    real data has clearly run out, rather than trusting the sheet's
+    declared dimension. This is what keeps a stray cell at the edge of
+    Excel's absolute limits from turning one pathological file into an
+    unbounded read."""
+    rows: list[tuple] = []
+    empty_streak = 0
+    for row in ws.iter_rows(values_only=True, max_col=_MAX_SCAN_COLUMNS):
+        rows.append(row)
+        if _row_looks_blank(row):
+            empty_streak += 1
+            if empty_streak >= _MAX_CONSECUTIVE_EMPTY_ROWS:
+                break
+        else:
+            empty_streak = 0
+    while rows and _row_looks_blank(rows[-1]):
+        rows.pop()  # trailing blank run that triggered the stop, not real data
+    return rows
 
 
 def _safe_build_sheet(name: str, load_rows) -> SheetData:

@@ -45,6 +45,7 @@ EXCLUDED_ROW_REASON_LABELS = {
     "blank": "blank row",
     "subtotal": "subtotal/total row",
     "repeated_header": "repeated header row",
+    "title": "section title/banner row",
 }
 
 
@@ -58,7 +59,7 @@ class ExcludedRow:
     from whole-sheet skips down to individual rows)."""
     sheet_name: str
     row_number: int  # 1-based row number within the original sheet, as a user would see it in Excel
-    reason: str  # "blank" | "subtotal" | "repeated_header"
+    reason: str  # "blank" | "subtotal" | "repeated_header" | "title"
     detail: str
     values: dict[str, str] = field(default_factory=dict)  # column name -> raw cell text, for drill-down
 
@@ -321,19 +322,33 @@ def _row_is_subtotal(row: tuple) -> bool:
     return any(_SUBTOTAL_PATTERN.match(_normalize_cell(c)) for c in non_blank)
 
 
+def _row_is_title(row: tuple) -> bool:
+    """TB-007b: a section banner embedded mid-sheet -- 'Table B — GBP
+    claims', 'UNDERWRITING YEAR 2023' -- has exactly one populated cell,
+    holding text, with every other cell in the row genuinely blank.
+    Distinct from a subtotal line (which names a total/sum explicitly
+    among a handful of populated cells): this is any row shaped like a
+    lone banner, whatever it says."""
+    populated = [c for c in row if _normalize_cell(c) != ""]
+    return len(populated) == 1 and isinstance(populated[0], str)
+
+
 def _classify_row(row: tuple, header_row: tuple) -> tuple[str | None, str | None]:
     """Returns (reason, detail) for a row that should be excluded before
     mapping/validation ever sees it, or (None, None) for a genuine data
     row. Checked in this order: blank first (cheapest and unambiguous),
     then an exact repeated-header match (specific), then the subtotal
-    heuristic (broadest) -- so a row that happens to match the header
-    is never also reported as a subtotal."""
+    heuristic, then the lone-title-cell shape (broadest two last) -- so
+    a row that happens to match the header is never also reported as a
+    subtotal or title."""
     if _row_is_blank(row):
         return "blank", "row is entirely blank"
     if _row_matches_header(row, header_row):
         return "repeated_header", "row repeats the sheet's own header text"
     if _row_is_subtotal(row):
         return "subtotal", "row looks like a subtotal/total line, not a claim"
+    if _row_is_title(row):
+        return "title", "row is a section title/banner, not a claim"
     return None, None
 
 

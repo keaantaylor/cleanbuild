@@ -8,8 +8,9 @@ same mapping-outcome objects, never two separately-derived ones)."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from time import perf_counter
 
 import pandas as pd
 
@@ -73,6 +74,7 @@ class WorkbookProcessResult:
     duplicates: pd.DataFrame
     health: "report.HealthReport"
     coverage: "report.WorkbookCoverage"
+    stage_timings: dict[str, float] = field(default_factory=dict)  # seconds, wall clock, per stage
 
 
 def load_workbook(path: str | Path) -> list[SheetData]:
@@ -174,6 +176,8 @@ def run_workbook_pipeline(
     """confirmed_mappings: {sheet_name: {source_column: field_code}},
     one entry per non-skipped sheet, after human confirmation."""
     proposal_by_sheet = {p.sheet.sheet_name: p for p in proposals}
+    stage_timings: dict[str, float] = {}
+    _t = perf_counter()
 
     canonical_parts = []
     sheet_field_state: dict[str, dict[str, str]] = {}
@@ -205,9 +209,13 @@ def run_workbook_pipeline(
     else:
         canonical = pd.DataFrame(columns=[f.code for f in FIELDS] + [SOURCE_SHEET_CODE])
     CANONICAL_SCHEMA.validate(canonical)
+    stage_timings["mapping"], _t = perf_counter() - _t, perf_counter()
 
     validation_result = validation.validate(canonical, sheet_field_state=sheet_field_state)
+    stage_timings["validation"], _t = perf_counter() - _t, perf_counter()
+
     duplicates = dedupe.find_duplicates(canonical)
+    stage_timings["dedupe"], _t = perf_counter() - _t, perf_counter()
 
     skipped_sheets = [(s.sheet_name, s.skip_reason or "skipped") for s in sheets if s.skipped]
     # TB-001: a non-claim-summary sheet's rows are deliberately excluded
@@ -237,6 +245,7 @@ def run_workbook_pipeline(
     health = report.build_health_report(
         canonical, validation_result, duplicates, source_name=source_name, coverage=coverage,
     )
+    stage_timings["report"] = perf_counter() - _t
 
     return WorkbookProcessResult(
         canonical=canonical,
@@ -244,6 +253,7 @@ def run_workbook_pipeline(
         duplicates=duplicates,
         health=health,
         coverage=coverage,
+        stage_timings=stage_timings,
     )
 
 

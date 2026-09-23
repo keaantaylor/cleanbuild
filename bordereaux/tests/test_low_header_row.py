@@ -57,6 +57,38 @@ def test_header_seven_rows_down_is_found_and_all_rows_survive() -> None:
     print(f"OK: header found at row {sheet.header_row_index + 1}; all {len(sheet.raw)} rows present")
 
 
+def _build_deep_preamble_fixture() -> Path:
+    """Reproduces a real Lloyd's-style bordereau preamble: several
+    paragraphs of syndicate/broker/coverholder detail pushing the header
+    to row 41 (0-indexed 40) -- past the 30-row window this file's
+    HEADER_SCAN_ROWS was raised to before this fix, still not generous
+    enough."""
+    path = FIXTURE_DIR / "deep_preamble_header_row_41.xlsx"
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "05_Header_Row_41"
+    for i in range(40):  # rows 1-40: preamble
+        ws.append([f"Lloyd's Syndicate Bordereau -- preamble line {i + 1}"])
+    ws.append(["Claim Ref", "Insured Name", "Paid Amount", "Reserve Amount", "Incurred Amount"])
+    for i in range(120):
+        ws.append([f"CLM-{i + 1:05d}", f"Insured {i}", 100.0 + i, 50.0, 150.0 + i])
+    wb.save(path)
+    return path
+
+
+def test_header_forty_one_rows_down_is_found_and_all_rows_survive() -> None:
+    path = _build_deep_preamble_fixture()
+    sheets = ingest.load_workbook_sheets(path)
+    assert len(sheets) == 1
+
+    sheet = sheets[0]
+    assert not sheet.skipped, f"sheet was skipped: {sheet.skip_reason!r}"
+    assert sheet.header_row_index == 40, f"expected header at 0-indexed row 40, got {sheet.header_row_index}"
+    assert len(sheet.raw) == 120, f"expected 120 claim rows, got {len(sheet.raw)}"
+    print(f"OK: header found at row {sheet.header_row_index + 1}; all {len(sheet.raw)} rows present")
+
+
 if __name__ == "__main__":
     test_header_seven_rows_down_is_found_and_all_rows_survive()
-    print("\nLow-header-row regression test PASSED.")
+    test_header_forty_one_rows_down_is_found_and_all_rows_survive()
+    print("\nLow-header-row regression tests PASSED.")

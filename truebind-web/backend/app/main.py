@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from .config import get_cors_origins
 from .routes import alerts, audit, duplicates, exceptions, mapping, obligations, reports, templates, upload
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("truebind")
 
 app = FastAPI(title="Truebind API", version="0.1.0")

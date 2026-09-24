@@ -29,7 +29,7 @@ function markFor(sheet: Sheet): { className: string; glyph: string } {
 }
 
 export function SheetsList({ sheets, activeSheet, onSelect }: {
-  sheets: Sheet[]; activeSheet: string | null; onSelect: (sheetName: string) => void;
+  sheets: Sheet[]; activeSheet: string | null; onSelect: (sheetId: string) => void;
 }) {
   return (
     <ul className={styles.list}>
@@ -38,8 +38,8 @@ export function SheetsList({ sheets, activeSheet, onSelect }: {
         return (
           <li key={sheet.id}>
             <button
-              className={`${styles.item} ${sheet.sheet_name === activeSheet ? styles.active : ""}`}
-              onClick={() => onSelect(sheet.sheet_name)}
+              className={`${styles.item} ${sheet.id === activeSheet ? styles.active : ""}`}
+              onClick={() => onSelect(sheet.id)}
               disabled={sheet.status === "SKIPPED"}
             >
               <span className={mark.className} aria-hidden="true">{mark.glyph}</span>

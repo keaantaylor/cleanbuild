@@ -39,7 +39,8 @@ export function ExceptionStatusBadge({ status, severity }: { status: string; sev
   return <SeverityBadge severity={severity} />;
 }
 
-export function DuplicateMatchBadge({ matchType }: { matchType: "exact_duplicate" | "probable_duplicate" }) {
+export function DuplicateMatchBadge({ matchType }: { matchType: "exact_duplicate" | "probable_duplicate" | "repeat_period_unknown" }) {
+  if (matchType === "repeat_period_unknown") return <Badge tone="neutral">Repeat — period unknown</Badge>;
   return matchType === "exact_duplicate" ? (
     <Badge tone="leakageCertain">Certain duplicate</Badge>
   ) : (

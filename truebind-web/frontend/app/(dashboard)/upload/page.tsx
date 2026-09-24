@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import type { MappingField, Report, Sheet } from "@/lib/types";
 import { FileUpload } from "@/components/upload/FileUpload";
@@ -14,6 +14,8 @@ import styles from "./page.module.css";
 
 export default function UploadPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [stage, setStage] = useState<string | null>(null);
   const [report, setReport] = useState<Report | null>(null);
   const [sheets, setSheets] = useState<Sheet[]>([]);
   const [activeSheet, setActiveSheet] = useState<string | null>(null);
@@ -22,16 +24,31 @@ export default function UploadPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Upload only stores the file and queues an INGEST job; the worker reads
+  // the workbook and proposes a mapping. Wait for that job, then show sheets.
+  async function loadForReview(reportId: string) {
+    const done = await api.waitForReport(reportId, (r) => {
+      setReport(r);
+      setStage(r.job?.stage ?? r.status);
+    });
+    setStage(null);
+    if (done.status !== "WAITING_FOR_REVIEW" && done.status !== "COMPLETE") {
+      setError(done.processing_error || done.job?.error_message || `The file could not be read (status ${done.status}).`);
+      return;
+    }
+    const sheetList = await api.listSheets(reportId);
+    setSheets(sheetList);
+    const firstOpen = sheetList.find((s) => s.status === "PENDING_CONFIRMATION") ?? sheetList.find((s) => s.status !== "SKIPPED");
+    if (firstOpen) setActiveSheet(firstOpen.id);
+  }
+
   async function handleFile(file: File) {
     setBusy(true);
     setError(null);
     try {
       const uploaded = await api.uploadReport(file);
       setReport(uploaded);
-      const sheetList = await api.listSheets(uploaded.id);
-      setSheets(sheetList);
-      const firstOpen = sheetList.find((s) => s.status !== "SKIPPED");
-      if (firstOpen) setActiveSheet(firstOpen.sheet_name);
+      await loadForReview(uploaded.id);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not upload the file.");
     } finally {
@@ -40,20 +57,37 @@ export default function UploadPage() {
   }
 
   useEffect(() => {
+    const resumeId = searchParams.get("reportId");
+    if (!resumeId || report) return;
+    void (async () => {
+      setBusy(true);
+      try {
+        await loadForReview(resumeId);
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : "Could not load this report.");
+      } finally {
+        setBusy(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  useEffect(() => {
     if (!report || !activeSheet) return;
     let cancelled = false;
     (async () => {
-      const [mapping, headerList] = await Promise.all([
-        api.getSheetMapping(report.id, activeSheet),
-        api.getSheetHeaders(report.id, activeSheet),
-      ]);
-      if (!cancelled) {
-        setFields(mapping);
-        setHeaders(headerList);
+      try {
+        const m = await api.getSheetMappingFull(report.id, activeSheet);
+        if (!cancelled) {
+          setFields(m.fields);
+          setHeaders(m.headers);
+        }
+      } catch (e) {
+        if (!cancelled) setError(e instanceof ApiError ? e.message : "Could not load this sheet's mapping.");
       }
     })();
     return () => { cancelled = true; };
-  }, [report, activeSheet]);
+  }, [report?.id, activeSheet]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleConfirm(choices: Record<string, string | null>) {
     if (!report || !activeSheet) return;
@@ -71,7 +105,7 @@ export default function UploadPage() {
       // earlier sheet's column names.
       setFields([]);
       setHeaders([]);
-      setActiveSheet(nextOpen ? nextOpen.sheet_name : null);
+      setActiveSheet(nextOpen ? nextOpen.id : null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not confirm this sheet's mapping.");
     } finally {
@@ -95,6 +129,24 @@ export default function UploadPage() {
 
   const allDone = sheets.length > 0 && sheets.every((s) => s.status !== "PENDING_CONFIRMATION");
   const activeFields = fields;
+
+  const activeSheetObj = sheets.find((s) => s.id === activeSheet);
+
+  if (report && sheets.length === 0) {
+    return (
+      <div className={styles.page}>
+        <h1>{report.file_name}</h1>
+        {error ? (
+          <AlertBanner tone="error" title="The file could not be processed">{error}</AlertBanner>
+        ) : (
+          <AlertBanner tone="info" title="Reading your workbook…">
+            {stage ? `Current step: ${stage.replace(/_/g, " ").toLowerCase()}.` : "Queued."} This updates automatically.
+          </AlertBanner>
+        )}
+        {error && <Button onClick={() => { setReport(null); setError(null); router.replace("/upload"); }}>Upload another file</Button>}
+      </div>
+    );
+  }
 
   if (!report) {
     return (
@@ -159,15 +211,15 @@ export default function UploadPage() {
           {activeSheet && activeFields.length > 0 ? (
             <MappingConfirmation
               key={activeSheet}
-              sheetName={activeSheet}
-              headerRowIndex={sheets.find((s) => s.sheet_name === activeSheet)?.header_row_index ?? null}
+              sheetName={activeSheetObj?.sheet_name ?? ""}
+              headerRowIndex={activeSheetObj?.header_row_index ?? null}
               fields={activeFields}
               headers={headers}
               onConfirm={handleConfirm}
               saving={busy}
             />
           ) : activeSheet ? (
-            <p>Loading {activeSheet}&rsquo;s mapping…</p>
+            <p>Loading {activeSheetObj?.sheet_name}&rsquo;s mapping…</p>
           ) : (
             <AlertBanner tone="info" title="All sheets confirmed">
               Every sheet has been mapped or skipped. Click &ldquo;Proceed to health report&rdquo; above.

@@ -1,8 +1,10 @@
-export type ReportStatus = "PENDING_MAPPING" | "READY_FOR_REVIEW" | "PROCESSING" | "COMPLETE" | "FAILED";
+export type ReportStatus =
+  | "UPLOADED" | "QUEUED" | "INGESTING" | "WAITING_FOR_REVIEW" | "PROCESSING"
+  | "COMPLETE" | "FAILED" | "CANCELLED" | "EXPIRED";
 export type SheetStatus = "PENDING_CONFIRMATION" | "CONFIRMED" | "SKIPPED";
 export type MappingState = "MAPPED_BY_ALIAS" | "MAPPED_BY_AI" | "UNMAPPED" | "MANUAL";
 export type Severity = "CRITICAL" | "HIGH" | "MEDIUM" | "INFO";
-export type CheckType = "MANDATORY_FIELD" | "ARITHMETIC" | "DUPLICATE" | "MAPPING_COMPLETENESS";
+export type CheckType = "MANDATORY_FIELD" | "ARITHMETIC" | "DUPLICATE" | "MAPPING_COMPLETENESS" | "DATE" | "CURRENCY" | "STATUS" | "OTHER";
 export type ObligationStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "OVERDUE";
 export type AlertSource = "COVERAGE" | "MANDATORY_FAIL" | "NOT_EVALUABLE" | "DUPLICATE" | "OVERDUE" | "MAPPING_COMPLETENESS";
 
@@ -19,6 +21,46 @@ export interface Report {
   score: number | null;
   status: ReportStatus;
   processing_error: string | null;
+  error_code?: string | null;
+  source_sha256?: string | null;
+  updated_at?: string | null;
+  expires_at?: string | null;
+  ingest_notes?: Record<string, unknown> | null;
+  job?: Job | null;
+}
+
+export interface Job {
+  id: string;
+  kind: "INGEST" | "PROCESS";
+  status: "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELLED";
+  stage: string | null;
+  attempts: number;
+  max_attempts: number;
+  error_code: string | null;
+  error_message: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  heartbeat_at: string | null;
+}
+
+export interface Me {
+  user: { id: string; email: string; display_name: string };
+  tenant: { id: string; name: string; retention_days: number };
+  role: string;
+  can_write: boolean;
+  csrf_token: string;
+}
+
+export interface SheetMapping {
+  sheet: Sheet;
+  headers: string[];
+  fields: MappingField[];
+}
+
+export interface MoneyAmount {
+  currency: string;
+  amount: number;
 }
 
 export type SheetMappingStatus = "mapped" | "partial" | "unmapped" | "empty" | "error" | "non_claim_summary";
@@ -46,15 +88,22 @@ export interface MappingField {
   confidence_score: number | null;
   sample_values: string[];
   confirmed: boolean;
+  required?: boolean;
+  review_state?: "HIGH_CONFIDENCE" | "REVIEW" | "AMBIGUOUS" | "UNMAPPED" | "CONFIRMED";
+  evidence?: string | null;
+  ai_model?: string | null;
 }
 
-export type ValidationStatus = "PASS" | "FAIL" | "NOT_EVALUABLE";
+export type ValidationStatus = "PASS" | "FAIL" | "NOT_EVALUABLE" | "REVIEW";
 
 export interface ExceptionRow {
   claim_row_id: string;
   claim_reference: string | null;
   sheet_name: string | null;
   row_index: number;
+  source_row_number?: number | null;
+  currency?: string | null;
+  rule?: string | null;
   amount: number | null;
   check_type: CheckType;
   status: ValidationStatus;
@@ -63,12 +112,13 @@ export interface ExceptionRow {
   validation_result_id: string;
 }
 
-export type ExcludedRowReason = "blank" | "subtotal" | "repeated_header";
+export type ExcludedRowReason = "blank" | "blank_run" | "subtotal" | "repeated_header" | "title";
 
 export interface ExcludedRow {
   id: string;
   sheet_name: string;
   row_number: number;
+  row_count?: number;
   reason: ExcludedRowReason;
   detail: string;
   values: Record<string, string>;
@@ -78,7 +128,7 @@ export type DuplicateReviewStatus = "not_duplicate" | "flagged_for_sender" | "co
 
 export interface DuplicatePair {
   validation_result_id: string;
-  match_type: "exact_duplicate" | "probable_duplicate";
+  match_type: "exact_duplicate" | "probable_duplicate" | "repeat_period_unknown";
   row_a: Record<string, unknown>;
   row_b: Record<string, unknown>;
   detail: string;
@@ -151,7 +201,12 @@ export interface ReportSummary {
   exact_duplicates: number;
   probable_duplicates: number;
   field_completeness: FieldCompleteness[];
-  missing_mandatory_by_sheet: Record<string, number>;
+  missing_mandatory_by_sheet?: Record<string, number>;
+  totals_by_currency?: { currency: string; rows: number; paid_to_date: number; reserve: number; incurred: number }[];
+  score_reliable?: boolean;
+  arithmetic_matches?: number;
+  period_unknown_repeats?: number;
+  definitions?: Record<string, string>;
   not_evaluable_by_reason: Record<string, number>;
   excluded_row_counts: Record<string, number>;
   skipped_sheets: { sheet_name: string; reason: string }[];
@@ -170,7 +225,7 @@ export type NarrativeStatus = "GENERATING" | "COMPLETE" | "FAILED" | "UNAVAILABL
 export interface ExceptionCategoryBucket {
   check_type: string;
   count: number;
-  value_at_stake: number;
+  value_at_stake: MoneyAmount[];
   pct_of_total_exceptions: number;
   sheet_count: number;
 }
@@ -178,16 +233,14 @@ export interface ExceptionCategoryBucket {
 export interface ExceptionSheetBucket {
   sheet_name: string;
   count: number;
-  value_at_stake: number;
+  value_at_stake: MoneyAmount[];
   pct_of_total_exceptions: number;
   low_mapping_completeness: boolean;
 }
 
 export interface RootCauseBucket {
   count: number;
-  value_at_stake: number;
   pct_of_total_exceptions: number;
-  sheet_count: number;
 }
 
 export interface ExceptionAggregate {
@@ -196,13 +249,13 @@ export interface ExceptionAggregate {
   rows_total: number;
   rows_processed: number;
   total_exceptions: number;
-  total_value_at_stake: number;
+  total_value_at_stake: MoneyAmount[];
   arithmetic_not_evaluable_count: number;
   by_category: ExceptionCategoryBucket[];
   by_sheet: ExceptionSheetBucket[];
   root_cause_split: { ingestion: RootCauseBucket; data_quality: RootCauseBucket };
   severity_counts: Record<string, number>;
-  duplicate_counts: { exact_duplicate: number; probable_duplicate: number };
+  duplicate_counts: Record<string, number>;
   mapping_completeness_findings: { sheet_name: string; message: string }[];
 }
 

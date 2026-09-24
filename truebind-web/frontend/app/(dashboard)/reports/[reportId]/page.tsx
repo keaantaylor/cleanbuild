@@ -1,7 +1,8 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { api, ApiError } from "@/lib/api";
+import Link from "next/link";
+import { api, ApiError, IN_PROGRESS } from "@/lib/api";
 import type { ExcludedRow, Report, ReportSummary } from "@/lib/types";
 import { CoverageBanner } from "@/components/report/CoverageBanner";
 import { GradeCard } from "@/components/report/GradeCard";
@@ -48,7 +49,7 @@ export default function ReportDetailPage({ params }: { params: Promise<{ reportI
         lastKnownStatus = r.status;
         setReport(r);
         setPollError(null);
-        if (r.status === "PROCESSING") {
+        if (IN_PROGRESS.has(r.status)) {
           timer = setTimeout(poll, POLL_INTERVAL_MS);
           return;
         }
@@ -65,7 +66,7 @@ export default function ReportDetailPage({ params }: { params: Promise<{ reportI
         // Keep retrying on a transient failure rather than stopping outright --
         // once a report is known to exist, only a COMPLETE/FAILED terminal
         // status (handled above) should ever stop this loop.
-        if (lastKnownStatus === null || lastKnownStatus === "PROCESSING") {
+        if (lastKnownStatus === null || IN_PROGRESS.has(lastKnownStatus)) {
           timer = setTimeout(poll, POLL_INTERVAL_MS);
         }
       }
@@ -87,13 +88,16 @@ export default function ReportDetailPage({ params }: { params: Promise<{ reportI
 
   if (!report) return <p>Loading…</p>;
 
-  if (report.status === "PROCESSING") {
+  if (IN_PROGRESS.has(report.status)) {
     return (
       <div className={styles.page}>
-        <AlertBanner tone="info" title="Processing your file…">
-          This can take a little while for a large workbook. This page will update automatically —
-          no need to refresh.
+        <AlertBanner tone="info" title={report.status === "QUEUED" ? "Queued…" : "Processing your file…"}>
+          {report.job?.stage ? `Current step: ${report.job.stage.replace(/_/g, " ")}. ` : ""}
+          This page updates automatically — no need to refresh.
         </AlertBanner>
+        <Button variant="secondary" onClick={() => api.cancelReport(reportId).then(setReport).catch((e) => setPollError(String(e.message ?? e)))}>
+          Cancel
+        </Button>
         {pollError && (
           <AlertBanner tone="warning" title="Having trouble checking status">
             {pollError} Still retrying automatically.
@@ -103,12 +107,30 @@ export default function ReportDetailPage({ params }: { params: Promise<{ reportI
     );
   }
 
-  if (report.status === "FAILED") {
+  if (report.status === "WAITING_FOR_REVIEW") {
     return (
       <div className={styles.page}>
-        <AlertBanner tone="error" title="Processing failed">
-          {report.processing_error || "An unexpected error occurred while processing this report."}
+        <AlertBanner tone="info" title="Mapping needs your review">
+          The file has been read. Confirm each sheet&rsquo;s column mapping before the health report is produced.
         </AlertBanner>
+        <Link href={`/upload?reportId=${reportId}`}><Button>Review mapping</Button></Link>
+      </div>
+    );
+  }
+
+  if (report.status === "FAILED" || report.status === "CANCELLED" || report.status === "EXPIRED") {
+    return (
+      <div className={styles.page}>
+        <AlertBanner tone="error" title={report.status === "FAILED" ? "Processing failed" : `Report ${report.status.toLowerCase()}`}>
+          {report.processing_error || report.job?.error_message || "This report did not complete."}
+          {report.error_code ? ` (code: ${report.error_code})` : ""}
+        </AlertBanner>
+        {report.status === "FAILED" && (
+          <Button onClick={() => api.retryReport(reportId).then(() => window.location.reload()).catch((e) => setPollError(String(e.message ?? e)))}>
+            Retry
+          </Button>
+        )}
+        {pollError && <AlertBanner tone="error" title="Could not retry">{pollError}</AlertBanner>}
       </div>
     );
   }
@@ -116,18 +138,21 @@ export default function ReportDetailPage({ params }: { params: Promise<{ reportI
   if (!summary) return <p>Loading…</p>;
   const cappedByCoverage = summary.sheets_processed !== summary.sheets_total || report.rows_processed !== report.rows_total;
 
-  const bySheet = Object.entries(summary.missing_mandatory_by_sheet).sort((a, b) => b[1] - a[1]);
+  const bySheet = Object.entries(summary.missing_mandatory_by_sheet ?? {}).sort((a, b) => b[1] - a[1]);
 
   return (
     <div className={styles.page}>
       <div className={styles.header}>
         <h1>{report.file_name}</h1>
         <div className={styles.actions}>
+          <Button variant="secondary" onClick={() => window.open(api.exportClaimsUrl(reportId), "_blank")}>
+            Export claims (CSV)
+          </Button>
+          <Button variant="secondary" onClick={() => window.open(api.exportExceptionsUrl(reportId), "_blank")}>
+            Export exceptions (CSV)
+          </Button>
           <Button variant="secondary" onClick={() => window.open(api.exportAuditCsvUrl(reportId), "_blank")}>
             Export audit trail
-          </Button>
-          <Button variant="secondary" onClick={() => window.open(api.exportByStatusUrl(reportId), "_blank")}>
-            Export by status
           </Button>
         </div>
       </div>

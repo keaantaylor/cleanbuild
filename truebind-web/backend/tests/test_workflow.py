@@ -246,3 +246,30 @@ def test_retention_expires_reports(api, db):
     db.commit()
     assert retention_service.expire_due_reports(db) == 1
     assert api.get(f"/api/v1/reports/{rid}").status_code == 404
+
+
+def test_every_source_row_and_sheet_is_accounted_for(api):
+    """Ledger check through the whole API: claims + structural exclusions
+    account for every row below the header; blank gaps do not truncate
+    later data; the Total row is not a claim; every sheet ends in an
+    explicit, reasoned status."""
+    rows = simple_rows(5) + [[None] * 8] * 3 + simple_rows(2)[1:] + [["Total", None, None, None, None, 2021, 1000, 3021]]
+    rows[-2][0] = "CLM-LATE"
+    content = xlsx_bytes(rows, extra_sheets={"Empty": [], "Notes": [["Prepared by ops"], ["see email"]]})
+    rid, report = api.full_run("ledger.xlsx", content)
+    summary = api.get(f"/api/v1/reports/{rid}/summary").json()["summary"]
+    rec = summary["reconciliation"]
+    assert report["rows_processed"] == 7, "rows after the blank gap are kept; the Total row is not a claim"
+    refs = {c["claim_reference"] for c in api.get(f"/api/v1/reports/{rid}/claims").json()["items"]}
+    assert "CLM-LATE" in refs and "Total" not in refs
+    excluded = api.get(f"/api/v1/reports/{rid}/excluded-rows").json()["items"]
+    reasons = {e["reason"] for e in excluded}
+    assert "subtotal" in reasons and reasons & {"blank", "blank_run"}
+    accounted = rec["exported_rows"] + sum(e["row_count"] for e in excluded if e["sheet_name"] == "Claims")
+    assert accounted == len(rows) - 1, "every row below the header is a claim or a recorded exclusion"
+    assert rec["reconciles"] is True
+    explicit = {"mapped", "partial", "unmapped", "empty", "error", "non_claim_summary"}
+    for s in api.get(f"/api/v1/reports/{rid}/sheets").json():
+        assert s["mapping_status"] in explicit, s
+        if s["status"] == "SKIPPED":
+            assert s["skip_reason"], s

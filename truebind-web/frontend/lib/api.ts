@@ -1,4 +1,4 @@
-import type { Alert, AuditLogEntry, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, MappingField, Obligation, Report, ReportSummary, Sheet, Template } from "./types";
+import type { Alert, AuditLogEntry, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Me, MappingField, Obligation, Report, ReportSummary, Sheet, SheetMapping, Template } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
@@ -10,25 +10,48 @@ export class ApiError extends Error {
   }
 }
 
-// A hung backend request (a stuck DB lock, a dead connection with no
-// response ever arriving) previously left the caller's spinner running
-// forever -- plain fetch() has no timeout of its own, so nothing ever
-// surfaced an error. Every request now aborts after DEFAULT_TIMEOUT_MS
-// unless it passes a longer one explicitly (upload legitimately parses
-// a whole workbook synchronously and can take longer on a large file).
+// The session lives in an HttpOnly cookie the browser sends automatically
+// (credentials: "include"); JavaScript never sees it. Unsafe requests must
+// echo the session's CSRF token, which /auth/login and /auth/me return.
+let csrfToken: string | null = null;
+function setCsrf(token: string | null) {
+  csrfToken = token;
+  try {
+    if (token) sessionStorage.setItem("tb_csrf", token);
+    else sessionStorage.removeItem("tb_csrf");
+  } catch {
+    // storage unavailable (private mode); the in-memory copy still works
+  }
+}
+function getCsrf(): string | null {
+  if (csrfToken) return csrfToken;
+  try {
+    csrfToken = sessionStorage.getItem("tb_csrf");
+  } catch {
+    csrfToken = null;
+  }
+  return csrfToken;
+}
+
 const DEFAULT_TIMEOUT_MS = 30_000;
+const UNSAFE = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 async function request<T>(path: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
   const { timeoutMs = DEFAULT_TIMEOUT_MS, ...rest } = init ?? {};
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const method = (rest.method || "GET").toUpperCase();
+  const headers: Record<string, string> = rest.body instanceof FormData ? {} : { "Content-Type": "application/json" };
+  const token = getCsrf();
+  if (UNSAFE.has(method) && token) headers["X-CSRF-Token"] = token;
 
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
       ...rest,
+      credentials: "include",
       signal: controller.signal,
-      headers: rest.body instanceof FormData ? rest.headers : { "Content-Type": "application/json", ...rest.headers },
+      headers: { ...headers, ...(rest.headers as Record<string, string> | undefined) },
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") {
@@ -39,100 +62,136 @@ async function request<T>(path: string, init?: RequestInit & { timeoutMs?: numbe
     clearTimeout(timer);
   }
 
+  if (res.status === 401 && typeof window !== "undefined" && !path.startsWith("/auth/")) {
+    setCsrf(null);
+    window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
+  }
   if (!res.ok) {
     let detail = res.statusText;
     try {
       const body = await res.json();
-      detail = body.detail || detail;
+      detail = typeof body.detail === "string" ? body.detail : detail;
     } catch {
-      // response wasn't JSON; fall back to statusText
+      // not JSON
     }
     throw new ApiError(res.status, detail);
   }
   if (res.status === 204) return undefined as T;
-  const contentType = res.headers.get("content-type") || "";
-  if (contentType.includes("text/csv")) {
-    return (await res.text()) as unknown as T;
-  }
   return res.json() as Promise<T>;
 }
 
+type Page<T> = { items: T[]; total: number; limit: number; offset: number };
+const items = <T,>(p: Promise<Page<T>>) => p.then((r) => r.items);
+
+function qs(params: Record<string, string | number | boolean | undefined>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== "") q.set(k, String(v));
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
+/** Poll a report until its status is no longer QUEUED/INGESTING/PROCESSING. */
+export const IN_PROGRESS = new Set(["UPLOADED", "QUEUED", "INGESTING", "PROCESSING"]);
+async function waitForReport(reportId: string, onUpdate?: (r: Report) => void, timeoutMs = 30 * 60_000): Promise<Report> {
+  const deadline = Date.now() + timeoutMs;
+  let delay = 500;
+  for (;;) {
+    const r = await request<Report>(`/reports/${reportId}`);
+    onUpdate?.(r);
+    if (!IN_PROGRESS.has(r.status)) return r;
+    if (Date.now() > deadline) throw new ApiError(0, "Still processing after 30 minutes. Check back later.");
+    await new Promise((res) => setTimeout(res, delay));
+    delay = Math.min(delay * 1.5, 3000);
+  }
+}
+
 export const api = {
+  // ---- auth
+  login: async (email: string, password: string) => {
+    const me = await request<Me>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+    setCsrf(me.csrf_token);
+    return me;
+  },
+  signup: async (body: { email: string; password: string; display_name: string; organisation: string }) => {
+    const me = await request<Me>("/auth/signup", { method: "POST", body: JSON.stringify(body) });
+    setCsrf(me.csrf_token);
+    return me;
+  },
+  me: async () => {
+    const me = await request<Me>("/auth/me");
+    setCsrf(me.csrf_token);
+    return me;
+  },
+  logout: async () => {
+    try {
+      await request<void>("/auth/logout", { method: "POST" });
+    } finally {
+      setCsrf(null);
+    }
+  },
+
+  // ---- reports & jobs
   uploadReport: (file: File) => {
     const form = new FormData();
     form.append("file", file);
-    // Longer than the default: upload synchronously reads and parses the
-    // whole workbook before responding, which scales with file size.
-    return request<Report>("/reports/upload", { method: "POST", body: form, timeoutMs: 120_000 });
+    return request<Report>("/reports/upload", { method: "POST", body: form, timeoutMs: 300_000 });
   },
-  listReports: () => request<Report[]>("/reports"),
+  waitForReport,
+  listReports: () => items(request<Page<Report>>("/reports?limit=200")),
   getReport: (reportId: string) => request<Report>(`/reports/${reportId}`),
-  getReportSummary: (reportId: string) => request<ReportSummary>(`/reports/${reportId}/summary`),
+  getReportSummary: async (reportId: string): Promise<ReportSummary | null> => {
+    const r = await request<{ report: Report; summary: Omit<ReportSummary, "report"> | null }>(`/reports/${reportId}/summary`);
+    return r.summary ? { ...r.summary, report: r.report } : null;
+  },
   deleteReport: (reportId: string) => request<void>(`/reports/${reportId}`, { method: "DELETE" }),
+  cancelReport: (reportId: string) => request<Report>(`/reports/${reportId}/cancel`, { method: "POST" }),
+  retryReport: (reportId: string) => request<Report>(`/reports/${reportId}/retry`, { method: "POST" }),
 
+  // ---- sheets & mapping (sheets are addressed by id, never by name)
   listSheets: (reportId: string) => request<Sheet[]>(`/reports/${reportId}/sheets`),
-  getSheetHeaders: (reportId: string, sheetName: string) =>
-    request<string[]>(`/reports/${reportId}/sheets/${encodeURIComponent(sheetName)}/headers`),
-  getSheetMapping: (reportId: string, sheetName: string) =>
-    request<MappingField[]>(`/reports/${reportId}/sheets/${encodeURIComponent(sheetName)}/mapping`),
-  confirmSheetMapping: (reportId: string, sheetName: string, mappings: Record<string, string | null>) =>
-    request<Sheet>(`/reports/${reportId}/sheets/${encodeURIComponent(sheetName)}/mapping/confirm`, {
-      method: "POST",
-      body: JSON.stringify({ mappings }),
-    }),
+  getSheetMappingFull: (reportId: string, sheetId: string) =>
+    request<SheetMapping>(`/reports/${reportId}/sheets/${sheetId}/mapping`),
+  getSheetMapping: (reportId: string, sheetId: string) =>
+    request<SheetMapping>(`/reports/${reportId}/sheets/${sheetId}/mapping`).then((m) => m.fields as MappingField[]),
+  confirmSheetMapping: (reportId: string, sheetId: string, mappings: Record<string, string | null>) =>
+    request<Sheet>(`/reports/${reportId}/sheets/${sheetId}/mapping`, { method: "POST", body: JSON.stringify({ mappings }) }),
   processReport: (reportId: string) => request<Report>(`/reports/${reportId}/process`, { method: "POST" }),
 
+  // ---- findings
   getExceptionSummary: (reportId: string) =>
-    request<ExceptionSummary | null>(`/reports/${reportId}/exceptions/summary`),
+    request<ExceptionSummary | undefined>(`/reports/${reportId}/exceptions/summary`).then((s) => s ?? null),
   generateExceptionSummary: (reportId: string) =>
     request<ExceptionSummary>(`/reports/${reportId}/exceptions/summary`, { method: "POST" }),
-
-  listExceptions: (reportId: string, checkType?: string, status?: string) => {
-    const q = new URLSearchParams();
-    if (checkType) q.set("check_type", checkType);
-    if (status) q.set("status", status);
-    const qs = q.toString();
-    return request<ExceptionRow[]>(`/reports/${reportId}/exceptions${qs ? `?${qs}` : ""}`);
-  },
-  listExcludedRows: (reportId: string) => request<ExcludedRow[]>(`/reports/${reportId}/excluded-rows`),
-  listDuplicates: (reportId: string) => request<DuplicatePair[]>(`/reports/${reportId}/duplicates`),
+  listExceptions: (reportId: string, checkType?: string, status?: string) =>
+    items(request<Page<ExceptionRow>>(`/reports/${reportId}/exceptions${qs({ check_type: checkType, status, limit: 1000 })}`)),
+  listExceptionsPage: (reportId: string, params: { checkType?: string; status?: string; limit?: number; offset?: number }) =>
+    request<Page<ExceptionRow>>(`/reports/${reportId}/exceptions${qs({ check_type: params.checkType, status: params.status, limit: params.limit ?? 200, offset: params.offset ?? 0 })}`),
+  listExcludedRows: (reportId: string) => items(request<Page<ExcludedRow>>(`/reports/${reportId}/excluded-rows?limit=1000`)),
+  listDuplicates: (reportId: string) => items(request<Page<DuplicatePair>>(`/reports/${reportId}/duplicates?limit=1000`)),
   reviewDuplicate: (reportId: string, validationResultId: string, reviewStatus: string) =>
     request<DuplicatePair>(`/reports/${reportId}/duplicates/${validationResultId}/review`, {
       method: "PATCH",
       body: JSON.stringify({ review_status: reviewStatus }),
     }),
 
-  listObligations: (params: { reportId?: string; status?: string } = {}) => {
-    const q = new URLSearchParams();
-    if (params.reportId) q.set("report_id", params.reportId);
-    if (params.status) q.set("status", params.status);
-    const qs = q.toString();
-    return request<Obligation[]>(`/obligations${qs ? `?${qs}` : ""}`);
-  },
-  createObligation: (reportId: string, body: Partial<Obligation> & { claim_row_id?: string }) =>
+  // ---- obligations / alerts / audit / templates
+  listObligations: (params: { reportId?: string; status?: string } = {}) =>
+    items(request<Page<Obligation>>(`/obligations${qs({ report_id: params.reportId, status: params.status, limit: 1000 })}`)),
+  createObligation: (reportId: string, body: { claim_row_id?: string; owner?: string | null; deadline?: string | null; note?: string | null }) =>
     request<Obligation>(`/reports/${reportId}/obligations`, { method: "POST", body: JSON.stringify(body) }),
-  updateObligation: (obligationId: string, body: Partial<Obligation>) =>
+  updateObligation: (obligationId: string, body: { owner?: string | null; deadline?: string | null; status?: string; note?: string | null }) =>
     request<Obligation>(`/obligations/${obligationId}`, { method: "PATCH", body: JSON.stringify(body) }),
-
-  listAlerts: (params: { reportId?: string; acknowledged?: boolean } = {}) => {
-    const q = new URLSearchParams();
-    if (params.reportId) q.set("report_id", params.reportId);
-    if (params.acknowledged !== undefined) q.set("acknowledged", String(params.acknowledged));
-    const qs = q.toString();
-    return request<Alert[]>(`/alerts${qs ? `?${qs}` : ""}`);
-  },
-  acknowledgeAlert: (alertId: string) => request<Alert>(`/alerts/${alertId}`, { method: "PATCH" }),
-
-  getAuditLog: (reportId: string, params: { actionType?: string; actor?: string } = {}) => {
-    const q = new URLSearchParams();
-    if (params.actionType) q.set("action_type", params.actionType);
-    if (params.actor) q.set("actor", params.actor);
-    const qs = q.toString();
-    return request<AuditLogEntry[]>(`/reports/${reportId}/audit${qs ? `?${qs}` : ""}`);
-  },
-
+  listAlerts: (params: { reportId?: string; acknowledged?: boolean } = {}) =>
+    items(request<Page<Alert>>(`/alerts${qs({ report_id: params.reportId, acknowledged: params.acknowledged, limit: 1000 })}`)),
+  acknowledgeAlert: (alertId: string) => request<Alert>(`/alerts/${alertId}/acknowledge`, { method: "POST" }),
+  getAuditLog: (reportId: string, params: { actionType?: string; actor?: string } = {}) =>
+    items(request<Page<AuditLogEntry>>(`/reports/${reportId}/audit${qs({ action_type: params.actionType, limit: 1000 })}`))
+      .then((list) => (params.actor ? list.filter((e) => e.actor.includes(params.actor!)) : list)),
   listTemplates: () => request<Template[]>("/templates"),
 
-  exportAuditCsvUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/audit-csv`,
-  exportByStatusUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/by-status`,
+  // ---- exports (plain GET links; the session cookie authenticates them)
+  exportClaimsUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/claims.csv`,
+  exportExceptionsUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/exceptions.csv`,
+  exportAuditCsvUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/audit.csv`,
+  exportByStatusUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/claims.csv`,
 };

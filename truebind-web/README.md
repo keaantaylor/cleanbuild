@@ -69,8 +69,13 @@ The backend runs `alembic upgrade head` automatically on container start.
 cd truebind-web/backend
 pip install -r requirements.txt   # installs ../../bordereaux as an editable dep too
 alembic upgrade head              # creates data/truebind.db (SQLite) by default
-uvicorn app.main:app --reload
+TRUEBIND_EMBEDDED_WORKER=1 uvicorn app.main:app   # API + job worker in one process
 ```
+
+Uploads are processed by the job worker, not the web request. Either set
+`TRUEBIND_EMBEDDED_WORKER=1` as above, or run `python -m app.worker` in a
+second terminal (run several for parallelism). Without a worker, uploads
+stay `QUEUED`.
 
 **Frontend** (Node 20+):
 ```bash
@@ -80,14 +85,25 @@ cp .env.local.example .env.local   # points at http://localhost:8000/api/v1
 npm run dev
 ```
 
-Open http://localhost:3000 — it redirects to `/upload`.
+Open http://localhost:3000/login and create an account (self-service sign-up
+is enabled outside production; set `ALLOW_SIGNUP=0` to disable). Then:
+upload → wait for "Reading your workbook…" → confirm each sheet's mapping →
+"Proceed to health report" → report, exceptions, duplicates, CSV exports.
+
+**MVP limitations (internal testing only):** local-disk file storage; the
+login rate limiter is in-memory (single process); in Docker Compose the app
+connects as the Postgres superuser, which bypasses Row Level Security (the
+application's own tenant filtering still applies — use a non-superuser role,
+as the test suite does, to get database-enforced isolation).
 
 ## Tests
 
 ```bash
 cd truebind-web/backend
 pip install -r requirements-dev.txt
-pytest tests/ -v
+pytest tests/ -v                  # SQLite
+# PostgreSQL (RLS + append-only audit tests run too); the role must NOT be a superuser:
+TRUEBIND_TEST_DATABASE_URL=postgresql+psycopg://USER:PASS@localhost:5432/DB pytest tests/
 ```
 
 ```bash

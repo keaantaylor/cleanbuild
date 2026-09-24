@@ -135,7 +135,7 @@ export function AiTriagePanel({
               <span className={styles.statLabel}>total exceptions</span>
             </div>
             <div className={styles.stat}>
-              <span className={styles.statValue}>{formatCurrency(aggregate.total_value_at_stake)}</span>
+              <span className={styles.statValue}>{aggregate.total_value_at_stake.length ? aggregate.total_value_at_stake.map((m) => formatCurrency(m.amount, m.currency === "UNKNOWN" ? "GBP" : m.currency).replace(/^[^\d-]*/, "") + " " + m.currency).join(" · ") : "—"}</span>
               <span className={styles.statLabel}>value at stake</span>
             </div>
             <div className={styles.stat}>

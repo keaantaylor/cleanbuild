@@ -16,7 +16,8 @@ class Alert(Base):
     __tablename__ = "alerts"
 
     id: Mapped[str] = uuid_pk()
-    report_id: Mapped[str] = mapped_column(ForeignKey("reports.id"), index=True)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    report_id: Mapped[str] = mapped_column(ForeignKey("reports.id", ondelete="CASCADE"), index=True)
     severity: Mapped[str] = mapped_column(String(16))
     source: Mapped[str] = mapped_column(String(32))
     message: Mapped[str] = mapped_column(String(1000))

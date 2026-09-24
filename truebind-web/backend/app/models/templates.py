@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, String
+from sqlalchemy import ForeignKey, JSON, Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..database import Base
@@ -13,6 +13,7 @@ class Template(Base):
     __tablename__ = "templates"
 
     id: Mapped[str] = uuid_pk()
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(255))
     sender_identifier: Mapped[str | None] = mapped_column(String(255), nullable=True)
     field_mappings: Mapped[dict] = mapped_column(JSON)

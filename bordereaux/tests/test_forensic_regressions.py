@@ -369,3 +369,23 @@ def test_limits_reject_instead_of_truncating(tmp_path):
     with pytest.raises(ingest.WorkbookLimitError):
         ingest.load_workbook_sheets(p, limits=ingest.ReadLimits(max_rows_total=20))
     assert len(ingest.load_workbook_sheets(p)[0].raw) == 50
+
+
+def test_unexpected_status_is_a_finding_not_a_file_abort():
+    """One bad status cell must not abort the whole workbook (pandera
+    SchemaError); it is reported as invalid_status on that row only."""
+    import pandas as pd
+    from bordereaux import pipeline as bp
+    from bordereaux.ingest import SheetData
+
+    raw = pd.DataFrame({"Claim Reference": ["C1", "C2"], "Insured Name": ["A", "B"],
+                        "Claim Status": ["+cmd", "Open"], "Paid to Date": [1.0, 2.0],
+                        "Outstanding Reserve": [0.0, 0.0], "Total Incurred": [1.0, 2.0]})
+    sheet = SheetData(sheet_name="S", raw=raw, header_row_index=0)
+    proposals = bp.propose_mapping_for_workbook([sheet])
+    confirmed = {"S": {s.source_column: s.field_code for s in proposals[0].mapping.suggestions if s.field_code}}
+    result = bp.run_workbook_pipeline([sheet], confirmed, proposals)
+    assert len(result.canonical) == 2
+    exc = result.validation_result.exceptions
+    bad = exc[exc["rule"] == "invalid_status"]
+    assert list(bad["row_index"]) == [0]

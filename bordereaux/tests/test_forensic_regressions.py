@@ -417,8 +417,10 @@ def _replica_result(builder):
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).parent / "regression_fixtures"))
+    import tempfile
     import build_replicas as br
     from bordereaux import pipeline as bp
+    br.OUT = Path(tempfile.mkdtemp(prefix="tb_replicas_"))  # never rewrite the committed copies
     path = getattr(br, builder)()
     sheets = bp.load_workbook(path)
     props = bp.propose_mapping_for_workbook(sheets)

@@ -6,6 +6,7 @@ on the same file (parity), and against the engine's own fixtures."""
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -279,7 +280,9 @@ def test_every_source_row_and_sheet_is_accounted_for(api):
 
 def _replica(name):
     sys.path.insert(0, str(BORDEREAUX_ROOT / "tests" / "regression_fixtures"))
+    import tempfile
     import build_replicas
+    build_replicas.OUT = Path(tempfile.mkdtemp(prefix="tb_replicas_"))  # never rewrite the committed copies
     return build_replicas, getattr(build_replicas, name)()
 
 

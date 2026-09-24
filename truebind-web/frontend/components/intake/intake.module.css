@@ -78,7 +78,7 @@
 /* engine glyph */
 .engine { flex-shrink: 0; }
 .engineBg { fill: var(--color-rail); }
-.strands path { fill: none; stroke: #8FA2FF; stroke-width: 2.2; stroke-linecap: round; stroke-dasharray: 5 5; opacity: 0.9; }
+.strands path { fill: none; stroke: #CFE9E3; stroke-width: 2.2; stroke-linecap: round; stroke-dasharray: 5 5; opacity: 0.9; }
 .rows path { fill: none; stroke: #FFFFFF; stroke-width: 2.6; stroke-linecap: round; stroke-dasharray: 28; stroke-dashoffset: 0; }
 .bind { fill: var(--color-signal); }
 .pulseDot { fill: #FFFFFF; opacity: 0; }

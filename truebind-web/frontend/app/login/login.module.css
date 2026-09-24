@@ -3,7 +3,7 @@
   padding: 56px clamp(24px, 6vw, 88px); display: flex; flex-direction: column; justify-content: center; gap: 18px; }
 .logo { display: flex; align-items: center; gap: 10px; color: #fff; font-family: var(--font-display); font-weight: 650; font-size: 1.2rem; }
 .mark { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; font-size: 0.8rem;
-  background: linear-gradient(135deg, #3B6CF0, #1E3FA8); }
+  background: var(--tb-bind); }
 .headline { font-family: var(--font-display); font-size: clamp(2rem, 3.4vw, 3rem); line-height: 1.05; letter-spacing: -0.03em;
   color: #fff; margin: 12px 0 0; font-weight: 650; }
 .lede { font-size: 1.05rem; line-height: 1.6; max-width: 46ch; margin: 0; color: #C3CFE3; }

@@ -21,9 +21,9 @@
 .button:disabled { opacity: 0.55; cursor: not-allowed; }
 .button:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 
-.primary { background: var(--color-primary); color: var(--color-on-primary);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.18) inset, 0 1px 2px rgba(28, 56, 184, 0.35); }
-.primary:hover:not(:disabled) { background: var(--color-primary-dark); }
+.primary { background: var(--color-action); color: var(--color-on-action);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.22) inset, 0 1px 2px rgba(8, 17, 27, 0.18); }
+.primary:hover:not(:disabled) { background: var(--color-action-hover); }
 
 .secondary { background: var(--color-surface); color: var(--color-text-primary); border-color: var(--color-border-strong); }
 .secondary:hover:not(:disabled) { border-color: var(--color-text-tertiary); background: var(--color-surface-sunken); }

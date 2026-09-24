@@ -13,33 +13,49 @@
 */
 
 :root {
-  /* Brand / interaction. One accent, used for primary actions, links and
-     focus -- never for status. */
-  --color-primary: #2446E0;
-  --color-primary-dark: #1C38B8;
-  --color-primary-light: #5B7BF0;
-  --color-primary-subtle: #EDF0FE;
+  /* TrueBind brand ("The Binding Field"): Paper and Carbon carry the page;
+     Bind Green is a precise signal for actions and transformation, never
+     wallpaper. Bind Green is too light for text on light surfaces (2.8:1),
+     so text, links and focus use Deep Bind; filled actions use Bind Green
+     with Carbon text (6.3:1). */
+  --tb-paper: #F6F8F5;
+  --tb-carbon: #08111B;
+  --tb-slate: #53606D;
+  --tb-mist: #E8EEEB;
+  --tb-bind: #00A980;
+  --tb-bind-deep: #06715C;
+  --tb-ice: #CFE9E3;
+  --tb-white: #FFFFFF;
+
+  /* Interaction. Primary = accessible accent for text, links and focus;
+     action = the filled primary button. */
+  --color-primary: #06715C;
+  --color-primary-dark: #055A49;
+  --color-primary-light: #1F9C7C;
+  --color-primary-subtle: #E4F2EE;
   --color-on-primary: #FFFFFF;
-  --color-focus: #2446E0;
+  --color-focus: #06715C;
+  --color-action: #00A980;
+  --color-action-hover: #00946F;
+  --color-on-action: #08111B;
 
-  /* Application chrome: a deep navy rail so the working area reads as the
-     product surface, and white cards on a cool grey canvas for hierarchy. */
-  --color-canvas: #F4F6FA;
+  /* Application chrome: a Carbon rail so the working area reads as the
+     product surface; white cards on a Paper canvas for hierarchy. */
+  --color-canvas: #F6F8F5;
   --color-surface: #FFFFFF;
-  --color-surface-sunken: #F7F9FC;
-  --color-border-strong: #CBD3DF;
-  --color-rail: #0A1324;
-  --color-rail-raised: #142038;
-  --color-rail-text: #B7C3D9;
+  --color-surface-sunken: #F1F5F2;
+  --color-border-strong: #C6D0CB;
+  --color-rail: #08111B;
+  --color-rail-raised: #12202D;
+  --color-rail-text: #C5CFD8;
   --color-rail-text-active: #FFFFFF;
-  --color-rail-muted: #8A99B4;
-  --color-rail-accent: #8FA2FF;
-  --color-live: #0F766E;
-  --color-live-bg: #DDF4F1;
+  --color-rail-muted: #8C99A5;
+  --color-rail-accent: #00A980;
+  --color-live: #06715C;
+  --color-live-bg: #E4F2EE;
 
-  /* Signal: the "bound" mint used only on ink surfaces (rail live dot,
-     marketing engine visual) -- the moment messy input becomes structure. */
-  --color-signal: #6FE3C1;
+  /* Signal: Bind Green on Carbon surfaces (rail engine status, live dot). */
+  --color-signal: #00A980;
 
   /* Two semantic families the brief adds. Processing = work in motion
      (indigo, animated); AI = model-assisted output (fuchsia) so an AI
@@ -53,16 +69,16 @@
   /* Motion. Level 1 = state feedback (hover/press), level 2 = element
      transitions (drawer, toast), level 3 = narrative (landing engine).
      All collapse to near-zero under prefers-reduced-motion (globals.css). */
-  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --dur-1: 120ms;
-  --dur-2: 220ms;
-  --dur-3: 420ms;
+  --dur-1: 160ms;
+  --dur-2: 260ms;
+  --dur-3: 650ms;
 
-  --shadow-xs: 0 1px 1px rgba(10, 19, 36, 0.04);
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --shadow-md: 0 4px 16px rgba(15, 23, 42, 0.08);
-  --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.14);
+  --shadow-xs: 0 1px 1px rgba(8, 17, 27, 0.04);
+  --shadow-sm: 0 1px 2px rgba(8, 17, 27, 0.06);
+  --shadow-md: 0 4px 16px rgba(8, 17, 27, 0.08);
+  --shadow-lg: 0 12px 32px rgba(8, 17, 27, 0.14);
 
   --color-success: #15803D;
   --color-success-bg: #DCFCE7;
@@ -103,13 +119,13 @@
   --color-bg-primary: #FFFFFF;
   --color-bg-secondary: #F9FAFB;
   --color-bg-tertiary: #F3F4F6;
-  --color-text-primary: #0F172A;
-  --color-text-secondary: #475569;
+  --color-text-primary: #08111B;
+  --color-text-secondary: #53606D;
   /* Was #9CA3AF: 2.5:1 on white, well under the 4.5:1 AA minimum for
      normal text despite being used as real text (row metadata, field
      codes, tab counts) -- not just decoration. Contrast audit, Section 2A. */
-  --color-text-tertiary: #5B6678;
-  --color-border: #E2E7EF;
+  --color-text-tertiary: #5E6B78;
+  --color-border: #E1E8E4;
 
   /* Display/heading face is a serif -- deliberate departure from the
      system-sans-everywhere look of a generic SaaS dashboard. Body copy and
@@ -120,9 +136,9 @@
   /* Faces are self-hosted via next/font/local (app/fonts.ts), which sets
      --font-display-face / --font-body-face on <html>. System fallbacks
      keep text readable before the woff2 arrives (font-display: swap). */
-  --font-display: var(--font-display-face), "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-sans: var(--font-body-face), -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", sans-serif;
-  --font-mono: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", monospace;
+  --font-display: var(--font-geist), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: var(--font-geist), -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", sans-serif;
+  --font-mono: var(--font-geist-mono), "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", monospace;
 
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
@@ -201,16 +217,19 @@
     --color-text-secondary: #CBD5E1;
     --color-text-tertiary: #94A3B8;
     --color-border: #334155;
-    --color-canvas: #0B1220;
-    --color-surface: #111A2B;
-    --color-surface-sunken: #0E1626;
+    --color-canvas: #0A1117;
+    --color-surface: #0E1720;
+    --color-surface-sunken: #0B141B;
     --color-border-strong: #475569;
-    --color-primary: #8FAEFF;
-    --color-primary-subtle: #1B2A4A;
-    --color-on-primary: #0B1220;
-    --color-focus: #8FAEFF;
-    --color-live: #5EEAD4;
-    --color-live-bg: #134E4A;
+    --color-primary: #3FD3A5;
+    --color-primary-subtle: #0F2A24;
+    --color-on-primary: #0E1720;
+    --color-focus: #3FD3A5;
+    --color-action: #3FD3A5;
+    --color-action-hover: #62DDB6;
+    --color-on-action: #0E1720;
+    --color-live: #3FD3A5;
+    --color-live-bg: #0F2A24;
     --color-processing: #A5B4FC;
     --color-processing-bg: #1E1B4B;
     --color-ai: #F0ABFC;
@@ -250,16 +269,19 @@
   --color-text-secondary: #CBD5E1;
   --color-text-tertiary: #94A3B8;
   --color-border: #334155;
-  --color-canvas: #0B1220;
-  --color-surface: #111A2B;
-  --color-surface-sunken: #0E1626;
+  --color-canvas: #0A1117;
+  --color-surface: #0E1720;
+  --color-surface-sunken: #0B141B;
   --color-border-strong: #475569;
-  --color-primary: #8FAEFF;
-  --color-primary-subtle: #1B2A4A;
-  --color-on-primary: #0B1220;
-  --color-focus: #8FAEFF;
-  --color-live: #5EEAD4;
-  --color-live-bg: #134E4A;
+  --color-primary: #3FD3A5;
+  --color-primary-subtle: #0F2A24;
+  --color-on-primary: #0E1720;
+  --color-focus: #3FD3A5;
+  --color-action: #3FD3A5;
+  --color-action-hover: #62DDB6;
+  --color-on-action: #0E1720;
+  --color-live: #3FD3A5;
+  --color-live-bg: #0F2A24;
   --color-processing: #A5B4FC;
   --color-processing-bg: #1E1B4B;
   --color-ai: #F0ABFC;

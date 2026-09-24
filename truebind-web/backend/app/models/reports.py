@@ -45,6 +45,12 @@ class Report(Base):
     source_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     file_size_bytes: Mapped[int] = mapped_column(Integer)
     file_kind: Mapped[str | None] = mapped_column(String(8), nullable=True)  # xlsx | xlsm | xls | csv
+    # Inbound provenance: how the file arrived and who sent it. Today only
+    # "upload" (web) and "api" exist; email/SFTP/cloud connectors will set
+    # their own channel. sender/programme are optional, user-supplied labels.
+    source_channel: Mapped[str] = mapped_column(String(16), default="upload")
+    sender: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    programme: Mapped[str | None] = mapped_column(String(200), nullable=True)
     sheet_count_total: Mapped[int] = mapped_column(Integer, default=0)
     rows_processed: Mapped[int] = mapped_column(Integer, default=0)
     rows_total: Mapped[int] = mapped_column(Integer, default=0)

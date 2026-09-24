@@ -129,10 +129,13 @@ def run_ingest(db: Session, job: Job) -> dict:
     job_service.set_stage(db, job, "parsing")
     sheets = _parse(path, report)
     t_parse = perf_counter() - t0
-    job_service.set_stage(db, job, "proposing_mapping")
+    usable = [s for s in sheets if not s.skipped]
+    job_service.set_stage(db, job, "proposing_mapping", sheets_found=len(sheets), sheets_with_data=len(usable),
+                          rows_detected=sum(len(s.raw) for s in usable),
+                          sheets_skipped=len(sheets) - len(usable))
     proposals, ai_meta = propose_with_ai_cap(sheets)
     t_map = perf_counter() - t0 - t_parse
-    job_service.set_stage(db, job, "saving")
+    job_service.set_stage(db, job, "saving", ai_calls=ai_meta["ai_calls"])
     ai_meta["file_notes"] = (report.ingest_notes or {}).get("file_notes", [])
     persistence_service.persist_ingest(db, report, sheets, proposals, ai_meta)
     if not any(not s.skipped for s in sheets):
@@ -155,7 +158,8 @@ def run_process(db: Session, job: Job) -> dict:
     job_service.set_stage(db, job, "parsing")
     sheets = _parse(path, report)
     t_parse = perf_counter() - t0
-    job_service.set_stage(db, job, "validating")
+    job_service.set_stage(db, job, "validating", sheets_found=len(sheets),
+                          rows_detected=sum(len(s.raw) for s in sheets if not s.skipped))
     proposals = persistence_service.proposals_from_db(db, report, sheets)
     confirmed = {s.sheet_name: persistence_service.confirmed_mapping_for_sheet(db, s)
                  for s in db_sheets if s.status == "CONFIRMED"}

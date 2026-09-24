@@ -24,8 +24,8 @@ from sqlalchemy.orm import Session
 from ..models._util import new_uuid, utcnow
 from ..models.alerts import Alert
 from ..models.reports import ClaimRow, ExcludedRow, Mapping, Report, Sheet, ValidationResult
-from . import audit_service
-from .pipeline_service import FIELDS, FIELDS_BY_CODE, classify_sheet_status, mapping_mod
+from . import alert_service, audit_service
+from .pipeline_service import FIELDS, FIELDS_BY_CODE, REQUIRED_CODES as _REQUIRED, classify_sheet_status, mapping_mod
 
 FIELD_TO_COLUMN = {
     "CR0104M": "claim_reference", "CR0105CM": "claim_status", "CR0119CM": "date_of_loss",
@@ -233,7 +233,7 @@ def persist_pipeline_result(db: Session, report: Report, sheets, result, sheet_i
     tid = report.tenant_id
     db.execute(delete(ValidationResult).where(ValidationResult.report_id == report.id))
     db.execute(delete(ClaimRow).where(ClaimRow.report_id == report.id))
-    db.execute(delete(Alert).where(Alert.report_id == report.id))
+    db.execute(delete(Alert).where(Alert.report_id == report.id, Alert.source.in_(alert_service.QUALITY_SOURCES)))
 
     canonical = result.canonical.reset_index(drop=True)
     n = len(canonical)
@@ -378,18 +378,22 @@ def build_summary(result, canonical: pd.DataFrame) -> dict:
     if not canonical.empty:
         ccy = canonical["CR0110CM"].astype("object").where(canonical["CR0110CM"].notna(), None)
         grp = defaultdict(lambda: {"rows": 0, "paid_to_date": 0.0, "reserve": 0.0, "incurred": 0.0,
-                                   "paid_rows": 0, "reserve_rows": 0, "incurred_rows": 0})
-        for c, paid, res, inc in zip(ccy.tolist(), canonical["TB_PAID_TD"].tolist(),
-                                     canonical["CR0130CM"].tolist(), canonical["CR0155CM"].tolist()):
+                                   "fees_paid_to_date": 0.0, "paid_rows": 0, "reserve_rows": 0, "incurred_rows": 0,
+                                   "fees_rows": 0})
+        fees_col = canonical["TB_FEES_PAID_TD"].tolist() if "TB_FEES_PAID_TD" in canonical.columns else [None] * len(canonical)
+        row_keys = {"paid_to_date": "paid_rows", "reserve": "reserve_rows", "incurred": "incurred_rows",
+                    "fees_paid_to_date": "fees_rows"}
+        for c, paid, res, inc, fee in zip(ccy.tolist(), canonical["TB_PAID_TD"].tolist(),
+                                          canonical["CR0130CM"].tolist(), canonical["CR0155CM"].tolist(), fees_col):
             g = grp[c or "UNKNOWN"]
             g["rows"] += 1
-            for key, v in (("paid_to_date", paid), ("reserve", res), ("incurred", inc)):
+            for key, v in (("paid_to_date", paid), ("reserve", res), ("incurred", inc), ("fees_paid_to_date", fee)):
                 if _clean(v) is not None:
                     g[key] += float(v)
-                    g[key.split("_")[0] + "_rows" if key != "paid_to_date" else "paid_rows"] += 1
+                    g[row_keys[key]] += 1
         totals = [{"currency": k, **{kk: (round(vv, 2) if isinstance(vv, float) else vv) for kk, vv in v.items()}}
                   for k, v in sorted(grp.items())]
-    return {
+    summary = {
         "sheets_total": cov.sheets_total,
         "sheets_processed": cov.sheets_processed,
         "total_claims": health.total_claims,
@@ -442,6 +446,80 @@ def build_summary(result, canonical: pd.DataFrame) -> dict:
                                  "normal claim development, never counted as a duplicate.",
         },
     }
+    summary["recommendations"] = recommendations(summary, cov)
+    return summary
+
+
+def _money(amount: float, ccy: str) -> str:
+    return f"{amount:,.2f} {ccy}" if ccy != "UNKNOWN" else f"{amount:,.2f} (currency not stated)"
+
+
+def recommendations(s: dict, cov) -> list[dict]:
+    """Next actions derived ONLY from this report's own counts. Each carries
+    its evidence; where the evidence cannot settle a question the text says
+    so instead of drawing a conclusion. Ordered most important first."""
+    out: list[dict] = []
+
+    def rec(key, severity, title, evidence, action, target=None):
+        out.append({"id": key, "severity": severity, "title": title, "evidence": evidence, "action": action,
+                    "target": target})
+
+    missing_required = [f for f in s["field_completeness"]
+                        if not f["never_mapped"] and f["present"] < f["denominator"]
+                        and f["field_code"] in _REQUIRED]
+    if s["missing_mandatory_rows"]:
+        detail = "; ".join(f"{f['field_name']}: {f['denominator'] - f['present']} blank" for f in missing_required[:4])
+        rec("missing_mandatory", "CRITICAL", f"{s['missing_mandatory_rows']} row(s) are missing a required field",
+            detail or "See the Missing mandatory findings.", "Query the sender for the missing values.", "MANDATORY_FIELD")
+    if s["arithmetic_mismatches"]:
+        rec("arithmetic", "HIGH", f"{s['arithmetic_mismatches']} row(s) do not reconcile to total incurred",
+            "Paid to date + reserve (+ fees/expenses where reported) differs from the reported total incurred.",
+            "Review the arithmetic findings, largest first; each shows both sides of the sum.", "ARITHMETIC")
+    if s["exact_duplicates"]:
+        rec("exact_duplicates", "HIGH", f"{s['exact_duplicates']} exact resubmission(s) of a claim",
+            "Same claim reference, same reporting period and identical amounts/status.",
+            "Confirm each pair and ask the sender to withdraw the repeat.", "DUPLICATE")
+    if s["probable_duplicates"]:
+        rec("probable_duplicates", "MEDIUM", f"{s['probable_duplicates']} probable duplicate pair(s)",
+            "Similar insured names with close loss dates under different claim references. This is a similarity "
+            "signal, not proof.", "Review each pair side by side before acting.", "DUPLICATE")
+    if s.get("period_unknown_repeats"):
+        rec("period_unknown", "MEDIUM", f"{s['period_unknown_repeats']} repeat(s) could be duplicates or development",
+            "The same claim appears on several sheets with no reporting period, so TrueBind cannot tell which.",
+            "Map a reporting-period column or confirm each repeat manually.", "DUPLICATE")
+    unmapped = s.get("unmapped_source_columns") or []
+    n_unmapped = sum(len(u["columns"]) for u in unmapped)
+    if n_unmapped:
+        names = ", ".join(c for u in unmapped for c in u["columns"])
+        rec("unmapped_columns", "INFO", f"{n_unmapped} source column(s) were not mapped",
+            f"Not validated, but kept on every row and in the claims export: {names[:300]}.",
+            "If any of these carry a canonical field, re-map the sheet and re-process.", "MAPPING")
+    period_field = next((f for f in s["field_completeness"] if f["field_code"] == "TB_PERIOD"), None)
+    if period_field and period_field["never_mapped"]:
+        rec("no_period", "INFO", "No reporting-period column was mapped",
+            "Duplicate detection falls back to sheet names for the period, so a repeat on another sheet can only "
+            "be flagged for review, not classified.", "Map a Period End / As At column if the file has one.", "MAPPING")
+    for t in s.get("totals_by_currency") or []:
+        if t.get("fees_rows"):
+            rec(f"fees_{t['currency']}", "INFO",
+                f"Paid expenses contribute {_money(t['fees_paid_to_date'], t['currency'])} to incurred",
+                f"From {t['fees_rows']} row(s) with a fees/expenses paid figure, included in the total-incurred check.",
+                "No action needed unless this differs from the sender's statement.", None)
+    if s.get("development_pairs"):
+        rec("development", "INFO", f"{s['development_pairs']} claim(s) show development between reports",
+            "Same claim reference with a later period or changed amounts. Treated as movement, never as duplication.",
+            "No action needed; review if a movement looks unexpected.", "DUPLICATE")
+    if s["arithmetic_not_evaluable"]:
+        reasons = ", ".join(f"{k.replace('_', ' ')} ({v})" for k, v in list(s["not_evaluable_by_reason"].items())[:3])
+        rec("not_evaluable", "MEDIUM", f"{s['arithmetic_not_evaluable']} row(s) could not be reconciled",
+            f"TrueBind will not guess missing inputs: {reasons}.", "Map the missing amount columns if they exist.",
+            "ARITHMETIC")
+    if not s.get("score_reliable", True):
+        rec("score_unreliable", "MEDIUM", "The health score is provisional",
+            "At least one sheet was only partly understood, so the score may not reflect the whole file.",
+            "Resolve the sheets marked for review, then re-process.", "MAPPING")
+    order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "INFO": 3}
+    return sorted(out, key=lambda r: order[r["severity"]])
 
 
 def exception_counts(db: Session, report_id: str) -> dict:

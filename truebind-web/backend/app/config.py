@@ -110,3 +110,13 @@ EMBEDDED_WORKER = _bool("TRUEBIND_EMBEDDED_WORKER", not IS_PRODUCTION)
 # A worker is considered alive if it checked in within this many seconds.
 WORKER_STALE_S = _int("WORKER_STALE_S", 20)
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")  # server-side only; never sent to clients or logged
+
+# Outbound e-mail (deliveries). Unset SMTP_HOST = e-mail delivery is shown as
+# "not configured" and nothing is sent.
+SMTP_HOST = os.environ.get("SMTP_HOST") or None
+SMTP_PORT = _int("SMTP_PORT", 587)
+SMTP_USER = os.environ.get("SMTP_USER") or None
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD") or None  # server-side only; never returned or logged
+SMTP_FROM = os.environ.get("SMTP_FROM") or "truebind@localhost"
+SMTP_STARTTLS = _bool("SMTP_STARTTLS", True)
+MAX_EMAIL_ATTACHMENT_BYTES = _int("MAX_EMAIL_ATTACHMENT_MB", 10) * 1024 * 1024

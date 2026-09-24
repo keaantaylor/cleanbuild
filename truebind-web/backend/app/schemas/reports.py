@@ -92,6 +92,9 @@ class ReportOut(BaseModel):
     expires_at: UtcDatetime | None = None
     file_name: str
     file_kind: str | None = None
+    source_channel: str = "upload"
+    sender: str | None = None
+    programme: str | None = None
     file_size_bytes: int
     source_sha256: str | None = None
     sheet_count_total: int
@@ -170,6 +173,9 @@ class ExceptionRowOut(BaseModel):
     status: str
     severity: str
     message: str
+    review_status: str | None = None
+    assignee: str | None = None
+    note: str | None = None
 
 
 class ExcludedRowOut(BaseModel):

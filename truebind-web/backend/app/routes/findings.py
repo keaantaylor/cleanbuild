@@ -5,7 +5,7 @@ rows and the extracted claim rows. Every list is paginated server-side
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -19,6 +19,8 @@ from .deps import Paging, get_report_or_404
 
 router = APIRouter(prefix="/api/v1/reports", tags=["findings"])
 
+_SEVERITY_RANK = case((ValidationResult.severity == "CRITICAL", 0), (ValidationResult.severity == "HIGH", 1),
+                      (ValidationResult.severity == "MEDIUM", 2), else_=3)
 CHECK_TYPES = ("MANDATORY_FIELD", "ARITHMETIC", "MAPPING_COMPLETENESS", "DATE", "CURRENCY", "STATUS", "OTHER")
 
 
@@ -29,6 +31,8 @@ def list_exceptions(
     status: str | None = Query(default=None, pattern="^(FAIL|NOT_EVALUABLE|REVIEW)$"),
     severity: str | None = Query(default=None, pattern="^(CRITICAL|HIGH|MEDIUM|INFO)$"),
     sheet_id: str | None = Query(default=None, max_length=36),
+    q_ref: str | None = Query(default=None, max_length=100, alias="q"),
+    sort: str = Query(default="row", pattern="^(row|severity)$"),
     paging: Paging = Depends(), ctx: Context = Depends(get_context), db: Session = Depends(get_db),
 ) -> Page[ExceptionRowOut]:
     report = get_report_or_404(db, ctx, report_id)
@@ -46,14 +50,19 @@ def list_exceptions(
         q = q.filter(ValidationResult.severity == severity)
     if sheet_id:
         q = q.filter(ClaimRow.sheet_id == sheet_id)
+    if q_ref:
+        q = q.filter(ClaimRow.claim_reference.ilike(f"%{q_ref.replace('%', '').replace('_', '')}%"))
     total = q.with_entities(func.count(ValidationResult.id)).scalar()
-    rows = (q.order_by(ClaimRow.sheet_id, ClaimRow.row_index, ValidationResult.check_type)
-            .limit(paging.limit).offset(paging.offset).all())
+    order = ([_SEVERITY_RANK, ClaimRow.sheet_id, ClaimRow.row_index] if sort == "severity"
+             else [ClaimRow.sheet_id, ClaimRow.row_index, ValidationResult.check_type])
+    rows = q.order_by(*order).limit(paging.limit).offset(paging.offset).all()
     items = [ExceptionRowOut(
         validation_result_id=vr.id, claim_row_id=row.id, claim_reference=row.claim_reference, sheet_name=sheet_name,
         source_row_number=row.source_row_number, row_index=row.row_index, currency=row.currency,
         amount=row.incurred_amount if row.incurred_amount is not None else row.paid_amount,
         check_type=vr.check_type, rule=vr.rule, status=vr.status, severity=vr.severity, message=vr.message,
+        review_status=(vr.extra or {}).get("review_status"), assignee=(vr.extra or {}).get("assignee"),
+        note=(vr.extra or {}).get("note"),
     ) for vr, row, sheet_name in rows]
     return Page(items=items, total=total, limit=paging.limit, offset=paging.offset)
 

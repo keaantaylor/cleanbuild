@@ -25,7 +25,7 @@ from ..database import set_tenant
 from ..models._util import utcnow
 from ..models.jobs import TERMINAL_JOB_STATUSES, Job, WorkerHeartbeat
 from ..models.reports import Report
-from . import audit_service, report_state
+from . import alert_service, audit_service, report_state
 
 log = logging.getLogger("truebind.jobs")
 
@@ -114,8 +114,15 @@ def heartbeat(db: Session, job_id: str, worker_id: str) -> str:
     return "ok"
 
 
-def set_stage(db: Session, job: Job, stage: str) -> None:
+def set_stage(db: Session, job: Job, stage: str, **progress) -> None:
+    """Record the current stage, plus any facts already established (sheets
+    found, rows read, ...) under metrics["progress"] so the UI can show real
+    progress -- never an invented percentage."""
     job.stage = stage
+    if progress:
+        metrics = dict(job.metrics or {})
+        metrics["progress"] = {**metrics.get("progress", {}), **progress}
+        job.metrics = metrics
     db.commit()
 
 
@@ -127,9 +134,18 @@ def finish(db: Session, job: Job, ok: bool, code: str | None = None, message: st
     job.finished_at = utcnow()
     job.lease_owner = None
     job.lease_expires_at = None
-    job.metrics = metrics or job.metrics
+    if metrics:
+        job.metrics = {**(job.metrics or {}), **metrics}
     if ok:
         job.status = "SUCCEEDED"
+        if report is not None:
+            if job.kind == "INGEST":
+                alert_service.raise_alert(db, job.tenant_id, report.id, "INFO", alert_service.REVIEW_NEEDED,
+                                          f"{report.file_name}: the workbook was read and a column mapping is "
+                                          "ready for your review.")
+            else:
+                alert_service.raise_alert(db, job.tenant_id, report.id, "INFO", alert_service.REPORT_READY,
+                                          f"{report.file_name}: the health report is ready.")
         audit_service.log_action(db, job.tenant_id, job.report_id, "JOB_SUCCEEDED", "JOB", job.id,
                                  after={"kind": job.kind, "metrics": metrics})
     elif job.error_code == "cancel_requested" or code == "cancelled":
@@ -140,7 +156,10 @@ def finish(db: Session, job: Job, ok: bool, code: str | None = None, message: st
         audit_service.log_action(db, job.tenant_id, job.report_id, "JOB_CANCELLED", "JOB", job.id)
     elif retryable and job.attempts < job.max_attempts:
         job.status = "QUEUED"
-        job.run_after = utcnow() + timedelta(seconds=15 * job.attempts)
+        # A lost worker says nothing about the file: retry at once. Other
+        # retryable errors (e.g. a database blip) back off briefly.
+        delay = 0 if code == "worker_lost" else 15 * job.attempts
+        job.run_after = utcnow() + timedelta(seconds=delay)
         job.error_code, job.error_message, job.error_detail = code, message, (detail or "")[:4000]
         if report is not None:
             report_state.transition(db, report, "QUEUED", reason=f"retry after {code}")
@@ -151,6 +170,8 @@ def finish(db: Session, job: Job, ok: bool, code: str | None = None, message: st
             report_state.transition(db, report, "FAILED", reason=code)
             report.processing_error = message
             report.error_code = code
+            alert_service.raise_alert(db, job.tenant_id, report.id, "HIGH", alert_service.PROCESSING_FAILED,
+                                      f"{report.file_name}: {message or 'processing failed.'}")
         audit_service.log_action(db, job.tenant_id, job.report_id, "JOB_FAILED", "JOB", job.id,
                                  after={"code": code, "message": message})
     db.commit()

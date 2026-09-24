@@ -21,5 +21,5 @@ class Alert(Base):
     severity: Mapped[str] = mapped_column(String(16))
     source: Mapped[str] = mapped_column(String(32))
     message: Mapped[str] = mapped_column(String(1000))
-    acknowledged: Mapped[bool] = mapped_column(Boolean, default=False)
+    acknowledged: Mapped[bool] = mapped_column(Boolean, default=False)  # read / unread
     created_at: Mapped[datetime] = created_at_col()

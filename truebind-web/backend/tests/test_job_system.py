@@ -185,3 +185,19 @@ def test_prewarmed_child_runs_job_and_worker_loop_checks_in(api, db):
     assert w.run_one() is True
     w.discard_warm()
     assert api.get(f"/api/v1/reports/{rid}").json()["status"] == "WAITING_FOR_REVIEW"
+
+
+def test_same_host_worker_with_dead_pid_is_recovered_immediately(api, db):
+    import os
+    import socket
+    from app.models.jobs import WorkerHeartbeat
+    if os.name != "posix":
+        pytest.skip("POSIX pid probe")
+    rid, _ = _queued(api, db)
+    job_service.claim_next(db, "crashed-local")
+    db.add(WorkerHeartbeat(id="crashed-local", hostname=socket.gethostname()[:255], pid=2 ** 22 + 7,
+                           mode="embedded", started_at=utcnow(), last_seen_at=utcnow()))  # fresh check-in, dead pid
+    db.commit()
+    w = Worker(worker_id="restarted", prewarm=False)
+    w.housekeeping()
+    assert api.get(f"/api/v1/reports/{rid}").json()["status"] == "QUEUED"

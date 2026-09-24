@@ -25,6 +25,7 @@ import socket
 import threading
 import time
 import uuid
+from datetime import timedelta
 
 from .config import JOB_LEASE_S, JOB_MEMORY_MB, JOB_TIMEOUT_S, describe_database_url
 from .database import get_session_factory, set_tenant
@@ -139,12 +140,34 @@ class Worker:
         finally:
             db.close()
 
+    def _mark_dead_local_workers(self, db) -> None:
+        """A worker on THIS host whose process no longer exists (killed,
+        crashed, API restarted) is marked dead at once, so its jobs are
+        recovered in seconds rather than after the stale window. POSIX only:
+        on Windows os.kill(pid, 0) would terminate the process, so there we
+        rely on the check-in staleness window."""
+        if os.name != "posix":
+            return
+        me = socket.gethostname()[:255]
+        for row in db.query(WorkerHeartbeat).filter(WorkerHeartbeat.hostname == me, WorkerHeartbeat.id != self.id):
+            try:
+                os.kill(row.pid, 0)
+                alive = row.pid != os.getpid()  # same pid as us = a previous incarnation of this process id
+            except ProcessLookupError:
+                alive = False
+            except PermissionError:
+                alive = True
+            if not alive:
+                row.last_seen_at = row.started_at - timedelta(days=1)
+        db.commit()
+
     def housekeeping(self) -> None:
         now = time.monotonic()
         if now - self._last_reap >= REAP_EVERY_S:
             self._last_reap = now
             db = self.factory()
             try:
+                self._mark_dead_local_workers(db)
                 n = job_service.reap_expired(db)
                 if n:
                     log.warning("recovered %d job(s) from a stopped or unresponsive worker", n)

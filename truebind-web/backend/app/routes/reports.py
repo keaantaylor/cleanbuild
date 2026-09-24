@@ -4,30 +4,25 @@ only enqueues jobs for app/worker.py."""
 
 from __future__ import annotations
 
-import csv
-import io
-import json
 import os
 import tempfile
 from datetime import timedelta
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import MAX_UPLOAD_BYTES, STORAGE_DIR
-from ..database import get_db, get_session_factory, set_tenant
+from ..database import get_db
 from ..models._util import new_uuid, utcnow
-from ..models.audit import AuditLogEntry
 from ..models.identity import Tenant
-from ..models.reports import ClaimRow, Report, Sheet, ValidationResult
+from ..models.reports import Report
 from ..schemas.reports import Page, ReportOut, ReportSummaryOut
 from ..security.auth import Context, get_context, require_writer
 from ..security.file_guard import inspect_upload, safe_display_name
 from ..security.ratelimit import limiter
-from ..services import audit_service, job_service, retention_service
+from ..services import alert_service, audit_service, delivery_service, export_service, job_service, retention_service
 from ..services.storage import sha256_file, source_key, store
 from .deps import Paging, get_report_or_404, latest_job, report_out
 
@@ -44,7 +39,9 @@ def _incoming_dir() -> Path:
 
 
 @router.post("/upload", response_model=ReportOut, status_code=202)
-def upload_report(file: UploadFile, ctx: Context = Depends(require_writer), db: Session = Depends(get_db)) -> ReportOut:
+def upload_report(file: UploadFile, sender: str | None = Form(default=None, max_length=200),
+                  programme: str | None = Form(default=None, max_length=200),
+                  ctx: Context = Depends(require_writer), db: Session = Depends(get_db)) -> ReportOut:
     limiter.check("upload", ctx.user_id, limit=60, window_s=3600)
     display = safe_display_name(file.filename)
     fd, tmp_name = tempfile.mkstemp(dir=_incoming_dir(), prefix="up-")
@@ -69,7 +66,9 @@ def upload_report(file: UploadFile, ctx: Context = Depends(require_writer), db: 
         tenant = db.get(Tenant, ctx.tenant_id)
         report = Report(tenant_id=ctx.tenant_id, created_by=ctx.user_id, file_name=display, file_size_bytes=size,
                         file_kind=verdict.kind, status="UPLOADED", ingest_notes={"file_notes": verdict.notes},
-                        expires_at=utcnow() + timedelta(days=tenant.retention_days), updated_at=utcnow())
+                        expires_at=utcnow() + timedelta(days=tenant.retention_days), updated_at=utcnow(),
+                        source_channel="upload", sender=(sender or "").strip() or None,
+                        programme=(programme or "").strip() or None)
         db.add(report)
         db.flush()
         key = source_key(ctx.tenant_id, report.id, verdict.kind)
@@ -81,6 +80,9 @@ def upload_report(file: UploadFile, ctx: Context = Depends(require_writer), db: 
                                             "kind": verdict.kind, "notes": verdict.notes},
                                      actor=ctx.actor, actor_user_id=ctx.user_id)
             job_service.enqueue(db, report, "INGEST", actor=ctx.actor, actor_user_id=ctx.user_id)
+            alert_service.raise_alert(db, ctx.tenant_id, report.id, "INFO", alert_service.INBOUND,
+                                      f"New file received: {display}" + (f" from {report.sender}" if report.sender else "")
+                                      + f" ({size // 1024 or 1} KB, {verdict.kind}).")
             db.commit()
         except Exception:
             db.rollback()
@@ -153,117 +155,30 @@ def delete_report(report_id: str, ctx: Context = Depends(require_writer), db: Se
 
 # ------------------------------------------------------------------ exports
 
-_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n")
-
-
-def csv_safe(v):
-    """Neutralise spreadsheet formula injection (OWASP CSV Injection): text
-    beginning with a formula trigger is prefixed with a quote. Numbers are
-    left as numbers (a negative amount stays numeric)."""
-    if v is None:
-        return ""
-    if isinstance(v, str) and v.startswith(_FORMULA_PREFIXES):
-        return "'" + v
-    return v
-
-
-def _csv_stream(header: list[str], rows_iter):
-    buf = io.StringIO()
-    w = csv.writer(buf)
-    w.writerow(header)
-    n = 0
-    for row in rows_iter:
-        w.writerow([csv_safe(v) for v in row])
-        n += 1
-        if n % 2000 == 0:
-            yield buf.getvalue()
-            buf.seek(0)
-            buf.truncate()
-    yield buf.getvalue()
-
-
-def _stream_query(tenant_id: str, stmt):
-    """Rows for a streamed body, read on a session owned by the generator:
-    the request-scoped session may be closed before the body is sent."""
-    db = get_session_factory()()
-    try:
-        set_tenant(db, tenant_id)
-        yield from db.execute(stmt.execution_options(yield_per=5000))
-    finally:
-        db.close()
-
-
-def _export(db: Session, ctx: Context, report: Report, name: str, header, rows) -> StreamingResponse:
+def _export(db: Session, ctx: Context, report: Report, kind: str) -> StreamingResponse:
+    header, rows = export_service.export_rows(db, ctx.tenant_id, report, kind)
+    name = export_service.file_name(report, kind)
     audit_service.log_action(db, ctx.tenant_id, report.id, "EXPORT_GENERATED", "REPORT", report.id,
-                             after={"export": name}, actor=ctx.actor, actor_user_id=ctx.user_id)
+                             after={"export": kind, "channel": "download"}, actor=ctx.actor, actor_user_id=ctx.user_id)
+    delivery_service.record(db, ctx.tenant_id, report.id, kind, "download", None, name, None, "DELIVERED", None,
+                            ctx.actor)
     db.commit()
-    return StreamingResponse(_csv_stream(header, rows), media_type="text/csv; charset=utf-8",
-                             headers={"Content-Disposition": f'attachment; filename="truebind_{report.id}_{name}.csv"'})
-
-
-_CLAIM_EXPORT_COLS = [
-    ("claim_reference", ClaimRow.claim_reference), ("insured_name", ClaimRow.insured_name),
-    ("policy_reference", ClaimRow.policy_reference), ("claim_status", ClaimRow.claim_status),
-    ("date_of_loss", ClaimRow.date_of_loss), ("date_notified", ClaimRow.date_notified),
-    ("reporting_period", ClaimRow.reporting_period), ("currency", ClaimRow.currency),
-    ("paid_this_month", ClaimRow.paid_this_month), ("previously_paid", ClaimRow.previously_paid),
-    ("paid_to_date", ClaimRow.paid_amount), ("reserve", ClaimRow.reserve_amount),
-    ("fees_paid_this_month", ClaimRow.fees_paid_this_month), ("fees_previously_paid", ClaimRow.fees_previously_paid),
-    ("fees_reserve", ClaimRow.fees_reserve), ("fees_paid_to_date", ClaimRow.fees_paid_to_date), ("total_incurred_indemnity", ClaimRow.incurred_indemnity),
-    ("total_incurred_incl_fees", ClaimRow.incurred_amount),
-]
+    return StreamingResponse(export_service.csv_stream(header, rows), media_type="text/csv; charset=utf-8",
+                             headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 @router.get("/{report_id}/export/claims.csv")
 def export_claims(report_id: str, ctx: Context = Depends(get_context), db: Session = Depends(get_db)):
-    """One line per extracted claim row with lineage (sheet + source row)
-    and the findings raised against it."""
-    report = get_report_or_404(db, ctx, report_id)
-    sheet_names = dict(db.query(Sheet.id, Sheet.sheet_name).filter(Sheet.report_id == report.id).all())
-    findings: dict[str, list[str]] = {}
-    for crid, rule, status in (db.query(ValidationResult.claim_row_id, ValidationResult.rule, ValidationResult.status)
-                               .filter(ValidationResult.report_id == report.id)):
-        findings.setdefault(crid, []).append(f"{rule}:{status}")
-    stmt = (select(ClaimRow.id, ClaimRow.sheet_id, ClaimRow.source_row_number, *[c for _, c in _CLAIM_EXPORT_COLS],
-                   ClaimRow.unmapped_values)
-            .where(ClaimRow.report_id == report.id).order_by(ClaimRow.sheet_id, ClaimRow.row_index))
-    header = (["sheet_name", "source_row_number"] + [n for n, _ in _CLAIM_EXPORT_COLS]
-              + ["unmapped_source_values", "findings"])
-
-    def rows():
-        for r in _stream_query(ctx.tenant_id, stmt):
-            extra = json.dumps(r[-1], ensure_ascii=False, sort_keys=True) if r[-1] else ""
-            yield [sheet_names.get(r[1]), r[2], *r[3:-1], extra, "; ".join(findings.get(r[0], []))]
-    return _export(db, ctx, report, "claims", header, rows())
+    """One line per extracted claim row with lineage (sheet + source row),
+    unmapped source values and the findings raised against it."""
+    return _export(db, ctx, get_report_or_404(db, ctx, report_id), "claims_csv")
 
 
 @router.get("/{report_id}/export/exceptions.csv")
 def export_exceptions(report_id: str, ctx: Context = Depends(get_context), db: Session = Depends(get_db)):
-    report = get_report_or_404(db, ctx, report_id)
-    sheet_names = dict(db.query(Sheet.id, Sheet.sheet_name).filter(Sheet.report_id == report.id).all())
-    stmt = (select(ClaimRow.sheet_id, ClaimRow.source_row_number, ClaimRow.claim_reference, ValidationResult.check_type,
-                   ValidationResult.rule, ValidationResult.status, ValidationResult.severity, ValidationResult.message)
-            .join(ClaimRow, ClaimRow.id == ValidationResult.claim_row_id)
-            .where(ValidationResult.report_id == report.id)
-            .order_by(ClaimRow.sheet_id, ClaimRow.row_index))
-
-    def rows():
-        for r in _stream_query(ctx.tenant_id, stmt):
-            yield [sheet_names.get(r[0]), *r[1:]]
-    return _export(db, ctx, report, "exceptions",
-                   ["sheet_name", "source_row_number", "claim_reference", "check_type", "rule", "status",
-                    "severity", "message"], rows())
+    return _export(db, ctx, get_report_or_404(db, ctx, report_id), "exceptions_csv")
 
 
 @router.get("/{report_id}/export/audit.csv")
 def export_audit(report_id: str, ctx: Context = Depends(get_context), db: Session = Depends(get_db)):
-    report = get_report_or_404(db, ctx, report_id)
-    entries = (db.query(AuditLogEntry).filter(AuditLogEntry.tenant_id == ctx.tenant_id,
-                                              AuditLogEntry.report_id == report.id)
-               .order_by(AuditLogEntry.seq).all())
-    rows = ([e.seq, e.created_at.isoformat(), e.action_type, e.entity_type, e.entity_id, e.actor,
-             e.before_value, e.after_value, e.entry_hash] for e in entries)
-    return _export(db, ctx, report, "audit",
-                   ["seq", "timestamp", "action_type", "entity_type", "entity_id", "actor", "before", "after",
-                    "entry_hash"], rows)
-
+    return _export(db, ctx, get_report_or_404(db, ctx, report_id), "audit_csv")

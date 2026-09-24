@@ -94,17 +94,22 @@ def propose_mapping_for_workbook(
     ]
 
 
+def _source_column_count(s: SheetData) -> int:
+    return sum(1 for c in s.raw.columns if not str(c).startswith("__blank_col_"))
+
+
 def _build_sheet_audit_record(s: SheetData, field_state: dict[str, str]) -> report.SheetAuditRecord:
     mapped_field_codes = [code for code, state in field_state.items() if state != "unmapped"]
     unmapped_field_codes = [code for code, state in field_state.items() if state == "unmapped"]
-    status, reason = report.classify_sheet_status(s.skipped, s.skip_reason, mapped_field_codes)
+    status, reason = report.classify_sheet_status(s.skipped, s.skip_reason, mapped_field_codes,
+                                                   source_column_count=_source_column_count(s))
     return report.SheetAuditRecord(
         sheet_name=s.sheet_name,
         is_empty=s.skipped,
         header_row_index=s.header_row_index if not s.skipped else None,
         source_row_count=len(s.raw) if not s.skipped else max(s.raw_row_count - 1, 0),
         rows_processed=len(s.raw) if not s.skipped else 0,
-        rows_rejected=len(s.excluded_rows),
+        rows_rejected=s.excluded_row_count,
         fields_mapped=len(mapped_field_codes),
         fields_total=len(FIELDS),
         mapped_field_codes=sorted(mapped_field_codes),
@@ -130,7 +135,7 @@ def _build_reconciliation(
     reconciles) -- if a future change ever broke that invariant, this
     would surface a real mismatch instead of the two totals silently
     drifting apart."""
-    source_data_rows = sum(len(s.raw) + len(s.excluded_rows) for s in sheets if not s.skipped)
+    source_data_rows = sum(len(s.raw) + s.excluded_row_count for s in sheets if not s.skipped)
     skipped_sheet_rows = sum(rec.source_row_count for rec in sheet_audit if rec.status in ("empty", "error"))
 
     mapped_rows = sum(rec.rows_processed for rec in sheet_audit if rec.status in ("mapped", "partial"))
@@ -182,6 +187,8 @@ def run_workbook_pipeline(
     canonical_parts = []
     sheet_field_state: dict[str, dict[str, str]] = {}
     non_claim_summary_sheet_names: set[str] = set()
+    sheet_transforms: dict[str, list[dict]] = {}
+    sheet_notes: dict[str, list[str]] = {s.sheet_name: list(s.notes) for s in sheets}
     for s in sheets:
         if s.skipped:
             continue
@@ -197,17 +204,21 @@ def run_workbook_pipeline(
         # not a claims register -- its rows must never be emitted as
         # claims. Recorded via sheet_audit below, never silently dropped.
         mapped_codes = [code for code, state in field_state.items() if state != "unmapped"]
-        status, _ = report.classify_sheet_status(False, None, mapped_codes)
+        status, _ = report.classify_sheet_status(False, None, mapped_codes,
+                                                  source_column_count=_source_column_count(s))
         if status == "non_claim_summary":
             non_claim_summary_sheet_names.add(s.sheet_name)
             continue
 
-        canonical_parts.append(ingest.apply_mapping(s.raw, confirmed, sheet_name=s.sheet_name))
+        part = ingest.apply_mapping(s.raw, confirmed, sheet_name=s.sheet_name)
+        sheet_transforms[s.sheet_name] = part.attrs.get("transforms", [])
+        sheet_notes[s.sheet_name] = list(s.notes) + list(part.attrs.get("parse_notes", []))
+        canonical_parts.append(part)
 
     if canonical_parts:
         canonical = pd.concat(canonical_parts, ignore_index=True)
     else:
-        canonical = pd.DataFrame(columns=[f.code for f in FIELDS] + [SOURCE_SHEET_CODE])
+        canonical = pd.DataFrame(columns=[f.code for f in FIELDS] + [SOURCE_SHEET_CODE, "_mixed_currency"])
     CANONICAL_SCHEMA.validate(canonical)
     stage_timings["mapping"], _t = perf_counter() - _t, perf_counter()
 
@@ -239,6 +250,8 @@ def run_workbook_pipeline(
         sheet_field_state=sheet_field_state,
         excluded_rows=excluded_rows,
         sheet_audit=sheet_audit,
+        sheet_transforms=sheet_transforms,
+        sheet_notes=sheet_notes,
     )
     coverage.reconciliation = _build_reconciliation(sheets, sheet_audit, canonical, duplicates, validation_result)
 

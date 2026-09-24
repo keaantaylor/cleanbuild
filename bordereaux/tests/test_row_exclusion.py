@@ -17,7 +17,11 @@ import openpyxl  # noqa: E402
 
 from bordereaux import pipeline  # noqa: E402
 
-FIXTURE_PATH = REPO_ROOT / "tests" / "fixtures" / "repeated_header_block.xlsx"
+import tempfile  # noqa: E402
+
+_GEN_DIR = Path(tempfile.gettempdir()) / "truebind_generated_fixtures"  # never rewrite tracked files
+_GEN_DIR.mkdir(parents=True, exist_ok=True)
+FIXTURE_PATH = _GEN_DIR / "repeated_header_block.xlsx"
 
 
 def _build_fixture() -> None:

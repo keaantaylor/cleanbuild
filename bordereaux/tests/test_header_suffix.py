@@ -21,9 +21,13 @@ import openpyxl  # noqa: E402
 from bordereaux import pipeline  # noqa: E402
 from bordereaux.mapping import fuzzy_match_headers  # noqa: E402
 
-FIXTURE = REPO_ROOT / "tests" / "fixtures" / "suffixed_headers.xlsx"
-FIXTURE_EUR = REPO_ROOT / "tests" / "fixtures" / "suffixed_headers_eur.xlsx"
-FIXTURE_CONFLICT = REPO_ROOT / "tests" / "fixtures" / "suffixed_headers_conflict.xlsx"
+import tempfile  # noqa: E402
+
+_GEN_DIR = Path(tempfile.gettempdir()) / "truebind_generated_fixtures"  # never rewrite tracked files
+_GEN_DIR.mkdir(parents=True, exist_ok=True)
+FIXTURE = _GEN_DIR / "suffixed_headers.xlsx"
+FIXTURE_EUR = _GEN_DIR / "suffixed_headers_eur.xlsx"
+FIXTURE_CONFLICT = _GEN_DIR / "suffixed_headers_conflict.xlsx"
 
 
 def _build_fixture() -> None:
@@ -65,7 +69,7 @@ def test_eur_suffixed_headers_map_and_parse() -> None:
     confirmed = {"Sheet1": mapped}
     result = pipeline.run_workbook_pipeline(sheets, confirmed, proposals, source_name=FIXTURE_EUR.name)
     canonical = result.canonical
-    assert canonical["CR0126CM"].notna().all(), "Paid amounts must all parse despite the (EUR) suffix"
+    assert canonical["TB_PAID_TD"].notna().all(), "Paid amounts must all parse despite the (EUR) suffix"
     assert canonical["CR0130CM"].notna().all(), "Reserve amounts must all parse despite the (EUR) suffix"
     assert canonical["CR0155CM"].notna().all(), "Incurred amounts must all parse despite the (EUR) suffix"
     assert (canonical["CR0110CM"] == "EUR").all(), (
@@ -133,14 +137,14 @@ def test_currency_suffix_casing_whitespace_and_punctuation_variants() -> None:
     normalize_header casefolds and collapses separators before matching,
     so none of these should behave differently from the plain case."""
     cases = {
-        "Paid Amount (GBP)": "CR0126CM",
-        "paid amount (gbp)": "CR0126CM",
-        "PAID AMOUNT (Gbp)": "CR0126CM",
-        "Paid_Amount_(GBP)": "CR0126CM",
-        "Paid Amount(EUR)": "CR0126CM",
-        "  Paid Amount   (GBP)  ": "CR0126CM",
-        "Paid-Amount-(GBP)": "CR0126CM",
-        "Paid Amount ( GBP )": "CR0126CM",
+        "Paid Amount (GBP)": "TB_PAID_TD",
+        "paid amount (gbp)": "TB_PAID_TD",
+        "PAID AMOUNT (Gbp)": "TB_PAID_TD",
+        "Paid_Amount_(GBP)": "TB_PAID_TD",
+        "Paid Amount(EUR)": "TB_PAID_TD",
+        "  Paid Amount   (GBP)  ": "TB_PAID_TD",
+        "Paid-Amount-(GBP)": "TB_PAID_TD",
+        "Paid Amount ( GBP )": "TB_PAID_TD",
         "Reserve Amount (EUR)": "CR0130CM",
         "Incurred Amount (EUR)": "CR0155CM",
         "Currency (EUR)": "CR0110CM",
@@ -167,7 +171,7 @@ def main() -> None:
     result = pipeline.run_workbook_pipeline(sheets, confirmed, proposals, source_name=FIXTURE.name)
 
     canonical = result.canonical
-    assert canonical["CR0126CM"].notna().all(), "Paid amounts must all parse despite the (GBP) suffix"
+    assert canonical["TB_PAID_TD"].notna().all(), "Paid amounts must all parse despite the (GBP) suffix"
     assert canonical["CR0130CM"].notna().all(), "Reserve amounts must all parse despite the (GBP) suffix"
     assert canonical["CR0155CM"].notna().all(), "Incurred amounts must all parse despite the (GBP) suffix"
     assert (canonical["CR0110CM"] == "GBP").all(), (

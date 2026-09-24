@@ -17,7 +17,11 @@ import openpyxl  # noqa: E402
 
 from bordereaux import ingest  # noqa: E402
 
-FIXTURE_DIR = REPO_ROOT / "tests" / "fixtures"
+# Generated fixtures go to a temp dir: tests must never rewrite tracked files.
+import tempfile  # noqa: E402
+
+FIXTURE_DIR = Path(tempfile.gettempdir()) / "truebind_generated_fixtures"
+FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _build_title_row_fixture() -> Path:

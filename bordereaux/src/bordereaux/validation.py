@@ -82,6 +82,23 @@ def _field_unmapped_mask(df: pd.DataFrame, field_code: str, sheet_field_state: S
     return df[schema.SOURCE_SHEET_CODE].map(is_unmapped).fillna(False).astype(bool)
 
 
+def _mapped_mask(df: pd.DataFrame, field_code: str, sheet_field_state: SheetFieldState) -> pd.Series:
+    """True where this row's source sheet had a column bound to field_code.
+    Without sheet_field_state (legacy single-DataFrame callers), a field
+    counts as mapped only if its column carries at least one value or one
+    unparseable cell -- an all-empty column is treated as unmapped, which is
+    the conservative reading (it can only make a check NOT_EVALUABLE, never
+    silently turn a missing component into zero)."""
+    if sheet_field_state and schema.SOURCE_SHEET_CODE in df.columns:
+        return ~_field_unmapped_mask(df, field_code, sheet_field_state)
+    if field_code not in df.columns:
+        return pd.Series(False, index=df.index)
+    has_value = bool(df[field_code].notna().any())
+    flag = ingest.unparseable_flag_column(field_code)
+    has_unparseable = bool(df[flag].any()) if flag in df.columns else False
+    return pd.Series(has_value or has_unparseable, index=df.index)
+
+
 def _check_mandatory_fields(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState) -> None:
     for code in schema.REQUIRED_CODES:
         spec = schema.FIELDS_BY_CODE[code]
@@ -89,88 +106,190 @@ def _check_mandatory_fields(df: pd.DataFrame, flag, sheet_field_state: SheetFiel
         for idx in df.index[missing]:
             flag(idx, "missing_mandatory_field", f"{code} ({spec.name}) is missing")
 
-    if len(schema.CONDITIONAL_PAIR_CODES) == 2:
-        code_a, code_b = schema.CONDITIONAL_PAIR_CODES
-        both_missing = df[code_a].isna() & df[code_b].isna()
-        both_unmapped = (
-            _field_unmapped_mask(df, code_a, sheet_field_state)
-            & _field_unmapped_mask(df, code_b, sheet_field_state)
-        )
-        for idx in df.index[both_missing & ~both_unmapped]:
-            flag(idx, "missing_mandatory_field",
-                 "both indemnity paid and indemnity reserve are missing; at least one is required")
+    # Conditional pair: at least one paid component or the reserve must be present.
+    pair_codes = (*schema.PAID_COMPONENT_CODES, schema.RESERVE_CODE)
+    all_missing = pd.Series(True, index=df.index)
+    all_unmapped = pd.Series(True, index=df.index)
+    for code in pair_codes:
+        all_missing &= df[code].isna()
+        all_unmapped &= ~_mapped_mask(df, code, sheet_field_state)
+    for idx in df.index[all_missing & ~all_unmapped]:
+        flag(idx, "missing_mandatory_field",
+             "no indemnity paid figure and no indemnity reserve present; at least one is required")
+
+
+_SHORT = {
+    schema.PAID_TD_CODE: "paid", schema.PAID_MONTH_CODE: "paid_this_month", schema.PREV_PAID_CODE: "previously_paid",
+    schema.RESERVE_CODE: "reserve", schema.INCURRED_CODE: "incurred", schema.INCURRED_IND_CODE: "incurred_indemnity",
+    schema.FEES_PAID_MONTH_CODE: "fees_paid_this_month", schema.FEES_PREV_PAID_CODE: "fees_previously_paid",
+    schema.FEES_RESERVE_CODE: "fees_reserve",
+}
+
+
+def _fmt(v) -> str:
+    return "blank" if pd.isna(v) else f"{float(v):,.2f}"
 
 
 def _check_arithmetic(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState) -> dict:
-    paid = df[schema.PAID_CODE]
-    reserve = df[schema.RESERVE_CODE]
-    incurred = df[schema.INCURRED_CODE]
+    """Deterministic incurred reconciliation per Lloyd's CRS v5.2.
 
-    # A cell that HAD text but couldn't be parsed as a number (a stray
-    # symbol, an inconsistent format even after currency/thousands-
-    # separator normalization) is never treated the same as a cell that
-    # was simply empty: an unparseable value must never be silently
-    # coerced to zero in a financial reconciliation. ingest.apply_mapping
-    # tracks this per decimal field; a sheet whose mapping never ran this
-    # column through that path (e.g. a legacy caller) has no tracking
-    # column, so default to "nothing was unparseable" rather than raising.
-    paid_unparseable = df.get(ingest.unparseable_flag_column(schema.PAID_CODE), pd.Series(False, index=df.index))
-    reserve_unparseable = df.get(ingest.unparseable_flag_column(schema.RESERVE_CODE), pd.Series(False, index=df.index))
-    incurred_unparseable = df.get(ingest.unparseable_flag_column(schema.INCURRED_CODE), pd.Series(False, index=df.index))
-    any_unparseable = paid_unparseable | reserve_unparseable | incurred_unparseable
+    paid_to_date (indemnity) := TB_PAID_TD if mapped,
+                                else CR0126 (this month) + CR0128 (previously paid) if BOTH mapped,
+                                else NOT_EVALUABLE (a this-month figure alone is never treated as
+                                cumulative -- that would silently omit previously-paid amounts).
+    indemnity incurred check  : CR0134 == paid_to_date + CR0130                     (if CR0134 mapped)
+    total incurred check      : CR0155 == paid_to_date + CR0130 + fees              (if CR0155 mapped)
+        fees := CR0127 + CR0129 + CR0131 when all three are mapped;
+                NOT_EVALUABLE if only some fee columns are mapped;
+                when no fee column exists the check runs indemnity-only and every result says so
+                (v5.2 CR0155 includes fees; a file that reports none can only be checked as nil-fee).
+    Within a row, a mapped-but-blank component counts as nil-reported (0), as before; an
+    unparseable cell or a row mixing currencies across amount columns is NOT_EVALUABLE."""
+    idx = df.index
+    S = schema
 
-    incurred_unmapped = _field_unmapped_mask(df, schema.INCURRED_CODE, sheet_field_state)
-    paid_unmapped = _field_unmapped_mask(df, schema.PAID_CODE, sheet_field_state)
-    reserve_unmapped = _field_unmapped_mask(df, schema.RESERVE_CODE, sheet_field_state)
-    paid_and_reserve_unmapped = paid_unmapped & reserve_unmapped
+    def mapped(code):
+        return _mapped_mask(df, code, sheet_field_state)
 
-    unmapped = incurred_unmapped | paid_and_reserve_unmapped
-    has_inputs = incurred.notna() & (paid.notna() | reserve.notna())
-    computable = has_inputs & ~unmapped & ~any_unparseable
-    not_evaluable = ~computable
+    def unparseable(code):
+        c = ingest.unparseable_flag_column(code)
+        return df[c].astype(bool) if c in df.columns else pd.Series(False, index=idx)
 
-    expected = paid.fillna(0) + reserve.fillna(0)
-    diff = (incurred - expected).abs()
-    mismatch = computable & (diff > schema.ARITHMETIC_TOLERANCE)
-    match = computable & ~mismatch
+    val = {c: df[c] for c in S.MONETARY_CODES}
+    m = {c: mapped(c) for c in S.MONETARY_CODES}
+    unp = {c: unparseable(c) for c in S.MONETARY_CODES}
+    mixed_ccy = df["_mixed_currency"].astype(bool) if "_mixed_currency" in df.columns else pd.Series(False, index=idx)
 
-    for idx in df.index[mismatch]:
-        flag(idx, "arithmetic_mismatch",
-             f"incurred={incurred.at[idx]} but paid+reserve={expected.at[idx]}")
+    use_td = m[S.PAID_TD_CODE]
+    use_components = ~use_td & m[S.PAID_MONTH_CODE] & m[S.PREV_PAID_CODE]
+    paid_basis_missing = ~use_td & ~use_components & (m[S.PAID_MONTH_CODE] | m[S.PREV_PAID_CODE])
+    paid_td = pd.Series(pd.NA, index=idx, dtype="Float64")
+    paid_td = paid_td.mask(use_td, val[S.PAID_TD_CODE])
+    comp_sum = val[S.PAID_MONTH_CODE].fillna(0) + val[S.PREV_PAID_CODE].fillna(0)
+    comp_any = val[S.PAID_MONTH_CODE].notna() | val[S.PREV_PAID_CODE].notna()
+    paid_td = paid_td.mask(use_components & comp_any, comp_sum)
+    paid_mapped = use_td | use_components
+    reserve = val[S.RESERVE_CODE]
 
-    not_evaluable_rows: list[dict] = []
+    fee_codes = S.FEE_CODES
+    fees_all = m[fee_codes[0]] & m[fee_codes[1]] & m[fee_codes[2]]
+    fees_any = m[fee_codes[0]] | m[fee_codes[1]] | m[fee_codes[2]]
+    fees_partial = fees_any & ~fees_all
+    fee_sum = sum(val[c].fillna(0) for c in fee_codes)
+
+    paid_components_used = (*S.PAID_COMPONENT_CODES, S.RESERVE_CODE)
+    any_unparseable = pd.Series(False, index=idx)
+    for c in S.MONETARY_CODES:
+        any_unparseable |= unp[c]
+
+    targets = []  # (code, label, includes_fees)
+    if bool(m[S.INCURRED_IND_CODE].any()):
+        targets.append((S.INCURRED_IND_CODE, "total incurred (indemnity)", False))
+    targets.append((S.INCURRED_CODE, "total incurred", True))
+
+    status = pd.Series("", index=idx, dtype="object")  # "", MATCH, MISMATCH, NE
+    reason = pd.Series("", index=idx, dtype="object")
+    detail_ne = pd.Series("", index=idx, dtype="object")
+    evaluated_any = pd.Series(False, index=idx)
+
+    for code, label, includes_fees in targets:
+        tgt = val[code]
+        tgt_mapped = m[code]
+        rows_for_target = tgt_mapped
+        if not rows_for_target.any():
+            continue
+        exp = paid_td.fillna(0) + reserve.fillna(0)
+        if includes_fees:
+            exp = exp + fee_sum.where(fees_all, 0)
+        has_inputs = tgt.notna() & (paid_td.notna() | reserve.notna())
+        ne = pd.Series(False, index=idx)
+        r = pd.Series("", index=idx, dtype="object")
+        d = pd.Series("", index=idx, dtype="object")
+
+        def mark(mask, rsn, text):
+            new = mask & ~ne
+            r.loc[new] = rsn
+            d.loc[new] = text
+            return ne | mask
+
+        for uc in (code, *S.PAID_COMPONENT_CODES, S.RESERVE_CODE, *(S.FEE_CODES if includes_fees else ())):
+            ne = mark(unp[uc], f"{_SHORT[uc]}_unparseable",
+                      f"{S.FIELDS_BY_CODE[uc].name} contains a value that could not be parsed as a number")
+        ne = mark(any_unparseable, "amount_unparseable", "An amount cell could not be parsed as a number")
+        ne = mark(mixed_ccy, "mixed_currency_columns",
+                  "Amount columns on this sheet declare different currencies; they cannot be added")
+        ne = mark(paid_basis_missing, "previously_paid_unmapped",
+                  "Only one of paid-this-month (CR0126) / previously-paid (CR0128) is mapped; "
+                  "paid to date cannot be established without both (or a paid-to-date column)")
+        ne = mark(~paid_mapped & ~m[S.RESERVE_CODE], "paid_and_reserve_unmapped",
+                  "Neither a paid figure nor the indemnity reserve was mapped on this sheet")
+        if includes_fees:
+            ne = mark(fees_partial, "fees_partially_mapped",
+                      "Some but not all fee columns (CR0127/CR0129/CR0131) are mapped; total incurred "
+                      "includes fees, so it cannot be reconciled")
+        ne = mark(tgt.isna(), f"{_SHORT[code]}_blank", f"{label} is blank on this row")
+        ne = mark(~has_inputs, "paid_and_reserve_blank", "Paid and reserve are both blank on this row")
+        ne = ne & rows_for_target
+        computable = rows_for_target & ~ne
+        diff = (tgt - exp).abs()
+        mism = computable & (diff > S.ARITHMETIC_TOLERANCE)
+        for i in idx[mism]:
+            parts = []
+            if use_td.at[i]:
+                parts.append(f"paid to date {_fmt(val[S.PAID_TD_CODE].at[i])}")
+            else:
+                parts.append(f"paid this month {_fmt(val[S.PAID_MONTH_CODE].at[i])} + previously paid "
+                             f"{_fmt(val[S.PREV_PAID_CODE].at[i])}")
+            parts.append(f"reserve {_fmt(reserve.at[i])}")
+            fee_note = ""
+            if includes_fees:
+                if fees_all.at[i]:
+                    parts.append(f"fees {_fmt(fee_sum.at[i])}")
+                else:
+                    fee_note = " (no fee columns in this file: checked as nil fees; if the total includes fees the difference may be fees)"
+            flag(i, "arithmetic_mismatch",
+                 f"{label}={_fmt(tgt.at[i])} but " + " + ".join(parts) + f" = {_fmt(exp.at[i])}{fee_note}")
+        # Combine per row: any mismatch wins; else match if evaluated; else keep first NE reason.
+        status = status.mask(mism, "MISMATCH")
+        status = status.mask(computable & ~mism & (status == ""), "MATCH")
+        first_ne = ne & (reason == "")
+        reason = reason.mask(first_ne, r)
+        detail_ne = detail_ne.mask(first_ne, d)
+        evaluated_any |= rows_for_target
+
+    # Rows where no incurred column exists at all.
+    no_target = ~evaluated_any
+    reason = reason.mask(no_target & (reason == ""), "incurred_unmapped")
+    detail_ne = detail_ne.mask(no_target & (detail_ne == ""), "No total incurred column was mapped on this sheet")
+    # A row that matched one target but was not evaluable for another is still a match.
+    final_ne = (status == "")
+    match = status == "MATCH"
+    mismatch = status == "MISMATCH"
+
+    # Consistency: paid-to-date vs its components, when all three are mapped.
+    both = use_td & m[S.PAID_MONTH_CODE] & m[S.PREV_PAID_CODE] & val[S.PAID_TD_CODE].notna() & comp_any & ~any_unparseable
+    bad = both & ((val[S.PAID_TD_CODE] - comp_sum).abs() > S.ARITHMETIC_TOLERANCE)
+    for i in idx[bad]:
+        flag(i, "arithmetic_mismatch",
+             f"paid to date={_fmt(val[S.PAID_TD_CODE].at[i])} but paid this month "
+             f"{_fmt(val[S.PAID_MONTH_CODE].at[i])} + previously paid {_fmt(val[S.PREV_PAID_CODE].at[i])} "
+             f"= {_fmt(comp_sum.at[i])}")
+
     claim_ref_col = schema.CLAIM_REF_CODE
-    for idx in df.index[not_evaluable]:
-        claim_ref = df.at[idx, claim_ref_col] if claim_ref_col in df.columns else None
-        claim_ref = claim_ref if pd.notna(claim_ref) else None
-        if incurred_unparseable.at[idx]:
-            reason = "incurred_unparseable"
-            detail = "Total incurred contains a value that could not be parsed as a number"
-        elif paid_unparseable.at[idx]:
-            reason = "paid_unparseable"
-            detail = "Indemnity paid contains a value that could not be parsed as a number"
-        elif reserve_unparseable.at[idx]:
-            reason = "reserve_unparseable"
-            detail = "Indemnity reserve contains a value that could not be parsed as a number"
-        elif incurred_unmapped.at[idx]:
-            reason = "incurred_unmapped"
-            detail = "Total incurred was never mapped to a column on this sheet"
-        elif paid_and_reserve_unmapped.at[idx]:
-            reason = "paid_and_reserve_unmapped"
-            detail = "Both indemnity paid and indemnity reserve were never mapped to a column on this sheet"
-        elif pd.isna(incurred.at[idx]):
-            reason = "incurred_blank"
-            detail = "Total incurred is blank on this row"
-        else:
-            reason = "paid_and_reserve_blank"
-            detail = "Both indemnity paid and indemnity reserve are blank or unparseable on this row"
-        not_evaluable_rows.append({"row_index": idx, "claim_ref": claim_ref, "reason": reason, "detail": detail})
-
+    rows = []
+    for i in idx[final_ne & ~bad]:
+        cr = df.at[i, claim_ref_col] if claim_ref_col in df.columns else None
+        rows.append({"row_index": i, "claim_ref": cr if pd.notna(cr) else None,
+                     "reason": reason.at[i] or "not_evaluable", "detail": detail_ne.at[i] or "Not evaluable"})
+    # Every row lands in exactly one outcome.
+    mismatch_rows = mismatch | bad
+    match_rows = match & ~bad
+    ne_rows = final_ne & ~bad
     return {
-        "arithmetic_match_count": int(match.sum()),
-        "arithmetic_mismatch_count": int(mismatch.sum()),
-        "arithmetic_not_evaluable_count": int(not_evaluable.sum()),
-        "not_evaluable_detail": pd.DataFrame(not_evaluable_rows, columns=NOT_EVALUABLE_DETAIL_COLUMNS),
+        "arithmetic_match_count": int(match_rows.sum()),
+        "arithmetic_mismatch_count": int(mismatch_rows.sum()),
+        "arithmetic_not_evaluable_count": int(ne_rows.sum()),
+        "not_evaluable_detail": pd.DataFrame(rows, columns=NOT_EVALUABLE_DETAIL_COLUMNS),
     }
 
 

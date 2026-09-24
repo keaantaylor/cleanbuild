@@ -27,6 +27,10 @@ class FieldSpec:
     # Known header aliases (lowercased, punctuation-insensitive) seen across
     # real-world bordereaux. Used by the fuzzy-matching mapping pass.
     aliases: tuple[str, ...] = field(default_factory=tuple)
+    # Aliases that bind to this field but leave its meaning ambiguous (e.g. a
+    # bare "Paid" could be cumulative or this-period). A match through one of
+    # these is proposed for REVIEW, never as a high-confidence mapping.
+    ambiguous_aliases: tuple[str, ...] = field(default_factory=tuple)
 
     @property
     def required(self) -> bool:
@@ -109,46 +113,115 @@ FIELDS: list[FieldSpec] = [
             "policy reference no", "policy identifier",
         ),
     ),
+    # --- Monetary fields, per Lloyd's Coverholder Reporting Standards v5.2
+    # (User Guide, 20 Aug 2019). CR0155 "Total Incurred" is defined there as
+    # the sum of paid-this-month, previously-paid and reserve, for indemnity
+    # AND fees. Earlier versions of this schema treated CR0126 (which v5.2
+    # defines as *this month's* paid) as cumulative paid and omitted
+    # previously-paid and fees entirely, so any genuine v5.2 file with prior
+    # payments produced false arithmetic mismatches. See
+    # AI/RESEARCH/TRUEBIND_PRODUCT_REVALIDATION.md section 3.2.
     FieldSpec(
-        code="CR0126CM",
-        name="Indemnity paid (this period)",
+        code="TB_PAID_TD",
+        name="Indemnity paid to date (cumulative)",
         dtype="decimal",
         requirement="conditional_pair",
-        notes="Amount paid this reporting period, in settlement currency. "
-              "Conditional pair with reserve: a row is flagged only if BOTH are null.",
+        notes="NOT a v5.2 field: the cumulative indemnity paid many senders report in one "
+              "column. Equivalent to v5.2 CR0126 + CR0128. Conditional pair with reserve.",
         aliases=(
-            "paid", "amount paid", "indemnity paid", "indemnitypaid",
-            "paid this period", "cash paid ytd", "paid ytd", "paid to date",
-            "paid amount", "amount paid to date", "paid amt",
+            "paid to date", "paid ytd", "cash paid ytd", "amount paid to date",
+            "paid todate", "indemnity paid to date", "total paid", "cumulative paid",
+            "paid", "amount paid", "paid amount", "paid amt", "indemnity paid", "indemnitypaid",
         ),
+        ambiguous_aliases=("paid", "amount paid", "paid amount", "paid amt", "indemnity paid", "indemnitypaid"),
+    ),
+    FieldSpec(
+        code="CR0126CM",
+        name="Paid this month - indemnity",
+        dtype="decimal",
+        requirement="optional",
+        notes="v5.2 CR0126: indemnity paid in THIS reporting period only.",
+        aliases=(
+            "paid this month", "paid this period", "paid in period", "paid in month",
+            "paid this month indemnity", "indemnity paid this month", "period paid", "movement paid",
+        ),
+    ),
+    FieldSpec(
+        code="CR0128CM",
+        name="Previously paid - indemnity",
+        dtype="decimal",
+        requirement="optional",
+        notes="v5.2 CR0128: indemnity paid in prior periods.",
+        aliases=("previously paid", "previously paid indemnity", "paid previously", "prior paid", "paid prior"),
     ),
     FieldSpec(
         code="CR0130CM",
         name="Indemnity reserve (outstanding)",
         dtype="decimal",
         requirement="conditional_pair",
-        notes="Amount still expected to be paid. "
-              "Conditional pair with paid: a row is flagged only if BOTH are null.",
+        notes="v5.2 CR0130. Conditional pair with paid: a row is flagged only if no paid component "
+              "and no reserve is present.",
         aliases=(
             "reserve", "o/s reserve", "outstanding reserve",
             "indemnity reserve", "indemnityreserve", "case reserve",
             "reserve outstanding", "reserve amount", "reserve o/s",
-            "indemnity o/s",
+            "indemnity o/s", "outstanding",
         ),
+    ),
+    FieldSpec(
+        code="CR0127CM",
+        name="Paid this month - fees",
+        dtype="decimal",
+        requirement="optional",
+        notes="v5.2 CR0127.",
+        aliases=("fees paid this month", "paid this month fees", "fees paid this period"),
+    ),
+    FieldSpec(
+        code="CR0129CM",
+        name="Previously paid - fees",
+        dtype="decimal",
+        requirement="optional",
+        notes="v5.2 CR0129.",
+        aliases=("previously paid fees", "fees previously paid", "prior fees paid"),
+    ),
+    FieldSpec(
+        code="CR0131CM",
+        name="Reserve - fees",
+        dtype="decimal",
+        requirement="optional",
+        notes="v5.2 CR0131.",
+        aliases=("reserve fees", "fees reserve", "fee reserve", "expense reserve"),
+    ),
+    FieldSpec(
+        code="CR0134CM",
+        name="Total incurred - indemnity",
+        dtype="decimal",
+        requirement="reconciled",
+        notes="v5.2 CR0134: indemnity paid (this month + previously) + indemnity reserve.",
+        aliases=("total incurred indemnity", "incurred indemnity", "indemnity incurred"),
     ),
     FieldSpec(
         code="CR0155CM",
         name="Total incurred",
         dtype="decimal",
         requirement="reconciled",
-        notes="Checked via reconciliation (paid + reserve == incurred), not an "
-              "independent non-null requirement -- see validation.py's three-outcome "
-              "arithmetic check (MATCH / MISMATCH / NOT_EVALUABLE).",
+        notes="v5.2 CR0155: paid this month + previously paid + reserve, for indemnity AND fees. "
+              "Checked via validation.py's three-outcome arithmetic (MATCH / MISMATCH / NOT_EVALUABLE).",
         aliases=(
             "incurred", "total incurred", "totalincurred",
             "gross incurred", "incurred total", "incurred amount",
             "incurred to date", "total incurred amount",
         ),
+    ),
+    FieldSpec(
+        code="TB_PERIOD",
+        name="Reporting period",
+        dtype="string",
+        requirement="optional",
+        notes="NOT a v5.2 field: the bordereau period (e.g. 2024-03) a row belongs to. Distinct from "
+              "date of loss / notification. Never inferred when absent.",
+        aliases=("reporting period", "bordereau period", "bordereau month", "report period",
+                 "reporting month", "period"),
     ),
     FieldSpec(
         code="CR0110CM",
@@ -167,12 +240,23 @@ FIELDS_BY_CODE: dict[str, FieldSpec] = {f.code: f for f in FIELDS}
 
 REQUIRED_CODES = [f.code for f in FIELDS if f.requirement == "required"]
 CONDITIONAL_PAIR_CODES = tuple(f.code for f in FIELDS if f.requirement == "conditional_pair")
+MONETARY_CODES = tuple(f.code for f in FIELDS if f.dtype == "decimal")
 RECONCILED_CODES = tuple(f.code for f in FIELDS if f.requirement == "reconciled")
 
 POLICY_REF_CODE = "CR0029M"
-PAID_CODE = "CR0126CM"
+PAID_TD_CODE = "TB_PAID_TD"
+PAID_CODE = PAID_TD_CODE  # legacy name: the cumulative paid figure used for completeness/pair checks
+PAID_MONTH_CODE = "CR0126CM"
+PREV_PAID_CODE = "CR0128CM"
 RESERVE_CODE = "CR0130CM"
+FEES_PAID_MONTH_CODE = "CR0127CM"
+FEES_PREV_PAID_CODE = "CR0129CM"
+FEES_RESERVE_CODE = "CR0131CM"
+FEE_CODES = (FEES_PAID_MONTH_CODE, FEES_PREV_PAID_CODE, FEES_RESERVE_CODE)
+INCURRED_IND_CODE = "CR0134CM"
 INCURRED_CODE = "CR0155CM"
+PERIOD_CODE = "TB_PERIOD"
+PAID_COMPONENT_CODES = (PAID_TD_CODE, PAID_MONTH_CODE, PREV_PAID_CODE)
 LOSS_DATE_CODE = "CR0119CM"
 NOTIFIED_DATE_CODE = "CR0136CM"
 CLAIM_REF_CODE = "CR0104M"

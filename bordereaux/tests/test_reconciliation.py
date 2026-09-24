@@ -17,7 +17,11 @@ import openpyxl  # noqa: E402
 
 from bordereaux import pipeline  # noqa: E402
 
-FIXTURE = REPO_ROOT / "tests" / "fixtures" / "reconciliation_scenario.xlsx"
+import tempfile  # noqa: E402
+
+_GEN_DIR = Path(tempfile.gettempdir()) / "truebind_generated_fixtures"  # never rewrite tracked files
+_GEN_DIR.mkdir(parents=True, exist_ok=True)
+FIXTURE = _GEN_DIR / "reconciliation_scenario.xlsx"
 
 
 def _build_fixture() -> Path:
@@ -105,7 +109,7 @@ def test_unmapped_sheet_raw_data_survives_into_export(tmp_path=None) -> None:
     import openpyxl as _openpyxl
 
     result, sheets = _run()
-    out_dir = FIXTURE.parent.parent / "fixtures" / "_recon_export_tmp"
+    out_dir = _GEN_DIR / "_recon_export_tmp"
     paths = pipeline.write_workbook_outputs(result, out_dir, "reconciliation_scenario", sheets=sheets)
 
     wb = _openpyxl.load_workbook(paths["health"])

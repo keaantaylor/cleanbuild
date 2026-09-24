@@ -19,7 +19,11 @@ import pandas as pd  # noqa: E402
 from bordereaux import ingest, pipeline  # noqa: E402
 from bordereaux.mapping import build_mapping  # noqa: E402
 
-FIXTURE_DIR = REPO_ROOT / "tests" / "fixtures"
+# Generated fixtures go to a temp dir: tests must never rewrite tracked files.
+import tempfile  # noqa: E402
+
+FIXTURE_DIR = Path(tempfile.gettempdir()) / "truebind_generated_fixtures"
+FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _build_dashboard_fixture() -> Path:
@@ -56,8 +60,8 @@ def test_dashboard_sheet_excluded_from_claims_and_named_in_report() -> None:
         f"Dashboard should be recognised as a non-claim summary sheet; got {result.coverage.non_claim_summary_sheets}"
     )
     assert len(result.canonical) == 10, f"expected exactly 10 real claim rows, got {len(result.canonical)}"
-    assert result.canonical["CR0126CM"].sum() == 500000.00, (
-        f"paid total must reflect only the real claims sheet, got {result.canonical['CR0126CM'].sum()}"
+    assert result.canonical["TB_PAID_TD"].sum() == 500000.00, (
+        f"paid total must reflect only the real claims sheet, got {result.canonical['TB_PAID_TD'].sum()}"
     )
 
     rec = result.coverage.reconciliation
@@ -66,13 +70,17 @@ def test_dashboard_sheet_excluded_from_claims_and_named_in_report() -> None:
     # filter (TB-007) is for a mostly-blank line with just a total label,
     # which this isn't, so all 3 land in non_claim_summary_rows via
     # sheet-level classification instead.
-    assert rec.non_claim_summary_rows == 3, f"expected 3, got {rec.non_claim_summary_rows}"
-    assert rec.rejected_rows == 0, f"expected 0, got {rec.rejected_rows}"
+    # The dashboard's own "TOTAL" line is a structural row (total label
+    # followed only by numbers) and is excluded with that reason; the two
+    # per-sheet rollup lines land in non_claim_summary_rows. Source rows
+    # still reconcile exactly (2 + 1 + 10 claims).
+    assert rec.non_claim_summary_rows == 2, f"expected 2, got {rec.non_claim_summary_rows}"
+    assert rec.rejected_rows == 1, f"expected 1 (the TOTAL line), got {rec.rejected_rows}"
     assert rec.reconciles, f"reconciliation must still balance: {rec.as_lines()}"
     assert result.coverage.fully_covered, "excluding a recognised summary sheet must not look like incomplete coverage"
     assert result.health.score_reliable, "a correctly-excluded summary sheet must not degrade score reliability"
     print(f"OK: Dashboard excluded ({rec.non_claim_summary_rows} rows); "
-          f"10 real claims, paid total {result.canonical['CR0126CM'].sum()}; reconciliation balances")
+          f"10 real claims, paid total {result.canonical['TB_PAID_TD'].sum()}; reconciliation balances")
 
 
 if __name__ == "__main__":

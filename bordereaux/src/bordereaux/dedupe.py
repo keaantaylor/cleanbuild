@@ -83,6 +83,47 @@ def _normalize_policy_ref(value: str) -> str:
 
 DUPLICATE_COLUMNS = ["match_type", "row_index_a", "row_index_b", "claim_ref_a", "claim_ref_b", "detail"]
 
+_MONTHS = {m: i for i, m in enumerate(
+    ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], start=1)}
+_PERIOD_PATTERNS = [
+    (re.compile(r"(?<!\d)(20\d{2})[-_/. ]?(0[1-9]|1[0-2])(?!\d)"), lambda m: f"{m.group(1)}-{m.group(2)}"),
+    (re.compile(r"(?<![a-z])(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[-_ .']*(20\d{2}|\d{2})(?!\d)"),
+     lambda m: f"{m.group(2) if len(m.group(2)) == 4 else '20' + m.group(2)}-{_MONTHS[m.group(1)]:02d}"),
+    (re.compile(r"(?<!\d)(20\d{2})[-_ ]?q([1-4])(?!\d)"), lambda m: f"{m.group(1)}-Q{m.group(2)}"),
+    (re.compile(r"(?<![a-z])q([1-4])[-_ ]?(20\d{2})(?!\d)"), lambda m: f"{m.group(2)}-Q{m.group(1)}"),
+]
+
+
+def period_from_text(text: object) -> str | None:
+    """'2024-03', 'Mar 2024', 'March-24', '202403', '2024 Q1' -> a normalised
+    period key. Returns None rather than guessing when nothing explicit is
+    present -- a reporting period is never assumed (forensic F1)."""
+    if text is None or (isinstance(text, float) and pd.isna(text)):
+        return None
+    if hasattr(text, "year") and hasattr(text, "month"):
+        return f"{text.year}-{text.month:02d}"
+    s = str(text).strip().lower()
+    for pat, fmt in _PERIOD_PATTERNS:
+        m = pat.search(s)
+        if m:
+            return fmt(m)
+    return None
+
+
+def row_periods(df: pd.DataFrame) -> pd.Series:
+    """Reporting period per row: the mapped period column if it parses,
+    else an explicit period in the source sheet's NAME (e.g. tab "2024-03"),
+    else None (unknown)."""
+    idx = df.index
+    from_col = (df[schema.PERIOD_CODE].map(period_from_text) if schema.PERIOD_CODE in df.columns
+                else pd.Series(None, index=idx, dtype="object"))
+    if schema.SOURCE_SHEET_CODE in df.columns:
+        sheet_period = {n: period_from_text(n) for n in df[schema.SOURCE_SHEET_CODE].dropna().unique()}
+        from_sheet = df[schema.SOURCE_SHEET_CODE].map(sheet_period)
+    else:
+        from_sheet = pd.Series(None, index=idx, dtype="object")
+    return from_col.where(from_col.notna(), from_sheet)
+
 
 def find_duplicates(df: pd.DataFrame) -> pd.DataFrame:
     records: list[dict] = []
@@ -92,23 +133,61 @@ def find_duplicates(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _exact_duplicates(df: pd.DataFrame) -> list[dict]:
+    """Same claim reference reported more than once *for the same reporting
+    period*. Forensic F1: a claim appearing on 12 monthly tabs is 12
+    period movements, not 66 duplicate pairs -- the old check graded a
+    correct multi-period workbook 2/5 with a 100% duplicate rate.
+
+    - same ref, same known period            -> exact_duplicate
+    - same ref, different known periods      -> not a duplicate (movement)
+    - same ref, period unknown, same sheet   -> exact_duplicate
+    - same ref, period unknown, other sheets -> repeat_period_unknown (review:
+      could be a duplicate or a later period -- we do not guess)
+    Each cluster is linked to its first occurrence (k-1 links, not k^2 pairs)."""
     ref = df[schema.CLAIM_REF_CODE]
     has_ref = ref.notna()
+    if not has_ref.any():
+        return []
     counts = ref[has_ref].value_counts()
-    dup_refs = counts[counts > 1].index
-
+    dup_refs = set(counts[counts > 1].index)
+    if not dup_refs:
+        return []
+    periods = row_periods(df)
+    sheets = df[schema.SOURCE_SHEET_CODE] if schema.SOURCE_SHEET_CODE in df.columns else pd.Series(None, index=df.index)
+    sub = df.index[has_ref & ref.isin(dup_refs)]
     records = []
-    for r in dup_refs:
-        idxs = df.index[has_ref & (ref == r)].tolist()
-        for a, b in itertools.combinations(idxs, 2):
-            records.append({
-                "match_type": "exact_duplicate",
-                "row_index_a": a,
-                "row_index_b": b,
-                "claim_ref_a": r,
-                "claim_ref_b": r,
-                "detail": f"claim reference {r!r} appears {len(idxs)} times",
-            })
+    groups: dict[tuple, list] = {}
+    for i in sub:
+        p = periods.at[i]
+        key = (ref.at[i], ("P", p) if p is not None else ("S", sheets.at[i]))
+        groups.setdefault(key, []).append(i)
+    for (r, (kind, k)), idxs in groups.items():
+        if len(idxs) < 2:
+            continue
+        first = idxs[0]
+        basis = f"reporting period {k}" if kind == "P" else f"sheet {k!r} (no reporting period present)"
+        for b in idxs[1:]:
+            records.append({"match_type": "exact_duplicate", "row_index_a": first, "row_index_b": b,
+                            "claim_ref_a": r, "claim_ref_b": r,
+                            "detail": f"claim reference {r!r} appears {len(idxs)} times in the same {basis}"})
+    # Unknown-period repeats across different sheets: review, not certain.
+    unknown = [i for i in sub if periods.at[i] is None]
+    by_ref: dict = {}
+    for i in unknown:
+        by_ref.setdefault(ref.at[i], []).append(i)
+    for r, idxs in by_ref.items():
+        sheet_first: dict = {}
+        for i in idxs:
+            sheet_first.setdefault(sheets.at[i], i)
+        firsts = list(sheet_first.values())
+        if len(firsts) < 2:
+            continue
+        for b in firsts[1:]:
+            records.append({"match_type": "repeat_period_unknown", "row_index_a": firsts[0], "row_index_b": b,
+                            "claim_ref_a": r, "claim_ref_b": r,
+                            "detail": f"claim reference {r!r} appears on sheets {sheets.at[firsts[0]]!r} and "
+                                      f"{sheets.at[b]!r} and no reporting period is present: either a duplicate "
+                                      "or a later period's movement -- confirm"})
     return records
 
 
@@ -189,8 +268,8 @@ def _compare_block(block: pd.DataFrame, seen_pairs: set[tuple], have_policy: boo
             if same_sheet and both_policies_known and not policies_match and is_repeat_client:
                 continue  # a name repeated often enough to read as a genuine repeat client, with a different known policy each time -- ordinary business, not a duplicate
 
-            score = fuzz.WRatio(normalize_name(str(names[i])), normalize_name(str(names[j])))
-            if score < NAME_SIMILARITY_THRESHOLD:
+            score = fuzz.WRatio(norm_names[i], norm_names[j], score_cutoff=NAME_SIMILARITY_THRESHOLD)
+            if not score:
                 continue
             pair_key = tuple(sorted((idx[i], idx[j])))
             if pair_key in seen_pairs:

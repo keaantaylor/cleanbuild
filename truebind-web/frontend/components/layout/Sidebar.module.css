@@ -34,7 +34,7 @@
 .live { width: 8px; height: 8px; border-radius: 50%; background: var(--color-signal);
   box-shadow: 0 0 0 0 rgba(111, 227, 193, 0.6); animation: ping 1.6s var(--ease-out) infinite; }
 @keyframes ping { 70% { box-shadow: 0 0 0 7px rgba(111, 227, 193, 0); } 100% { box-shadow: 0 0 0 0 rgba(111, 227, 193, 0); } }
-.badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #E5484D; color: #fff;
+.badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #D13438; color: #fff;
   font-size: 0.6875rem; font-weight: 700; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
 .foot { margin-top: var(--spacing-5); padding: var(--spacing-3); border-top: 1px solid rgba(255, 255, 255, 0.06); }
 .engine { display: flex; align-items: center; gap: 8px; font-size: var(--text-xs); color: var(--color-rail-muted); font-weight: 600; }

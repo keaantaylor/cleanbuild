@@ -89,6 +89,8 @@ const LIGHT_PAIRS: [string, string, string][] = [
   ["landing muted on white", "#475569", "#FFFFFF"],
   ["landing caption on white", "#64748B", "#FFFFFF"],
   ["landing cobalt on sunken", "#2446E0", "#F4F6FA"],
+  ["landing note on sunken", "#556274", "#F4F6FA"],
+  ["count badge text on badge red", "#FFFFFF", "#D13438"],
 ];
 
 const DARK_PAIRS: [string, string, string][] = [

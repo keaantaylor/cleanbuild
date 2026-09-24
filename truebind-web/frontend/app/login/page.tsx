@@ -5,12 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { AlertBanner } from "@/components/ui/Alert";
+import { BrandMark } from "@/components/layout/BrandMark";
 import styles from "./login.module.css";
 
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<"login" | "signup">(params.get("mode") === "signup" ? "signup" : "login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -37,7 +38,7 @@ function LoginForm() {
   return (
     <main className={styles.wrap}>
       <section className={styles.brand} aria-label="About TrueBind">
-        <div className={styles.logo}><span className={styles.mark}>TB</span>TrueBind</div>
+        <div className={styles.logo}><BrandMark size={32} />TrueBind</div>
         <h1 className={styles.headline}>Bordereaux, understood.</h1>
         <p className={styles.lede}>Receive, map, validate and reconcile claims bordereaux from any sender, with an audit trail behind every number.</p>
         <ul className={styles.points}>

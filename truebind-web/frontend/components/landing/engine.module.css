@@ -1,0 +1,33 @@
+.scene { width: 100%; height: auto; display: block; overflow: visible; }
+.cell { fill: rgba(255, 255, 255, 0.06); stroke: rgba(255, 255, 255, 0.22); stroke-dasharray: 3 3; }
+.cellText { fill: #CBD3E6; font-family: var(--font-mono); font-size: 12px; }
+.thread { fill: none; stroke-width: 1.4; stroke-dasharray: 6 8; animation: threadFlow 1.6s linear infinite; }
+.frag { animation: drift 7s ease-in-out infinite alternate; }
+.barCore { fill: #6FE3C1; }
+.glow { animation: breathe 4s ease-in-out infinite; transform-origin: 366px 210px; }
+.pulse { fill: #FFFFFF; animation: travel 2.4s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
+.link { stroke: #6FE3C1; stroke-width: 2; stroke-linecap: round; }
+.rowBox { fill: rgba(255, 255, 255, 0.07); stroke: rgba(143, 162, 255, 0.45); }
+.rowBoxWarn { fill: rgba(251, 191, 36, 0.08); stroke: rgba(251, 191, 36, 0.6); }
+.code { fill: #8FA2FF; font-family: var(--font-mono); font-size: 11px; }
+.rowText { fill: #FFFFFF; font-family: var(--font-sans); font-size: 13px; font-weight: 600; }
+.chipOk { fill: rgba(111, 227, 193, 0.16); stroke: rgba(111, 227, 193, 0.6); }
+.chipWarn { fill: rgba(251, 191, 36, 0.16); stroke: rgba(251, 191, 36, 0.7); }
+.chipText { fill: #FFFFFF; font-family: var(--font-sans); font-size: 11px; font-weight: 700; }
+.row { animation: settle 8s var(--ease-out, ease-out) infinite; opacity: 0; }
+.action { animation: settleLate 8s ease-out infinite; opacity: 0; }
+.actionBox { fill: #2446E0; }
+.actionText { fill: #FFFFFF; font-family: var(--font-sans); font-size: 12.5px; font-weight: 600; }
+
+@keyframes threadFlow { to { stroke-dashoffset: -28; } }
+@keyframes drift { from { transform: translate(0, 0); } to { transform: translate(8px, -5px); } }
+@keyframes breathe { 0%, 100% { opacity: 0.55; transform: scale(0.94); } 50% { opacity: 1; transform: scale(1.04); } }
+@keyframes travel { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { transform: translateY(220px); opacity: 0; } }
+@keyframes settle { 0% { opacity: 0; transform: translateX(-14px); } 12%, 88% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@keyframes settleLate { 0%, 30% { opacity: 0; transform: translateY(6px); } 42%, 88% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .thread, .frag, .glow, .pulse { animation: none !important; }
+  .row, .action { animation: none !important; opacity: 1; }
+  .pulse { opacity: 0; }
+}

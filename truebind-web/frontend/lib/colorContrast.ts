@@ -81,6 +81,14 @@ const LIGHT_PAIRS: [string, string, string][] = [
   ["mkt-ink-secondary-light on mkt-ink (dark hero)", "#CBD1E0", "#0B0F19"],
   ["mkt trust-section eyebrow on mkt-ink", "#A9B4FF", "#0B0F19"],
   ["mkt trust-section muted on mkt-ink", "#8891AE", "#0B0F19"],
+  ["landing lede on ink", "#C7D0E2", "#0A1324"],
+  ["landing nav link on ink", "#B7C3D9", "#0A1324"],
+  ["landing footer on ink", "#8A99B4", "#0A1324"],
+  ["landing mint on ink", "#6FE3C1", "#0A1324"],
+  ["landing step number on ink", "#8FA2FF", "#0A1324"],
+  ["landing muted on white", "#475569", "#FFFFFF"],
+  ["landing caption on white", "#64748B", "#FFFFFF"],
+  ["landing cobalt on sunken", "#2446E0", "#F4F6FA"],
 ];
 
 const DARK_PAIRS: [string, string, string][] = [

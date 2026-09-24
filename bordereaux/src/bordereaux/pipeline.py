@@ -77,8 +77,9 @@ class WorkbookProcessResult:
     stage_timings: dict[str, float] = field(default_factory=dict)  # seconds, wall clock, per stage
 
 
-def load_workbook(path: str | Path, source_stem: str | None = None) -> list[SheetData]:
-    return ingest.load_workbook_sheets(path, source_stem=source_stem)
+def load_workbook(path: str | Path, source_stem: str | None = None,
+                  limits: "ingest.ReadLimits | None" = None) -> list[SheetData]:
+    return ingest.load_workbook_sheets(path, source_stem=source_stem, limits=limits)
 
 
 def propose_mapping_for_workbook(
@@ -211,6 +212,10 @@ def run_workbook_pipeline(
             continue
 
         part = ingest.apply_mapping(s.raw, confirmed, sheet_name=s.sheet_name)
+        # Lineage: the 1-based source row of every canonical row.
+        part["_source_row"] = pd.array(
+            s.source_row_numbers if len(s.source_row_numbers) == len(part) else [pd.NA] * len(part),
+            dtype="Int64")
         sheet_transforms[s.sheet_name] = part.attrs.get("transforms", [])
         sheet_notes[s.sheet_name] = list(s.notes) + list(part.attrs.get("parse_notes", []))
         canonical_parts.append(part)

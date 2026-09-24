@@ -357,3 +357,15 @@ def test_partially_recognised_foreign_sheet_is_not_excluded_F3(tmp_path):
     assert len(r.canonical) == 20  # the French rows stay in the claim set
     assert r.coverage.reconciliation.non_claim_summary_rows == 0
     assert not r.health.score_reliable
+
+
+def test_limits_reject_instead_of_truncating(tmp_path):
+    rows = [H7] + [[f"C{i}", "A", dt.date(2024, 1, 1), 1, 1, 2, "GBP"] for i in range(50)]
+    wb = openpyxl.Workbook()
+    for r in rows:
+        wb.active.append(r)
+    p = tmp_path / "big.xlsx"
+    wb.save(p)
+    with pytest.raises(ingest.WorkbookLimitError):
+        ingest.load_workbook_sheets(p, limits=ingest.ReadLimits(max_rows_total=20))
+    assert len(ingest.load_workbook_sheets(p)[0].raw) == 50

@@ -82,6 +82,7 @@ class SheetData:
     hidden: bool = False  # sheet_state hidden/veryHidden in the workbook -- processed, but disclosed
     trailing_blank_rows: int = 0  # blank rows after the last populated row: not data, reported, not counted
     notes: list[str] = field(default_factory=list)  # read-limit and parsing disclosures for this sheet
+    source_row_numbers: list[int] = field(default_factory=list)  # 1-based sheet row of each raw row (lineage)
 
     @property
     def excluded_row_count(self) -> int:
@@ -104,10 +105,31 @@ def load_raw(path: str | Path) -> pd.DataFrame:
     return pd.read_excel(path, dtype="string", engine="openpyxl")
 
 
-def load_workbook_sheets(path: str | Path, source_stem: str | None = None) -> list[SheetData]:
+@dataclass(frozen=True)
+class ReadLimits:
+    """Hard bounds on what one workbook may contain. Exceeding any of them
+    rejects the file with WorkbookLimitError -- it is never truncated,
+    because a truncated read would silently lose rows."""
+    max_sheets: int = 200
+    max_rows_total: int = 1_000_000  # populated + collapsed rows across all sheets
+    max_cells_total: int = 60_000_000  # rows x columns actually read
+
+
+class WorkbookLimitError(ValueError):
+    """The workbook exceeds a configured ReadLimits bound."""
+
+
+_ACTIVE_LIMITS: list = [ReadLimits(), [0, 0]]  # (limits, [rows_read, cells_read]) for the current load
+
+
+def load_workbook_sheets(path: str | Path, source_stem: str | None = None,
+                         limits: ReadLimits | None = None) -> list[SheetData]:
     """Every sheet in the workbook (fix spec 3.1), each with its own
     detected header row (fix spec 3.2). A CSV has exactly one implicit
-    "sheet" named after the file."""
+    "sheet" named after the file. Raises WorkbookLimitError when the file
+    exceeds `limits`."""
+    _ACTIVE_LIMITS[0] = limits or ReadLimits()
+    _ACTIVE_LIMITS[1] = [0, 0]
     path = str(path)
     if path.lower().endswith(".csv"):
         return [_build_csv_sheet_data(path, source_stem)]
@@ -120,6 +142,9 @@ def load_workbook_sheets(path: str | Path, source_stem: str | None = None) -> li
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
     sheets: list[SheetData] = []
     try:
+        if len(wb.sheetnames) > _ACTIVE_LIMITS[0].max_sheets:
+            raise WorkbookLimitError(f"workbook has {len(wb.sheetnames)} sheets; the limit is "
+                                     f"{_ACTIVE_LIMITS[0].max_sheets}")
         for name in wb.sheetnames:
             sd = _safe_build_sheet(name, lambda n=name: _read_bounded_rows(wb[n]))
             try:
@@ -195,6 +220,7 @@ def _read_bounded_rows(ws) -> "_ReadResult":
     rows = _ReadResult()
     pending: list[tuple] = []  # blank rows not yet known to be trailing
     pending_count = 0
+    lim, used = _ACTIVE_LIMITS
     for row in ws.iter_rows(**read_kwargs):
         if _row_looks_blank(row):
             pending_count += 1
@@ -208,6 +234,13 @@ def _read_bounded_rows(ws) -> "_ReadResult":
                 rows.append(_BlankRun(pending_count))
             pending, pending_count = [], 0
         rows.append(row)
+        # Limits count populated rows only: collapsed blank rows cost nothing.
+        used[0] += 1
+        used[1] += len(row)
+        if used[0] > lim.max_rows_total or used[1] > lim.max_cells_total:
+            raise WorkbookLimitError(
+                f"workbook exceeds the processing limit ({lim.max_rows_total:,} populated rows / "
+                f"{lim.max_cells_total:,} cells); it was rejected rather than partially read")
     if pending_count > _MAX_CONSECUTIVE_EMPTY_ROWS:
         rows.trailing_blank_rows = pending_count
     else:
@@ -231,6 +264,8 @@ def _safe_build_sheet(name: str, load_rows) -> SheetData:
         if sd.trailing_blank_rows:
             sd.notes.append(f"{sd.trailing_blank_rows} blank rows after the last populated row were not read as data")
         return sd
+    except WorkbookLimitError:
+        raise
     except Exception as exc:  # noqa: BLE001 -- isolated per sheet, surfaced by name, never swallowed
         return SheetData(name, 0, pd.DataFrame(), skipped=True,
                           skip_reason=f"error while reading this sheet: {exc}", raw_row_count=0)
@@ -293,7 +328,15 @@ def _read_csv_rows(path: str) -> tuple[list[tuple], list[str]]:
         delimiter = ","
     if delimiter != ",":
         notes.append(f"delimiter detected as {delimiter!r}")
-    rows = [tuple((c if c != "" else None) for c in r) for r in csv.reader(text.splitlines(), delimiter=delimiter)]
+    lim = _ACTIVE_LIMITS[0]
+    rows = []
+    cells = 0
+    for r in csv.reader(text.splitlines(), delimiter=delimiter):
+        rows.append(tuple((c if c != "" else None) for c in r))
+        cells += len(r)
+        if len(rows) > lim.max_rows_total or cells > lim.max_cells_total:
+            raise WorkbookLimitError(f"CSV exceeds the processing limit ({lim.max_rows_total:,} rows / "
+                                     f"{lim.max_cells_total:,} cells); it was rejected rather than partially read")
     return rows, notes
 
 
@@ -349,9 +392,11 @@ def _build_sheet_data(name: str, rows: list) -> SheetData:
 
     width = len(columns)
     kept_rows = [tuple(r[:width]) + (None,) * (width - len(r)) if len(r) != width else r for r in kept_rows]
+    row_numbers = list(_LAST_KEPT_NUMBERS)
     df = pd.DataFrame(kept_rows, columns=columns)
     df = df.astype("string")
-    return SheetData(name, header_physical, df, raw_row_count=total, excluded_rows=excluded_rows)
+    return SheetData(name, header_physical, df, raw_row_count=total, excluded_rows=excluded_rows,
+                     source_row_numbers=row_numbers)
 
 
 def _normalize_cell(value: object) -> str:
@@ -469,6 +514,7 @@ def _classify_and_filter_rows(
     contain _BlankRun markers, which advance the row counter by their count
     and are recorded as one ledger entry each."""
     kept: list[tuple] = []
+    kept_numbers: list[int] = []
     excluded: list[ExcludedRow] = []
     physical = header_idx + 1  # 0-based physical index of the next candidate row
     for row in candidate_rows:
@@ -482,13 +528,22 @@ def _classify_and_filter_rows(
         reason, detail = _classify_row(row, header_row)
         if reason is None:
             kept.append(row)
+            kept_numbers.append(physical + 1)
         else:
             values = {columns[i]: ("" if i >= len(row) or row[i] is None else str(row[i]))
                       for i in range(len(columns))}
             excluded.append(ExcludedRow(sheet_name=sheet_name, row_number=physical + 1,
                                          reason=reason, detail=detail, values=values))
         physical += 1
+    _LAST_KEPT_NUMBERS.clear()
+    _LAST_KEPT_NUMBERS.extend(kept_numbers)
     return kept, excluded
+
+
+# Row numbers of the rows the most recent _classify_and_filter_rows call kept
+# (module-level to keep that function's established return shape; read
+# immediately by _build_sheet_data, single-threaded per call).
+_LAST_KEPT_NUMBERS: list[int] = []
 
 
 def _clean_header_cell(value: object, position: int) -> str:

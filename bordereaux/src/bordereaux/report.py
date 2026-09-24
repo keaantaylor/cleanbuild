@@ -119,6 +119,9 @@ class WorkbookCoverage:
     reconciliation: "ReconciliationSummary | None" = None
     sheet_transforms: dict[str, list[dict]] = field(default_factory=dict)  # amount-column currency/scale audit
     sheet_notes: dict[str, list[str]] = field(default_factory=dict)  # read/parse disclosures per sheet
+    # Source columns the confirmed mapping did not bind to any canonical field,
+    # per sheet. Their values are kept on each row (canonical "_unmapped_values").
+    unmapped_source_columns: dict[str, list[str]] = field(default_factory=dict)
 
     @staticmethod
     def single_sheet(row_count: int, sheet_name: str = "") -> "WorkbookCoverage":

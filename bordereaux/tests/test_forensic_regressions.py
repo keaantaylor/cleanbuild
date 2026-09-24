@@ -389,3 +389,78 @@ def test_unexpected_status_is_a_finding_not_a_file_abort():
     exc = result.validation_result.exceptions
     bad = exc[exc["rule"] == "invalid_status"]
     assert list(bad["row_index"]) == [0]
+
+
+# ---- user regression batch 2026-09-24 (replicas in tests/regression_fixtures) ----
+
+def test_schema_failures_are_row_findings_not_a_batch_abort():
+    """Pandera runs lazy: a cell that fails the schema becomes a finding on
+    THAT row; every other row still validates."""
+    import pandas as pd
+    from bordereaux import ingest
+    from bordereaux.pipeline import validate_schema_lazily
+
+    raw = pd.DataFrame({"Claim Reference": ["C1", "C2", "C3"], "Paid to Date": [1.0, 2.0, 3.0]})
+    canon = ingest.apply_mapping(raw, {"Claim Reference": "CR0104M", "Paid to Date": "TB_PAID_TD"}, sheet_name="S")
+    canon["TB_PAID_TD"] = pd.Series([1.0, "not-a-number", 3.0], dtype="object")
+    findings = validate_schema_lazily(canon)
+    assert [(i, r) for i, r, _ in findings] == [(1, "schema_violation")]
+
+
+def test_claim_statuses_come_from_config_and_include_void():
+    from bordereaux import domain_config, schema
+    assert {"void", "cancelled", "ntu", "withdrawn"} <= set(domain_config.CLAIM_STATUSES)
+    assert schema.FIELDS_BY_CODE[schema.STATUS_CODE].enum_values == domain_config.CLAIM_STATUSES
+
+
+def _replica_result(builder):
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent / "regression_fixtures"))
+    import build_replicas as br
+    from bordereaux import pipeline as bp
+    path = getattr(br, builder)()
+    sheets = bp.load_workbook(path)
+    props = bp.propose_mapping_for_workbook(sheets)
+    conf = {p.sheet.sheet_name: {s.source_column: s.field_code for s in p.mapping.suggestions if s.field_code}
+            for p in props}
+    return br, bp.run_workbook_pipeline(sheets, conf, props)
+
+
+def test_void_rows_process_without_failure():
+    _, res = _replica_result("realworld_b")
+    assert len(res.canonical) == 60
+    assert "invalid_status" not in set(res.validation_result.exceptions.get("rule", []))
+
+
+def test_paid_expenses_counted_in_total_incurred():
+    _, res = _replica_result("test1_basic")
+    assert res.validation_result.arithmetic_mismatch_count == 0
+    assert res.validation_result.arithmetic_match_count == 12
+
+
+def test_unmapped_source_columns_are_named_and_retained():
+    br, res = _replica_result("stress_450")
+    got = {s: set(c) for s, c in res.coverage.unmapped_source_columns.items()}
+    assert got == {s: set(c) for s, c in br.SENDER_COLS.items()}
+    assert all(set(v) in [set(p) for p in br.SENDER_COLS.values()] for v in res.canonical["_unmapped_values"])
+
+
+def test_development_is_not_duplication():
+    br, res = _replica_result("stress_450")
+    d = res.duplicates
+    exact = d[d["match_type"] == "exact_duplicate"]
+    assert sorted(exact["claim_ref_a"]) == sorted(br.DUP_REFS)
+    assert not set(d["claim_ref_a"]) & set(br.DEV_REFS)
+    assert sorted(res.developments["claim_ref_a"]) == sorted(br.DEV_REFS)
+
+
+def test_same_period_changed_amounts_is_restatement_not_duplicate():
+    import pandas as pd
+    from bordereaux import dedupe
+    df = pd.DataFrame({"CR0104M": ["A", "A", "A"], "TB_PERIOD": ["2024-03", "2024-03", "2024-03"],
+                       "TB_PAID_TD": [100.0, 100.0, 250.0], "CR0105CM": ["open"] * 3,
+                       "_source_sheet": ["S"] * 3})
+    d, dev = dedupe._reference_repeats(df), None
+    kinds = sorted(r["match_type"] for r in d)
+    assert kinds == ["development", "exact_duplicate"], kinds

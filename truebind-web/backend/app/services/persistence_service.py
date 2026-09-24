@@ -32,7 +32,7 @@ FIELD_TO_COLUMN = {
     "CR0136CM": "date_notified", "CR0035M": "insured_name", "CR0029M": "policy_reference",
     "TB_PAID_TD": "paid_amount", "CR0126CM": "paid_this_month", "CR0128CM": "previously_paid",
     "CR0130CM": "reserve_amount", "CR0127CM": "fees_paid_this_month", "CR0129CM": "fees_previously_paid",
-    "CR0131CM": "fees_reserve", "CR0134CM": "incurred_indemnity", "CR0155CM": "incurred_amount",
+    "CR0131CM": "fees_reserve", "TB_FEES_PAID_TD": "fees_paid_to_date", "CR0134CM": "incurred_indemnity", "CR0155CM": "incurred_amount",
     "CR0110CM": "currency", "TB_PERIOD": "reporting_period",
 }
 assert set(FIELD_TO_COLUMN) == set(FIELDS_BY_CODE), "every canonical field needs a claim_rows column"
@@ -40,11 +40,11 @@ assert set(FIELD_TO_COLUMN) == set(FIELDS_BY_CODE), "every canonical field needs
 RULE_CHECK_TYPE = {
     "missing_mandatory_field": "MANDATORY_FIELD", "arithmetic_mismatch": "ARITHMETIC",
     "date_order": "DATE", "date_in_future": "DATE", "invalid_currency": "CURRENCY",
-    "currency_inconsistency": "CURRENCY", "invalid_status": "STATUS",
+    "currency_inconsistency": "CURRENCY", "invalid_status": "STATUS", "schema_violation": "OTHER",
 }
 RULE_SEVERITY = {
     "missing_mandatory_field": "CRITICAL", "arithmetic_mismatch": "HIGH", "invalid_currency": "HIGH",
-    "currency_inconsistency": "HIGH", "date_order": "MEDIUM", "date_in_future": "MEDIUM", "invalid_status": "MEDIUM",
+    "currency_inconsistency": "HIGH", "date_order": "MEDIUM", "date_in_future": "MEDIUM", "invalid_status": "MEDIUM", "schema_violation": "HIGH",
 }
 _CHUNK = 5000
 
@@ -241,11 +241,13 @@ def persist_pipeline_result(db: Session, report: Report, sheets, result, sheet_i
     ids = [new_uuid() for _ in range(n)]
     cols = {code: canonical[code].tolist() if code in canonical.columns else [None] * n for code in FIELD_TO_COLUMN}
     src_rows = canonical["_source_row"].tolist() if "_source_row" in canonical.columns else [None] * n
+    extras = canonical["_unmapped_values"].tolist() if "_unmapped_values" in canonical.columns else [None] * n
     sheets_col = canonical["_source_sheet"].tolist() if n else []
     rows = []
     for i in range(n):
         r = {"id": ids[i], "tenant_id": tid, "report_id": report.id, "sheet_id": sheet_id_by_name.get(sheets_col[i]),
-             "row_index": int(local_idx[i]), "source_row_number": _clean(src_rows[i]), "extracted_at": utcnow()}
+             "row_index": int(local_idx[i]), "source_row_number": _clean(src_rows[i]), "extracted_at": utcnow(),
+             "unmapped_values": (extras[i] or None) if isinstance(extras[i], dict) else None}
         for code, col in FIELD_TO_COLUMN.items():
             v = _clean(cols[code][i])
             if v is not None and col in ("date_of_loss", "date_notified"):
@@ -303,6 +305,14 @@ def persist_pipeline_result(db: Session, report: Report, sheets, result, sheet_i
     report.score = health.composite_score
     report.arithmetic_not_evaluable = health.arithmetic_not_evaluable
     report.summary = build_summary(result, canonical)
+    # Reverse mapping audit: every source column no canonical field claimed
+    # gets its own entry (mirror of the per-field UNMAPPED mapping rows).
+    for sheet_name, cols in (cov.unmapped_source_columns or {}).items():
+        for col in cols:
+            audit_service.log_action(db, tid, report.id, "SOURCE_COLUMN_UNMAPPED", "MAPPING",
+                                     sheet_id_by_name.get(sheet_name) or report.id,
+                                     after={"sheet": sheet_name, "field_code": None, "source_column": col,
+                                            "mapping_state": "UNMAPPED", "data_retained": True})
     for a in alerts + _report_alerts(health, cov):
         db.add(Alert(tenant_id=tid, report_id=report.id, **a))
 
@@ -357,6 +367,9 @@ def build_summary(result, canonical: pd.DataFrame) -> dict:
     """Everything the report screen shows, computed from the engine's own
     objects. Every number here has one definition (see `definitions`)."""
     cov, health, vres = result.coverage, result.health, result.validation_result
+    devs = getattr(result, "developments", None)
+    if devs is None:
+        devs = pd.DataFrame(columns=["claim_ref_a"])
     rec = cov.reconciliation
     exc = vres.exceptions
     rule_counts = exc["rule"].value_counts().to_dict() if not exc.empty else {}
@@ -405,6 +418,10 @@ def build_summary(result, canonical: pd.DataFrame) -> dict:
         "non_claim_summary_sheets": [{"sheet_name": a.sheet_name, "reason": a.reason} for a in cov.sheet_audit
                                      if a.status == "non_claim_summary"],
         "totals_by_currency": totals,
+        "unmapped_source_columns": [{"sheet_name": s, "columns": cols}
+                                    for s, cols in (cov.unmapped_source_columns or {}).items() if cols],
+        "development_pairs": int(len(devs)),
+        "development_refs": sorted({str(r) for r in devs["claim_ref_a"].dropna()})[:200] if len(devs) else [],
         "reconciliation": {
             "source_worksheets": rec.source_worksheets, "source_data_rows": rec.source_data_rows,
             "mapped_rows": rec.mapped_rows, "unmapped_rows": rec.unmapped_rows, "rejected_rows": rec.rejected_rows,
@@ -420,6 +437,9 @@ def build_summary(result, canonical: pd.DataFrame) -> dict:
             "rows_requiring_review": "Distinct claim rows with any exception, duplicate flag, or on an unmapped sheet.",
             "missing_mandatory_rows": "Distinct rows missing a required field (one row can have several exceptions).",
             "totals_by_currency": "Sums per currency of rows where the value is present; never summed across currencies.",
+            "unmapped_source_columns": "Source columns not bound to any canonical field. Their values are kept on each row.",
+            "development_pairs": "Same claim reference re-reported with a later period or changed amounts/status: "
+                                 "normal claim development, never counted as a duplicate.",
         },
     }
 

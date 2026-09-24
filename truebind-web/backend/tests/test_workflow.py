@@ -273,3 +273,48 @@ def test_every_source_row_and_sheet_is_accounted_for(api):
         assert s["mapping_status"] in explicit, s
         if s["status"] == "SKIPPED":
             assert s["skip_reason"], s
+
+
+# ---------------------------------------------------------------- user regression replicas (2026-09-24)
+
+def _replica(name):
+    sys.path.insert(0, str(BORDEREAUX_ROOT / "tests" / "regression_fixtures"))
+    import build_replicas
+    return build_replicas, getattr(build_replicas, name)()
+
+
+def test_void_status_completes_not_failed(api):
+    _, path = _replica("realworld_a")
+    rid, report = api.full_run(path.name, path.read_bytes())
+    assert report["status"] == "COMPLETE" and report["grade"] == "5"
+    exc = api.get(f"/api/v1/reports/{rid}/exceptions", params={"check_type": "STATUS"}).json()
+    assert exc["total"] == 0, "Void is an accepted status (domain_config.CLAIM_STATUSES)"
+
+
+def test_paid_expenses_included_in_total_incurred(api):
+    _, path = _replica("test1_basic")
+    rid, report = api.full_run(path.name, path.read_bytes())
+    s = api.get(f"/api/v1/reports/{rid}/summary").json()["summary"]
+    assert s["arithmetic_mismatches"] == 0 and s["arithmetic_matches"] == 12
+    assert s["composite_score"] == 100
+    claims = api.get(f"/api/v1/reports/{rid}/claims").json()["items"]
+    assert all(c["fees_paid_to_date"] is not None for c in claims)
+
+
+def test_stress_unmapped_columns_and_period_aware_duplicates(api):
+    br, path = _replica("stress_450")
+    rid, report = api.full_run(path.name, path.read_bytes())
+    s = api.get(f"/api/v1/reports/{rid}/summary").json()["summary"]
+    unmapped = sorted(c for e in s["unmapped_source_columns"] for c in e["columns"])
+    assert unmapped == sorted(c for pair in br.SENDER_COLS.values() for c in pair)
+    audit = api.get(f"/api/v1/reports/{rid}/audit", params={"action_type": "SOURCE_COLUMN_UNMAPPED"}).json()
+    assert audit["total"] == 6 and audit["items"][0]["after_value"]["field_code"] is None
+    claims = api.get(f"/api/v1/reports/{rid}/claims", params={"limit": 1000}).json()["items"]
+    pairs = [set(p) for p in br.SENDER_COLS.values()]
+    assert all(set(c["unmapped_values"] or {}) in pairs for c in claims), "unclaimed data retained on every row"
+    dups = api.get(f"/api/v1/reports/{rid}/duplicates", params={"limit": 1000}).json()["items"]
+    exact = [d for d in dups if d["match_type"] == "exact_duplicate"]
+    dup_refs = {d["row_a"]["claim_reference"] for d in dups}
+    assert len(exact) == 6 and dup_refs == set(br.DUP_REFS)
+    assert not dup_refs & set(br.DEV_REFS), "development pairs are never duplicates"
+    assert s["development_pairs"] == 6 and set(s["development_refs"]) == set(br.DEV_REFS)

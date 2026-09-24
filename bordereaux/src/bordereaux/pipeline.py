@@ -17,6 +17,8 @@ import pandas as pd
 from . import dedupe, export, ingest, report, validation
 from .ingest import SheetData
 from .mapping import AIMapper, MappingBatchResult, MappingSuggestion, build_mapping, derive_field_state
+import pandera.errors as pa_errors
+
 from .pandera_schema import CANONICAL_SCHEMA
 from .schema import FIELDS, SOURCE_SHEET_CODE
 
@@ -30,6 +32,36 @@ class ProcessResult:
     suggestions: list[MappingSuggestion]
 
 
+def validate_schema_lazily(canonical: pd.DataFrame) -> list[tuple[int, str, str]]:
+    """Pandera in LAZY mode: every failing cell is collected instead of the
+    first one raising and aborting the whole workbook. Returns
+    (row_index, rule, detail) findings for exactly the failing rows; every
+    other row carries on through validation untouched. A failure without a
+    row index (a whole-column problem) is attached to no row but still
+    reported, via the first row, so it can never vanish."""
+    try:
+        CANONICAL_SCHEMA.validate(canonical, lazy=True)
+        return []
+    except pa_errors.SchemaErrors as exc:
+        out = []
+        seen: set = set()  # one finding per failing cell (pandera may report coercion + dtype for one cell)
+        fc = exc.failure_cases
+        for _, f in fc.iterrows():
+            idx = f.get("index")
+            col, check, case = f.get("column"), f.get("check"), f.get("failure_case")
+            cell = (None if idx is None or pd.isna(idx) else int(idx), col)
+            if cell in seen:
+                continue
+            seen.add(cell)
+            detail = f"{col}: value {case!r} failed schema check {check}"
+            if idx is None or pd.isna(idx):
+                if len(canonical):
+                    out.append((int(canonical.index[0]), "schema_violation", detail + " (whole column)"))
+            else:
+                out.append((int(idx), "schema_violation", detail))
+        return out
+
+
 def propose_mapping(raw: pd.DataFrame, ai_mapper: AIMapper | None = None) -> MappingBatchResult:
     return build_mapping(list(raw.columns), ai_mapper=ai_mapper)
 
@@ -37,9 +69,9 @@ def propose_mapping(raw: pd.DataFrame, ai_mapper: AIMapper | None = None) -> Map
 def run_pipeline(raw: pd.DataFrame, confirmed_mapping: dict[str, str],
                   source_name: str = "") -> ProcessResult:
     canonical = ingest.apply_mapping(raw, confirmed_mapping, sheet_name=source_name)
-    CANONICAL_SCHEMA.validate(canonical)
+    schema_failures = validate_schema_lazily(canonical)
 
-    validation_result = validation.validate(canonical)
+    validation_result = validation.add_row_findings(validation.validate(canonical), schema_failures)
     duplicates = dedupe.find_duplicates(canonical)
     health = report.build_health_report(canonical, validation_result, duplicates, source_name=source_name)
 
@@ -75,6 +107,8 @@ class WorkbookProcessResult:
     health: "report.HealthReport"
     coverage: "report.WorkbookCoverage"
     stage_timings: dict[str, float] = field(default_factory=dict)  # seconds, wall clock, per stage
+    # Same claim re-reported with a later period / moved amounts (never a duplicate).
+    developments: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=dedupe.DUPLICATE_COLUMNS))
 
 
 def load_workbook(path: str | Path, source_stem: str | None = None,
@@ -190,6 +224,7 @@ def run_workbook_pipeline(
     non_claim_summary_sheet_names: set[str] = set()
     sheet_transforms: dict[str, list[dict]] = {}
     sheet_notes: dict[str, list[str]] = {s.sheet_name: list(s.notes) for s in sheets}
+    unmapped_source_columns: dict[str, list[str]] = {}
     for s in sheets:
         if s.skipped:
             continue
@@ -212,6 +247,19 @@ def run_workbook_pipeline(
             continue
 
         part = ingest.apply_mapping(s.raw, confirmed, sheet_name=s.sheet_name)
+        # Reverse pass: source columns no canonical field claimed. Named in
+        # coverage and kept per row -- never silently dropped.
+        mapped_cols = {c for c, code in confirmed.items() if code}
+        unclaimed = [c for c in s.raw.columns if c not in mapped_cols and not str(c).startswith("__blank_col_")]
+        unmapped_source_columns[s.sheet_name] = [str(c) for c in unclaimed]
+        if unclaimed:
+            raw_vals = s.raw[unclaimed].astype("object").where(s.raw[unclaimed].notna(), None)
+            part["_unmapped_values"] = [
+                {str(k): (v if isinstance(v, (str, int, float, bool)) or v is None else str(v))
+                 for k, v in row.items() if v is not None and str(v).strip() != ""}
+                for row in raw_vals.to_dict("records")]
+        else:
+            part["_unmapped_values"] = [{} for _ in range(len(part))]
         # Lineage: the 1-based source row of every canonical row.
         part["_source_row"] = pd.array(
             s.source_row_numbers if len(s.source_row_numbers) == len(part) else [pd.NA] * len(part),
@@ -224,13 +272,15 @@ def run_workbook_pipeline(
         canonical = pd.concat(canonical_parts, ignore_index=True)
     else:
         canonical = pd.DataFrame(columns=[f.code for f in FIELDS] + [SOURCE_SHEET_CODE, "_mixed_currency"])
-    CANONICAL_SCHEMA.validate(canonical)
+    schema_failures = validate_schema_lazily(canonical)
     stage_timings["mapping"], _t = perf_counter() - _t, perf_counter()
 
     validation_result = validation.validate(canonical, sheet_field_state=sheet_field_state)
+    validation_result = validation.add_row_findings(validation_result, schema_failures)
     stage_timings["validation"], _t = perf_counter() - _t, perf_counter()
 
     duplicates = dedupe.find_duplicates(canonical)
+    developments = dedupe.find_developments(canonical)
     stage_timings["dedupe"], _t = perf_counter() - _t, perf_counter()
 
     skipped_sheets = [(s.sheet_name, s.skip_reason or "skipped") for s in sheets if s.skipped]
@@ -257,6 +307,7 @@ def run_workbook_pipeline(
         sheet_audit=sheet_audit,
         sheet_transforms=sheet_transforms,
         sheet_notes=sheet_notes,
+        unmapped_source_columns=unmapped_source_columns,
     )
     coverage.reconciliation = _build_reconciliation(sheets, sheet_audit, canonical, duplicates, validation_result)
 
@@ -272,6 +323,7 @@ def run_workbook_pipeline(
         health=health,
         coverage=coverage,
         stage_timings=stage_timings,
+        developments=developments,
     )
 
 

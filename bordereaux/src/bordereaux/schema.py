@@ -10,6 +10,8 @@ being hardcoded separately in the report or validation layers.
 
 from __future__ import annotations
 
+from .domain_config import CLAIM_STATUSES
+
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -57,7 +59,7 @@ FIELDS: list[FieldSpec] = [
         dtype="enum",
         requirement="optional",
         notes="Drives the segregate-by-status view. Validated when present, not mandatory.",
-        enum_values=("open", "closed", "reopened", "other"),
+        enum_values=CLAIM_STATUSES,  # domain_config.py (env-overridable)
         aliases=(
             "claim status", "status", "claimstatus", "case status",
             "case state", "state", "claim state", "current status",
@@ -192,6 +194,24 @@ FIELDS: list[FieldSpec] = [
         notes="v5.2 CR0131.",
         aliases=("reserve fees", "fees reserve", "fee reserve", "expense reserve"),
     ),
+    # Most senders report expenses/ALAE as ONE cumulative "Paid Expenses"
+    # column rather than v5.2's this-month (CR0127) + previously-paid (CR0129)
+    # split. Without this field that column had no canonical home, the
+    # total-incurred check ran as nil-fee, and every clean row "mismatched"
+    # by exactly its expenses (user regression Truebind_Test1_Basic: 12/12).
+    # Deliberately NOT coded CR0128: in v5.2 CR0128 is previously-paid
+    # INDEMNITY (already defined above).
+    FieldSpec(
+        code="TB_FEES_PAID_TD",
+        name="Fees / expenses (ALAE) paid to date",
+        dtype="decimal",
+        requirement="optional",
+        notes="NOT a v5.2 field: cumulative paid fees/expenses. Equivalent to v5.2 CR0127 + CR0129. "
+              "Included in the total-incurred (CR0155) check.",
+        aliases=("paid expenses", "expenses paid", "alae", "alae paid", "paid alae", "paid fees", "fees paid",
+                 "fees paid to date", "expenses paid to date", "paid expenses to date", "paid costs",
+                 "costs paid", "expenses", "fees and expenses paid", "paid fees and expenses"),
+    ),
     FieldSpec(
         code="CR0134CM",
         name="Total incurred - indemnity",
@@ -221,7 +241,9 @@ FIELDS: list[FieldSpec] = [
         notes="NOT a v5.2 field: the bordereau period (e.g. 2024-03) a row belongs to. Distinct from "
               "date of loss / notification. Never inferred when absent.",
         aliases=("reporting period", "bordereau period", "bordereau month", "report period",
-                 "reporting month", "period"),
+                 "reporting month", "period", "period end", "period ending", "period end date",
+                 "as at", "as at date", "as of", "as of date", "statement date", "reporting date",
+                 "bordereau date", "valuation date"),
     ),
     FieldSpec(
         code="CR0110CM",
@@ -253,6 +275,8 @@ FEES_PAID_MONTH_CODE = "CR0127CM"
 FEES_PREV_PAID_CODE = "CR0129CM"
 FEES_RESERVE_CODE = "CR0131CM"
 FEE_CODES = (FEES_PAID_MONTH_CODE, FEES_PREV_PAID_CODE, FEES_RESERVE_CODE)
+FEES_PAID_TD_CODE = "TB_FEES_PAID_TD"
+ALL_FEE_CODES = (FEES_PAID_TD_CODE, *FEE_CODES)
 INCURRED_IND_CODE = "CR0134CM"
 INCURRED_CODE = "CR0155CM"
 PERIOD_CODE = "TB_PERIOD"

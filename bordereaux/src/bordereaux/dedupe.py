@@ -126,24 +126,52 @@ def row_periods(df: pd.DataFrame) -> pd.Series:
 
 
 def find_duplicates(df: pd.DataFrame) -> pd.DataFrame:
-    records: list[dict] = []
-    records.extend(_exact_duplicates(df))
+    """True duplicates only (exact resubmissions, period-unknown repeats for
+    review, probable near-duplicates). Claim DEVELOPMENT -- the same claim
+    reported again with a later period or moved amounts -- is never a
+    duplicate; see find_developments()."""
+    records: list[dict] = [r for r in _reference_repeats(df) if r["match_type"] != "development"]
     records.extend(_probable_duplicates(df))
     return pd.DataFrame(records, columns=DUPLICATE_COLUMNS)
 
 
-def _exact_duplicates(df: pd.DataFrame) -> list[dict]:
-    """Same claim reference reported more than once *for the same reporting
-    period*. Forensic F1: a claim appearing on 12 monthly tabs is 12
-    period movements, not 66 duplicate pairs -- the old check graded a
-    correct multi-period workbook 2/5 with a 100% duplicate rate.
+def find_developments(df: pd.DataFrame) -> pd.DataFrame:
+    """Same claim reference reported again with a different reporting period
+    or different amounts/status: normal development of a live claim,
+    reported for information, never flagged as a defect."""
+    return pd.DataFrame([r for r in _reference_repeats(df) if r["match_type"] == "development"],
+                        columns=DUPLICATE_COLUMNS)
 
-    - same ref, same known period            -> exact_duplicate
-    - same ref, different known periods      -> not a duplicate (movement)
-    - same ref, period unknown, same sheet   -> exact_duplicate
-    - same ref, period unknown, other sheets -> repeat_period_unknown (review:
-      could be a duplicate or a later period -- we do not guess)
-    Each cluster is linked to its first occurrence (k-1 links, not k^2 pairs)."""
+
+def _value_signature(df: pd.DataFrame) -> pd.Series:
+    """What must be identical for a repeat to be a resubmission: every
+    monetary field plus status (amounts rounded to the cent)."""
+    codes = [c for c in (*schema.MONETARY_CODES, schema.STATUS_CODE) if c in df.columns]
+    parts = []
+    for c in codes:
+        col = df[c]
+        if c in schema.MONETARY_CODES:
+            col = pd.to_numeric(col, errors="coerce").round(2)
+        parts.append(col.astype("object").where(col.notna(), None))
+    if not parts:
+        return pd.Series([()] * len(df), index=df.index, dtype="object")
+    return pd.Series(list(zip(*[p.tolist() for p in parts])), index=df.index, dtype="object")
+
+
+def _reference_repeats(df: pd.DataFrame) -> list[dict]:
+    """Classify every repeat of a claim reference (forensic F1 + user
+    regression StressTest_450: development pairs were reported as duplicates).
+
+    Key = (claim reference, reporting period) where the period is the mapped
+    period column, else a period in the sheet name, else unknown.
+    - same ref, same known period, identical values  -> exact_duplicate
+    - same ref, same known period, different values  -> development (restated)
+    - same ref, different known periods               -> development
+    - period unknown, same sheet, identical values    -> exact_duplicate
+    - period unknown, same sheet, different values    -> development (restated)
+    - period unknown, different sheets, identical     -> repeat_period_unknown (review)
+    - period unknown, different sheets, different     -> development
+    Each cluster links to its first occurrence (k-1 links, not k^2 pairs)."""
     ref = df[schema.CLAIM_REF_CODE]
     has_ref = ref.notna()
     if not has_ref.any():
@@ -152,42 +180,59 @@ def _exact_duplicates(df: pd.DataFrame) -> list[dict]:
     dup_refs = set(counts[counts > 1].index)
     if not dup_refs:
         return []
+    sub = df.index[has_ref & ref.isin(dup_refs)]
     periods = row_periods(df)
     sheets = df[schema.SOURCE_SHEET_CODE] if schema.SOURCE_SHEET_CODE in df.columns else pd.Series(None, index=df.index)
-    sub = df.index[has_ref & ref.isin(dup_refs)]
-    records = []
-    groups: dict[tuple, list] = {}
-    for i in sub:
-        p = periods.at[i]
-        key = (ref.at[i], ("P", p) if p is not None else ("S", sheets.at[i]))
-        groups.setdefault(key, []).append(i)
-    for (r, (kind, k)), idxs in groups.items():
-        if len(idxs) < 2:
-            continue
-        first = idxs[0]
-        basis = f"reporting period {k}" if kind == "P" else f"sheet {k!r} (no reporting period present)"
-        for b in idxs[1:]:
-            records.append({"match_type": "exact_duplicate", "row_index_a": first, "row_index_b": b,
-                            "claim_ref_a": r, "claim_ref_b": r,
-                            "detail": f"claim reference {r!r} appears {len(idxs)} times in the same {basis}"})
-    # Unknown-period repeats across different sheets: review, not certain.
-    unknown = [i for i in sub if periods.at[i] is None]
+    sig = _value_signature(df.loc[sub])
+    records: list[dict] = []
+
+    def link(kind, a, b, r, detail):
+        records.append({"match_type": kind, "row_index_a": a, "row_index_b": b, "claim_ref_a": r, "claim_ref_b": r,
+                        "detail": detail})
+
     by_ref: dict = {}
-    for i in unknown:
+    for i in sub:
         by_ref.setdefault(ref.at[i], []).append(i)
     for r, idxs in by_ref.items():
-        sheet_first: dict = {}
+        # 1) within one period (or one sheet when the period is unknown)
+        slots: dict = {}
         for i in idxs:
-            sheet_first.setdefault(sheets.at[i], i)
-        firsts = list(sheet_first.values())
-        if len(firsts) < 2:
-            continue
-        for b in firsts[1:]:
-            records.append({"match_type": "repeat_period_unknown", "row_index_a": firsts[0], "row_index_b": b,
-                            "claim_ref_a": r, "claim_ref_b": r,
-                            "detail": f"claim reference {r!r} appears on sheets {sheets.at[firsts[0]]!r} and "
-                                      f"{sheets.at[b]!r} and no reporting period is present: either a duplicate "
-                                      "or a later period's movement -- confirm"})
+            p = periods.at[i]
+            slots.setdefault(("P", p) if p is not None else ("S", sheets.at[i]), []).append(i)
+        slot_heads = []
+        for (kind, k), members in slots.items():
+            basis = f"reporting period {k}" if kind == "P" else f"sheet {k!r} (no reporting period present)"
+            by_sig: dict = {}
+            for i in members:
+                by_sig.setdefault(sig.at[i], []).append(i)
+            heads = []
+            for same in by_sig.values():
+                heads.append(same[0])
+                for b in same[1:]:
+                    link("exact_duplicate", same[0], b, r,
+                         f"claim reference {r!r} is repeated with identical amounts and status in the same {basis}")
+            for b in heads[1:]:
+                link("development", heads[0], b, r,
+                     f"claim reference {r!r} appears twice in the same {basis} with different amounts or status "
+                     "(a restatement or correction) -- not treated as a duplicate")
+            slot_heads.append(((kind, k), members[0]))
+        # 2) across periods / sheets
+        known = [(k, i) for (kind, k), i in slot_heads if kind == "P"]
+        for (k, b) in known[1:]:
+            link("development", known[0][1], b, r,
+                 f"claim reference {r!r} reported for period {known[0][0]} and again for period {k}: "
+                 "claim development, not a duplicate")
+        unknown = [i for (kind, _), i in slot_heads if kind == "S"]
+        for b in unknown[1:]:
+            a = unknown[0]
+            if sig.at[a] == sig.at[b]:
+                link("repeat_period_unknown", a, b, r,
+                     f"claim reference {r!r} appears on sheets {sheets.at[a]!r} and {sheets.at[b]!r} with identical "
+                     "amounts and no reporting period: either a duplicate or an unchanged later period -- confirm")
+            else:
+                link("development", a, b, r,
+                     f"claim reference {r!r} appears on sheets {sheets.at[a]!r} and {sheets.at[b]!r} with different "
+                     "amounts: claim development, not a duplicate")
     return records
 
 

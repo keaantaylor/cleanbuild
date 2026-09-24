@@ -199,6 +199,8 @@ class ClaimRowOut(BaseModel):
     paid_amount: float | None
     reserve_amount: float | None
     incurred_amount: float | None
+    fees_paid_to_date: float | None = None
+    unmapped_values: dict | None = None
 
 
 class DuplicatePairOut(BaseModel):

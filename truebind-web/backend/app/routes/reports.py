@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import os
 import tempfile
 from datetime import timedelta
@@ -208,7 +209,7 @@ _CLAIM_EXPORT_COLS = [
     ("paid_this_month", ClaimRow.paid_this_month), ("previously_paid", ClaimRow.previously_paid),
     ("paid_to_date", ClaimRow.paid_amount), ("reserve", ClaimRow.reserve_amount),
     ("fees_paid_this_month", ClaimRow.fees_paid_this_month), ("fees_previously_paid", ClaimRow.fees_previously_paid),
-    ("fees_reserve", ClaimRow.fees_reserve), ("total_incurred_indemnity", ClaimRow.incurred_indemnity),
+    ("fees_reserve", ClaimRow.fees_reserve), ("fees_paid_to_date", ClaimRow.fees_paid_to_date), ("total_incurred_indemnity", ClaimRow.incurred_indemnity),
     ("total_incurred_incl_fees", ClaimRow.incurred_amount),
 ]
 
@@ -223,13 +224,16 @@ def export_claims(report_id: str, ctx: Context = Depends(get_context), db: Sessi
     for crid, rule, status in (db.query(ValidationResult.claim_row_id, ValidationResult.rule, ValidationResult.status)
                                .filter(ValidationResult.report_id == report.id)):
         findings.setdefault(crid, []).append(f"{rule}:{status}")
-    stmt = (select(ClaimRow.id, ClaimRow.sheet_id, ClaimRow.source_row_number, *[c for _, c in _CLAIM_EXPORT_COLS])
+    stmt = (select(ClaimRow.id, ClaimRow.sheet_id, ClaimRow.source_row_number, *[c for _, c in _CLAIM_EXPORT_COLS],
+                   ClaimRow.unmapped_values)
             .where(ClaimRow.report_id == report.id).order_by(ClaimRow.sheet_id, ClaimRow.row_index))
-    header = ["sheet_name", "source_row_number"] + [n for n, _ in _CLAIM_EXPORT_COLS] + ["findings"]
+    header = (["sheet_name", "source_row_number"] + [n for n, _ in _CLAIM_EXPORT_COLS]
+              + ["unmapped_source_values", "findings"])
 
     def rows():
         for r in _stream_query(ctx.tenant_id, stmt):
-            yield [sheet_names.get(r[1]), r[2], *r[3:], "; ".join(findings.get(r[0], []))]
+            extra = json.dumps(r[-1], ensure_ascii=False, sort_keys=True) if r[-1] else ""
+            yield [sheet_names.get(r[1]), r[2], *r[3:-1], extra, "; ".join(findings.get(r[0], []))]
     return _export(db, ctx, report, "claims", header, rows())
 
 

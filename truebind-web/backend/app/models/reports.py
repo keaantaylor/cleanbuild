@@ -158,6 +158,10 @@ class ClaimRow(Base):
     fees_paid_this_month: Mapped[float | None] = mapped_column(Float, nullable=True)
     fees_previously_paid: Mapped[float | None] = mapped_column(Float, nullable=True)
     fees_reserve: Mapped[float | None] = mapped_column(Float, nullable=True)
+    fees_paid_to_date: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Values of source columns the confirmed mapping bound to no canonical
+    # field, kept verbatim with the row (never silently discarded).
+    unmapped_values: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     incurred_indemnity: Mapped[float | None] = mapped_column(Float, nullable=True)
     incurred_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
     currency: Mapped[str | None] = mapped_column(String(64), nullable=True)

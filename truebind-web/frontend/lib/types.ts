@@ -204,6 +204,9 @@ export interface ReportSummary {
   missing_mandatory_by_sheet?: Record<string, number>;
   totals_by_currency?: { currency: string; rows: number; paid_to_date: number; reserve: number; incurred: number }[];
   score_reliable?: boolean;
+  unmapped_source_columns?: { sheet_name: string; columns: string[] }[];
+  development_pairs?: number;
+  development_refs?: string[];
   arithmetic_matches?: number;
   period_unknown_repeats?: number;
   definitions?: Record<string, string>;

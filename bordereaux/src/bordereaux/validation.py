@@ -5,6 +5,8 @@ two)."""
 
 from __future__ import annotations
 
+import dataclasses
+
 import datetime as dt
 from dataclasses import dataclass
 
@@ -39,6 +41,16 @@ class ValidationResult:
     # find which 10 rows or why, which is exactly the trust gap this exists
     # to close.
     not_evaluable_detail: pd.DataFrame
+
+
+def add_row_findings(result: "ValidationResult", findings: list[tuple[int, str, str]]) -> "ValidationResult":
+    """Append extra row-level findings (e.g. lazy schema failures) to a
+    ValidationResult without touching its arithmetic counts."""
+    if not findings:
+        return result
+    extra = pd.DataFrame([{"row_index": i, "claim_ref": None, "rule": r, "detail": d} for i, r, d in findings])
+    exc = pd.concat([result.exceptions, extra], ignore_index=True) if not result.exceptions.empty else extra
+    return dataclasses.replace(result, exceptions=exc)
 
 
 def validate(df: pd.DataFrame, sheet_field_state: SheetFieldState | None = None) -> ValidationResult:
@@ -122,7 +134,7 @@ _SHORT = {
     schema.PAID_TD_CODE: "paid", schema.PAID_MONTH_CODE: "paid_this_month", schema.PREV_PAID_CODE: "previously_paid",
     schema.RESERVE_CODE: "reserve", schema.INCURRED_CODE: "incurred", schema.INCURRED_IND_CODE: "incurred_indemnity",
     schema.FEES_PAID_MONTH_CODE: "fees_paid_this_month", schema.FEES_PREV_PAID_CODE: "fees_previously_paid",
-    schema.FEES_RESERVE_CODE: "fees_reserve",
+    schema.FEES_RESERVE_CODE: "fees_reserve", schema.FEES_PAID_TD_CODE: "fees_paid_to_date",
 }
 
 
@@ -139,8 +151,9 @@ def _check_arithmetic(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState
                                 cumulative -- that would silently omit previously-paid amounts).
     indemnity incurred check  : CR0134 == paid_to_date + CR0130                     (if CR0134 mapped)
     total incurred check      : CR0155 == paid_to_date + CR0130 + fees              (if CR0155 mapped)
-        fees := CR0127 + CR0129 + CR0131 when all three are mapped;
-                NOT_EVALUABLE if only some fee columns are mapped;
+        fees := fees paid to date + CR0131 (fee reserve, nil if not reported), where
+                fees paid to date := TB_FEES_PAID_TD if mapped, else CR0127 + CR0129 if both mapped;
+                NOT_EVALUABLE if only one of CR0127/CR0129 is mapped (and no paid-to-date column);
                 when no fee column exists the check runs indemnity-only and every result says so
                 (v5.2 CR0155 includes fees; a file that reports none can only be checked as nil-fee).
     Within a row, a mapped-but-blank component counts as nil-reported (0), as before; an
@@ -171,11 +184,13 @@ def _check_arithmetic(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState
     paid_mapped = use_td | use_components
     reserve = val[S.RESERVE_CODE]
 
-    fee_codes = S.FEE_CODES
-    fees_all = m[fee_codes[0]] & m[fee_codes[1]] & m[fee_codes[2]]
-    fees_any = m[fee_codes[0]] | m[fee_codes[1]] | m[fee_codes[2]]
-    fees_partial = fees_any & ~fees_all
-    fee_sum = sum(val[c].fillna(0) for c in fee_codes)
+    use_fee_td = m[S.FEES_PAID_TD_CODE]
+    use_fee_comp = ~use_fee_td & m[S.FEES_PAID_MONTH_CODE] & m[S.FEES_PREV_PAID_CODE]
+    fees_partial = ~use_fee_td & (m[S.FEES_PAID_MONTH_CODE] ^ m[S.FEES_PREV_PAID_CODE])
+    fees_all = use_fee_td | use_fee_comp | m[S.FEES_RESERVE_CODE]  # some fee basis reported
+    fee_paid = (val[S.FEES_PAID_TD_CODE].fillna(0).where(use_fee_td, 0)
+                + (val[S.FEES_PAID_MONTH_CODE].fillna(0) + val[S.FEES_PREV_PAID_CODE].fillna(0)).where(use_fee_comp, 0))
+    fee_sum = fee_paid + val[S.FEES_RESERVE_CODE].fillna(0).where(m[S.FEES_RESERVE_CODE], 0)
 
     paid_components_used = (*S.PAID_COMPONENT_CODES, S.RESERVE_CODE)
     any_unparseable = pd.Series(False, index=idx)
@@ -212,7 +227,7 @@ def _check_arithmetic(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState
             d.loc[new] = text
             return ne | mask
 
-        for uc in (code, *S.PAID_COMPONENT_CODES, S.RESERVE_CODE, *(S.FEE_CODES if includes_fees else ())):
+        for uc in (code, *S.PAID_COMPONENT_CODES, S.RESERVE_CODE, *(S.ALL_FEE_CODES if includes_fees else ())):
             ne = mark(unp[uc], f"{_SHORT[uc]}_unparseable",
                       f"{S.FIELDS_BY_CODE[uc].name} contains a value that could not be parsed as a number")
         ne = mark(any_unparseable, "amount_unparseable", "An amount cell could not be parsed as a number")
@@ -225,8 +240,9 @@ def _check_arithmetic(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState
                   "Neither a paid figure nor the indemnity reserve was mapped on this sheet")
         if includes_fees:
             ne = mark(fees_partial, "fees_partially_mapped",
-                      "Some but not all fee columns (CR0127/CR0129/CR0131) are mapped; total incurred "
-                      "includes fees, so it cannot be reconciled")
+                      "Only one of fees paid this month (CR0127) / previously paid (CR0129) is mapped and "
+                      "there is no fees-paid-to-date column; total incurred includes fees, so it cannot "
+                      "be reconciled")
         ne = mark(tgt.isna(), f"{_SHORT[code]}_blank", f"{label} is blank on this row")
         ne = mark(~has_inputs, "paid_and_reserve_blank", "Paid and reserve are both blank on this row")
         ne = ne & rows_for_target

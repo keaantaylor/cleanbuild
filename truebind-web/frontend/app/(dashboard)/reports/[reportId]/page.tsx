@@ -312,6 +312,32 @@ export default function ReportDetailPage({ params }: { params: Promise<{ reportI
           <ExcludedRowsPanel rows={excludedRows} />
         </section>
       )}
+
+      {(summary.unmapped_source_columns ?? []).length > 0 && (
+        <section className={styles.section}>
+          <h2>Unmapped source columns</h2>
+          <p className={styles.sectionIntro}>
+            These columns in the file were not matched to any canonical field, so they are not
+            validated. Their values are kept on every row and included in the claims export.
+          </p>
+          <ul>
+            {(summary.unmapped_source_columns ?? []).map((u) => (
+              <li key={u.sheet_name}><strong>{u.sheet_name}:</strong> {u.columns.join(", ")}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {(summary.development_pairs ?? 0) > 0 && (
+        <section className={styles.section}>
+          <h2>Claim development (not duplicates)</h2>
+          <p className={styles.sectionIntro}>
+            {summary.development_pairs} claim reference(s) were reported again with a later period or
+            changed amounts. That is normal claim development and is not counted as duplication.
+          </p>
+          <p className={styles.sectionIntro}>{(summary.development_refs ?? []).slice(0, 50).join(", ")}</p>
+        </section>
+      )}
     </div>
   );
 }

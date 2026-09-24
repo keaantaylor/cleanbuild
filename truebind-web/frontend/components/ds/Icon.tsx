@@ -32,6 +32,19 @@ const PATHS: Record<string, string> = {
   arrowRight: "M5 12h14M13 6l6 6-6 6",
   link: "M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1",
   user: "M12 4a4 4 0 100 8 4 4 0 000-8zM4 20a8 8 0 0116 0",
+  command: "M9 6a3 3 0 10-3 3h12a3 3 0 10-3-3v12a3 3 0 103-3H6a3 3 0 103 3z",
+  filter: "M4 5h16l-6 8v6l-4 2v-8z",
+  calendar: "M4 6h16v14H4zM4 10h16M8 3v5M16 3v5",
+  database: "M12 3c4.4 0 8 1.3 8 3s-3.6 3-8 3-8-1.3-8-3 3.6-3 8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3",
+  lineage: "M6 3v6a3 3 0 003 3h6a3 3 0 013 3v6M6 3a2 2 0 100 .01M18 21a2 2 0 100-.01M6 9v12",
+  send: "M4 12l16-8-6 16-2-7zM12 13l8-9",
+  table: "M4 5h16v14H4zM4 10h16M4 15h16M10 5v14",
+  pound: "M16 6.5A4 4 0 009 8v4H7M7 12h7M9 12v2a4 4 0 01-2 3.5V19h11",
+  eye: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 100 6 3 3 0 000-6z",
+  arrowUpRight: "M7 17L17 7M9 7h8v8",
+  shield: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z",
+  merge: "M6 3v6a6 6 0 006 6h6M15 12l3 3-3 3M6 21v-6",
+  play: "M7 4l13 8-13 8z",
 };
 
 export type IconName = keyof typeof PATHS;

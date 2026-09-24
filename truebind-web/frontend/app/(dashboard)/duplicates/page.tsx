@@ -8,7 +8,7 @@ import { findingGuide } from "@/lib/findings";
 import { formatDate, formatMoney, formatNumber } from "@/lib/formatters";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Tabs } from "@/components/ui/Tabs";
-import { EmptyState, ErrorState, Panel, PageHeader, Pill, SkeletonRows, StatTile, ds } from "@/components/ds";
+import { EmptyState, ErrorState, MetricCard, Panel, PageHeader, Pill, SkeletonRows, ds } from "@/components/ds";
 import { PageSkeleton } from "@/components/layout/ShellSkeleton";
 import { ReportSelect, useSelectedReport } from "@/components/ops/ReportSelect";
 import styles from "./duplicates.module.css";
@@ -43,8 +43,8 @@ function Compare({ pair, onReview }: { pair: DuplicatePair; onReview: (s: string
       <div className={styles.tableWrap}>
         <table className={styles.table}>
           <thead><tr><th scope="col">Field</th>
-            <th scope="col">Row A <span className={styles.src}>{String(pair.row_a.sheet_name ?? "")} · row {String(pair.row_a.source_row_number ?? "—")}</span></th>
-            <th scope="col">Row B <span className={styles.src}>{String(pair.row_b.sheet_name ?? "")} · row {String(pair.row_b.source_row_number ?? "—")}</span></th>
+            <th scope="col"><span className={styles.side}>A</span> <span className={styles.src}>{String(pair.row_a.sheet_name ?? "")} · row {String(pair.row_a.source_row_number ?? "—")}</span></th>
+            <th scope="col"><span className={styles.side}>B</span> <span className={styles.src}>{String(pair.row_b.sheet_name ?? "")} · row {String(pair.row_b.source_row_number ?? "—")}</span></th>
             <th scope="col">Match</th></tr></thead>
           <tbody>
             {FIELDS.map((f) => {
@@ -114,13 +114,16 @@ export default function DuplicatesPage() {
   const [err, setErr] = useState<string | null>(null);
 
   if (rl) return <PageSkeleton label="Loading duplicates" />;
-  if (!reportId) return (<><PageHeader eyebrow="Analyse" title="Duplicate intelligence" />
+  if (!reportId) return (<><PageHeader eyebrow="Investigate" title="Duplicate intelligence" />
     <Panel><EmptyState icon="duplicates" title="No completed reports yet" action={<ButtonLink href="/upload" variant="primary">Upload a bordereau</ButtonLink>} /></Panel></>);
 
   const all = pairs.data ?? [];
   const by = (t: string) => all.filter((p) => p.match_type === t);
+  const open = (t: string) => by(t).filter((p) => !p.review_status);
+  const reviewed = all.filter((p) => p.review_status === "confirmed_duplicate" || p.review_status === "flagged_for_sender");
+  const dismissed = all.filter((p) => p.review_status === "not_duplicate");
   const s = summary.data;
-  const current = by(tab);
+  const current = tab === "reviewed" ? reviewed : tab === "dismissed" ? dismissed : open(tab);
   const pair = current[Math.min(idx, Math.max(current.length - 1, 0))];
 
   async function review(status: string) {
@@ -129,7 +132,8 @@ export default function DuplicatesPage() {
       await api.reviewDuplicate(reportId, pair.validation_result_id, status);
       setErr(null);
       pairs.reload();
-      if (idx < current.length - 1) setIdx(idx + 1);
+      // A decided pair leaves this queue, so the same index is the next pair.
+      if (tab === "reviewed" || tab === "dismissed") setIdx(Math.min(idx + 1, current.length - 1));
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : "Could not record the decision.");
     }
@@ -137,26 +141,32 @@ export default function DuplicatesPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Analyse" title="Duplicate intelligence"
+      <PageHeader eyebrow="Investigate" title="Duplicate intelligence"
         description="Exact resubmissions, probable duplicates and repeats TrueBind cannot classify — kept separate from normal claim development. Nothing is ever merged or removed automatically."
         actions={<ReportSelect reportId={reportId} reports={reports} onSelect={(id) => { select(id); setIdx(0); }} />} />
       <div className={ds.stack}>
         <div className={`${ds.grid} ${ds.cols4}`}>
-          <StatTile label="Exact resubmissions" value={formatNumber(by("exact_duplicate").length)} tone={by("exact_duplicate").length ? "warn" : "good"} hint="same ref, period and amounts" />
-          <StatTile label="Probable duplicates" value={formatNumber(by("probable_duplicate").length)} tone="info" hint="similar insured, close loss dates" />
-          <StatTile label="Need a reporting period" value={formatNumber(by("repeat_period_unknown").length)} tone="neutral" hint="cannot be classified yet" />
-          <StatTile label="Claim development" value={formatNumber(s?.development_pairs ?? 0)} tone="good" hint="movement — not duplicates" />
+          <MetricCard icon="duplicates" label="Exact resubmissions" value={formatNumber(by("exact_duplicate").length)} tone={by("exact_duplicate").length ? "warn" : "good"}
+            caption={`same ref, period and amounts · ${open("exact_duplicate").length} undecided`} />
+          <MetricCard icon="search" label="Probable duplicates" value={formatNumber(by("probable_duplicate").length)} tone="processing"
+            caption={`similar insured, close loss dates · ${open("probable_duplicate").length} undecided`} />
+          <MetricCard icon="calendar" label="Need a reporting period" value={formatNumber(by("repeat_period_unknown").length)} tone="neutral" caption="cannot be classified yet" />
+          <MetricCard icon="activity" label="Claim development" value={formatNumber(s?.development_pairs ?? 0)} tone="good" caption="movement — not duplicates" />
         </div>
         <Tabs active={tab} onChange={(t) => { setTab(t); setIdx(0); }} options={[
-          { value: "exact_duplicate", label: "Exact", count: by("exact_duplicate").length },
-          { value: "probable_duplicate", label: "Probable", count: by("probable_duplicate").length },
-          { value: "repeat_period_unknown", label: "Needs period", count: by("repeat_period_unknown").length },
+          { value: "exact_duplicate", label: "Exact", count: open("exact_duplicate").length },
+          { value: "probable_duplicate", label: "Probable", count: open("probable_duplicate").length },
+          { value: "repeat_period_unknown", label: "Needs period", count: open("repeat_period_unknown").length },
           { value: "development", label: "Development", count: s?.development_pairs ?? 0 },
+          { value: "reviewed", label: "Reviewed", count: reviewed.length },
+          { value: "dismissed", label: "Dismissed", count: dismissed.length },
         ]} />
         {err && <ErrorState message={err} />}
         {tab === "development" ? <Development reportId={reportId} refs={s?.development_refs ?? []} />
           : pairs.loading && !pairs.data ? <Panel><SkeletonRows rows={6} /></Panel>
-          : current.length === 0 ? <Panel><EmptyState icon="check" title="Nothing in this category" body="TrueBind found no pairs of this kind in the selected report." /></Panel>
+          : current.length === 0 ? <Panel><EmptyState icon="check" title={tab === "reviewed" || tab === "dismissed" ? "No decisions here yet" : "Nothing left to decide here"}
+              body={tab === "reviewed" ? "Pairs you confirm or flag for the sender move here." : tab === "dismissed" ? "Pairs you mark as not a duplicate move here."
+                : by(tab).length ? "Every pair in this category has a decision — see Reviewed and Dismissed." : "TrueBind found no pairs of this kind in the selected report."} /></Panel>
           : (
           <div className={styles.split}>
             <Panel title="Pairs" icon="duplicates" subtitle={`${current.filter((p) => !p.review_status).length} unreviewed`} flush>

@@ -18,3 +18,6 @@
 .num { text-align: right !important; font-variant-numeric: tabular-nums; }
 .evidence { margin: 12px 0; font-size: var(--text-sm); }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.side { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; margin-right: 4px;
+  background: var(--color-primary-subtle); color: var(--color-primary); font-weight: 800; font-size: 0.6875rem; }

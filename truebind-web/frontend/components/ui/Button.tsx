@@ -31,3 +31,14 @@ export function ButtonLink({ href, variant = "secondary", size = "md", className
 }) {
   return <Link href={href} className={cls(variant, size, className)}>{children}</Link>;
 }
+
+/** Square icon-only button. `label` is required: it is the accessible name. */
+export function IconButton({ label, variant = "ghost", size = "md", className, children, ...props }:
+  Omit<ButtonProps, "aria-label"> & { label: string }) {
+  return (
+    <button className={cls(variant, size, [styles.icon, className].filter(Boolean).join(" "))} aria-label={label}
+            title={label} {...props}>
+      {children}
+    </button>
+  );
+}

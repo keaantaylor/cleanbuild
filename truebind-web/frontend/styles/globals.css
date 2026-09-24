@@ -11,6 +11,8 @@ html, body {
 
 body {
   background: var(--color-canvas);
+  font-feature-settings: "cv11", "ss01";
+  text-rendering: optimizeLegibility;
   color: var(--color-text-primary);
   font-family: var(--font-sans);
   font-size: var(--text-base);
@@ -102,4 +104,10 @@ button {
 :focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 a { color: var(--color-primary); text-underline-offset: 2px; }
 ::selection { background: var(--color-primary-subtle); }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; } }
+/* Reduced motion: keep state changes, drop movement. Durations collapse to
+   near-zero (not 0, so transitionend/animationend still fire). */
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-1: 1ms; --dur-2: 1ms; --dur-3: 1ms; }
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
+}

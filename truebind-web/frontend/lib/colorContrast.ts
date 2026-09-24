@@ -30,17 +30,22 @@ const LIGHT_PAIRS: [string, string, string][] = [
   ["text-secondary on bg-primary", "#475569", "#FFFFFF"],
   ["text-tertiary on bg-primary", "#5B6678", "#FFFFFF"],
   ["text-tertiary on bg-secondary", "#5B6678", "#F9FAFB"],
-  ["text-tertiary on canvas", "#5B6678", "#F3F5F9"],
-  ["text-secondary on canvas", "#475569", "#F3F5F9"],
+  ["text-tertiary on canvas", "#5B6678", "#F4F6FA"],
+  ["text-secondary on canvas", "#475569", "#F4F6FA"],
   ["text-tertiary on surface-sunken", "#5B6678", "#F7F9FC"],
-  ["primary on white", "#2451D6", "#FFFFFF"],
-  ["primary on primary-subtle", "#2451D6", "#EBF0FD"],
-  ["on-primary on primary", "#FFFFFF", "#2451D6"],
-  ["on-primary on primary-dark", "#FFFFFF", "#1B3FAE"],
-  ["rail-text on rail", "#B9C6DA", "#0C1A2E"],
-  ["rail-muted on rail", "#8C9BB3", "#0C1A2E"],
-  ["rail-text-active on rail-raised", "#FFFFFF", "#15263F"],
-  ["rail-accent on rail", "#6E9BFF", "#0C1A2E"],
+  ["primary on white", "#2446E0", "#FFFFFF"],
+  ["primary on primary-subtle", "#2446E0", "#EDF0FE"],
+  ["on-primary on primary", "#FFFFFF", "#2446E0"],
+  ["on-primary on primary-dark", "#FFFFFF", "#1C38B8"],
+  ["rail-text on rail", "#B7C3D9", "#0A1324"],
+  ["rail-muted on rail", "#8A99B4", "#0A1324"],
+  ["rail-text-active on rail-raised", "#FFFFFF", "#142038"],
+  ["rail-accent on rail", "#8FA2FF", "#0A1324"],
+  ["signal on rail", "#6FE3C1", "#0A1324"],
+  ["processing on white", "#4338CA", "#FFFFFF"],
+  ["processing on processing-bg", "#4338CA", "#E8EAFD"],
+  ["ai on white", "#A21CAF", "#FFFFFF"],
+  ["ai on ai-bg", "#A21CAF", "#FBEAFD"],
   ["live on white", "#0F766E", "#FFFFFF"],
   ["live on live-bg", "#0F766E", "#DDF4F1"],
   ["success on white", "#15803D", "#FFFFFF"],
@@ -85,6 +90,8 @@ const DARK_PAIRS: [string, string, string][] = [
   ["primary-dark-theme on surface-dark", "#8FAEFF", "#111A2B"],
   ["on-primary-dark on primary-dark-theme", "#0B1220", "#8FAEFF"],
   ["live-dark on live-bg-dark", "#5EEAD4", "#134E4A"],
+  ["processing-dark on its bg", "#A5B4FC", "#1E1B4B"],
+  ["ai-dark on its bg", "#F0ABFC", "#4A044E"],
   ["text-secondary-dark on bg-primary-dark", "#CBD5E1", "#0F172A"],
   ["text-tertiary-dark on bg-primary-dark", "#94A3B8", "#0F172A"],
   ["success-dark on its bg", "#4ADE80", "#14532D"],
@@ -120,7 +127,7 @@ export function validateDesignSystemContrast(): void {
  * values are actually distinct. */
 export function validateDistinctFamilies(): void {
   const reserved = new Set(["#7C3AED", "#C4B5FD", "#FFFFFF", "#000000"]);
-  const other = ["#15803D", "#4ADE80", "#B45309", "#FBBF24", "#DC2626", "#FCA5A5", "#0369A1", "#7DD3FC"];
+  const other = ["#4338CA", "#A5B4FC", "#A21CAF", "#F0ABFC", "#15803D", "#4ADE80", "#B45309", "#FBBF24", "#DC2626", "#FCA5A5", "#0369A1", "#7DD3FC"];
   const overlap = other.filter((c) => reserved.has(c));
   if (overlap.length > 0) {
     throw new Error(`not-evaluable/sanctions colors collide with another status family: ${overlap.join(", ")}`);

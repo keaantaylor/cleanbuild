@@ -4,10 +4,11 @@ import { useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { ButtonLink } from "@/components/ui/Button";
-import { EmptyState, ErrorState, Icon, Panel, PageHeader, Pill, ds } from "@/components/ds";
+import { EmptyState, ErrorState, Icon, Panel, PageHeader, Pill, SegmentedControl, ds } from "@/components/ds";
 import { PageSkeleton } from "@/components/layout/ShellSkeleton";
 import { ReportTable } from "@/components/ops/ReportTable";
 import { IN_PROGRESS } from "@/lib/api";
+import type { Report } from "@/lib/types";
 
 const FILTERS = [
   { value: "all", label: "All" },
@@ -17,15 +18,19 @@ const FILTERS = [
   { value: "failed", label: "Failed" },
 ];
 
+function matches(r: Report, filter: string): boolean {
+  return filter === "all" || (filter === "active" && IN_PROGRESS.has(r.status))
+    || (filter === "review" && r.status === "WAITING_FOR_REVIEW") || (filter === "complete" && r.status === "COMPLETE")
+    || (filter === "failed" && r.status === "FAILED");
+}
+
 export default function InboxPage() {
   const { data, error, loading, reload } = useApi(() => api.listReports(), [], 10_000);
   const { data: channels } = useApi(() => api.channels());
   const [filter, setFilter] = useState("all");
   const [q, setQ] = useState("");
   const rows = useMemo(() => (data ?? []).filter((r) => {
-    const okF = filter === "all" || (filter === "active" && IN_PROGRESS.has(r.status))
-      || (filter === "review" && r.status === "WAITING_FOR_REVIEW") || (filter === "complete" && r.status === "COMPLETE")
-      || (filter === "failed" && r.status === "FAILED");
+    const okF = matches(r, filter);
     const text = `${r.file_name} ${r.sender ?? ""} ${r.programme ?? ""}`.toLowerCase();
     return okF && (!q || text.includes(q.toLowerCase()));
   }), [data, filter, q]);
@@ -46,15 +51,8 @@ export default function InboxPage() {
             <input className={ds.input} placeholder="Search file, sender or programme" value={q}
                    onChange={(e) => setQ(e.target.value)} aria-label="Search inbox" />
           </div>
-          <div role="group" aria-label="Filter by status" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {FILTERS.map((f) => (
-              <button key={f.value} type="button" className={ds.input} aria-pressed={filter === f.value}
-                      style={{ cursor: "pointer", fontWeight: filter === f.value ? 700 : 500,
-                               borderColor: filter === f.value ? "var(--color-primary)" : undefined,
-                               color: filter === f.value ? "var(--color-primary)" : undefined }}
-                      onClick={() => setFilter(f.value)}>{f.label}</button>
-            ))}
-          </div>
+          <SegmentedControl label="Filter by status" value={filter} onChange={setFilter}
+            options={FILTERS.map((f) => ({ value: f.value, label: f.label, count: (data ?? []).filter((r) => matches(r, f.value)).length }))} />
           <span className={ds.muted} style={{ marginLeft: "auto" }}>
             Receiving via {active.map((c) => c.name).join(", ") || "web upload"}
             {" · "}<a href="/automations">channels</a>

@@ -9,7 +9,7 @@ import type { ExceptionRow } from "@/lib/types";
 import { findingGuide } from "@/lib/findings";
 import { formatMoney, formatNumber } from "@/lib/formatters";
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { EmptyState, ErrorState, Icon, KeyValue, Panel, PageHeader, Pill, SkeletonRows, StatTile, ds, severityTone } from "@/components/ds";
+import { Drawer, EmptyState, ErrorState, EvidencePanel, Icon, MetricCard, Panel, PageHeader, Pill, SkeletonRows, SourceReference, ds, severityTone } from "@/components/ds";
 import { PageSkeleton } from "@/components/layout/ShellSkeleton";
 import { ReportSelect, useSelectedReport } from "@/components/ops/ReportSelect";
 import { AiTriagePanel } from "@/components/exceptions/AiTriagePanel";
@@ -43,7 +43,7 @@ export default function ExceptionsPage() {
 
   if (rl) return <PageSkeleton label="Loading exceptions" />;
   if (!reportId) {
-    return (<><PageHeader eyebrow="Analyse" title="Exceptions" />
+    return (<><PageHeader eyebrow="Investigate" title="Exceptions" />
       <Panel><EmptyState icon="exceptions" title="No completed reports yet" body="Exceptions appear once a bordereau has been processed."
         action={<ButtonLink href="/upload" variant="primary">Upload a bordereau</ButtonLink>} /></Panel></>);
   }
@@ -53,7 +53,7 @@ export default function ExceptionsPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Analyse · action centre" title="Exceptions"
+      <PageHeader eyebrow="Investigate · exception centre" title="Exceptions"
         description="Every finding, with what happened, why it matters, the evidence and the next step. Decisions are recorded in the audit trail; source data is never changed."
         actions={<><ReportSelect reportId={reportId} reports={reports} onSelect={(id) => { select(id); setOffset(0); setSelected(null); }} />
           <Button variant="secondary" onClick={() => window.open(api.exportExceptionsUrl(reportId), "_blank")}><Icon name="download" />Export</Button></>} />
@@ -62,9 +62,10 @@ export default function ExceptionsPage() {
           {(["CRITICAL", "HIGH", "MEDIUM", "INFO"] as const).map((s) => (
             <button key={s} type="button" className={styles.tileBtn} aria-pressed={severity === s}
                     onClick={() => setFilter(() => setSeverity(severity === s ? "" : s))}>
-              <StatTile label={s.toLowerCase()} value={formatNumber(c[s] ?? 0)}
-                tone={s === "CRITICAL" ? "bad" : s === "HIGH" ? "warn" : s === "MEDIUM" ? "info" : "neutral"}
-                hint={severity === s ? "filtering — click to clear" : "click to filter"} />
+              <MetricCard label={s.charAt(0) + s.slice(1).toLowerCase()} value={formatNumber(c[s] ?? 0)}
+                icon={s === "CRITICAL" ? "alertCircle" : s === "HIGH" ? "exceptions" : s === "MEDIUM" ? "info" : "clock"}
+                tone={s === "CRITICAL" ? "bad" : s === "HIGH" ? "warn" : s === "MEDIUM" ? "processing" : "neutral"}
+                caption={severity === s ? "Filtering — click to clear" : "Click to filter"} />
             </button>
           ))}
         </div>
@@ -84,7 +85,7 @@ export default function ExceptionsPage() {
           <span className={ds.muted} style={{ marginLeft: "auto" }}>{page ? `${formatNumber(page.total)} finding(s)` : ""}</span>
         </div>
 
-        <div className={styles.layout}>
+        <div>
           <Panel flush>
             {list.error ? <div style={{ padding: 20 }}><ErrorState message={list.error} onRetry={list.reload} /></div>
               : !page ? <div style={{ padding: 20 }}><SkeletonRows rows={10} /></div>
@@ -122,9 +123,13 @@ export default function ExceptionsPage() {
               </div>
             )}
           </Panel>
-          <FindingDetail key={selected?.validation_result_id ?? "none"} reportId={reportId} finding={selected}
-            onSaved={(patch) => { list.reload(); if (selected) setSelected({ ...selected, ...patch }); }} />
         </div>
+        <Drawer open={!!selected} onClose={() => setSelected(null)} width={600}
+          eyebrow={selected ? `${selected.severity.toLowerCase()} · ${selected.check_type.toLowerCase().replace(/_/g, " ")}` : undefined}
+          title={selected ? findingGuide(selected.rule, selected.status).title : ""}>
+          {selected && <FindingDetail key={selected.validation_result_id} reportId={reportId} finding={selected}
+            onSaved={(patch) => { list.reload(); setSelected({ ...selected, ...patch }); }} />}
+        </Drawer>
 
         <AiTriagePanel reportId={reportId} onFilterAction={(a) => setFilter(() => setCheckType(a.checkType ?? ""))} />
       </div>
@@ -133,7 +138,7 @@ export default function ExceptionsPage() {
 }
 
 function FindingDetail({ reportId, finding, onSaved }: {
-  reportId: string; finding: ExceptionRow | null; onSaved: (patch: Partial<ExceptionRow>) => void;
+  reportId: string; finding: ExceptionRow; onSaved: (patch: Partial<ExceptionRow>) => void;
 }) {
   const [review, setReview] = useState(finding?.review_status ?? "in_review");
   const [assignee, setAssignee] = useState(finding?.assignee ?? "");
@@ -141,9 +146,6 @@ function FindingDetail({ reportId, finding, onSaved }: {
   const [deadline, setDeadline] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  if (!finding) {
-    return <Panel title="Finding detail" icon="info"><p className={styles.sub} style={{ margin: 0 }}>Select a finding to see what happened, why it matters, the evidence and what to do next.</p></Panel>;
-  }
   const g = findingGuide(finding.rule, finding.status);
   const certainty = g.certainty === "certain" ? "Deterministic check — the evidence is conclusive for this row."
     : g.certainty === "signal" ? "A signal, not proof — confirm before acting." : "Undetermined — TrueBind does not have enough evidence to decide.";
@@ -175,31 +177,36 @@ function FindingDetail({ reportId, finding, onSaved }: {
   }
 
   return (
-    <Panel title={g.title} icon="exceptions" actions={<Pill tone={severityTone(finding.severity)}>{finding.severity.toLowerCase()}</Pill>}>
-      <div className={styles.detail}>
-        <section><h3>What happened</h3><p>{finding.message}</p></section>
-        <section><h3>Why it matters</h3><p>{g.why}</p><p className={styles.certainty}>{certainty}</p></section>
-        <section><h3>Evidence</h3>
-          <KeyValue items={[["Claim reference", finding.claim_reference ?? "—"], ["Source", `${finding.sheet_name} · row ${finding.source_row_number ?? "—"}`],
-            ["Amount", formatMoney(finding.amount, finding.currency ?? "")], ["Check", `${finding.check_type} · ${finding.rule ?? ""}`],
-            ["Outcome", finding.status === "NOT_EVALUABLE" ? "could not be checked" : finding.status.toLowerCase()]]} />
-          <p className={styles.sub}><Link href={`/reports/${reportId}?tab=sheets`}>Sheet details</Link> · <Link href={`/audit?reportId=${reportId}`}>audit trail</Link></p>
-        </section>
-        <section><h3>What to do next</h3><p>{g.next}</p></section>
-        <section className={styles.form}>
-          <h3>Your decision</h3>
-          <label>Status<select className={ds.select} value={review} onChange={(e) => setReview(e.target.value)}>
-            {Object.entries(REVIEW_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
-          <label>Assignee<input className={ds.input} value={assignee} onChange={(e) => setAssignee(e.target.value)} maxLength={200} placeholder="Name" /></label>
-          <label>Note<textarea className={ds.input} value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} rows={2} style={{ paddingTop: 8 }} /></label>
-          <div className={styles.actions}>
-            <Button onClick={save} loading={busy}>Save decision</Button>
-          </div>
-          <label>Follow-up due<input className={ds.input} type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} /></label>
-          <Button variant="secondary" onClick={followUp} disabled={busy}>Create follow-up</Button>
-          {msg && <p role="status" className={styles.sub}>{msg}</p>}
-        </section>
-      </div>
-    </Panel>
+    <div className={styles.detail}>
+      <SourceReference file={undefined} sheet={finding.sheet_name ?? undefined} row={finding.source_row_number ?? undefined}
+        column={finding.claim_reference ? `claim ${finding.claim_reference}` : undefined} />
+      <section><h3>What happened</h3><p>{finding.message}</p></section>
+      <section><h3>Where it came from</h3>
+        <p>Sheet <strong>{finding.sheet_name ?? "—"}</strong>, source row <strong>{finding.source_row_number ?? "—"}</strong>
+          {finding.claim_reference ? <> — claim <span className={ds.mono}>{finding.claim_reference}</span></> : " — no claim reference on this row"}.</p>
+        <p className={styles.sub}><Link href={`/reports/${reportId}#mapping`}>How this sheet was mapped</Link> · <Link href={`/audit?reportId=${reportId}`}>Audit trail</Link></p>
+      </section>
+      <EvidencePanel items={[
+        { label: "Claim reference", value: finding.claim_reference ?? "—" },
+        { label: "Amount", value: formatMoney(finding.amount, finding.currency ?? "") },
+        { label: "Check", value: `${finding.check_type} · ${finding.rule ?? ""}` },
+        { label: "Outcome", value: finding.status === "NOT_EVALUABLE" ? "could not be checked" : finding.status.toLowerCase(), emphasis: finding.status === "FAIL" },
+      ]} />
+      <section><h3>Why it matters</h3><p>{g.why}</p><p className={styles.certainty}>{certainty}</p></section>
+      <section><h3>What to do next</h3><p>{g.next}</p></section>
+      <section className={styles.form}>
+        <h3>Your decision</h3>
+        <label>Status<select className={ds.select} value={review} onChange={(e) => setReview(e.target.value)}>
+          {Object.entries(REVIEW_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+        <label>Assignee<input className={ds.input} value={assignee} onChange={(e) => setAssignee(e.target.value)} maxLength={200} placeholder="Name" /></label>
+        <label>Note<textarea className={ds.input} value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} rows={2} style={{ paddingTop: 8 }} /></label>
+        <div className={styles.actions}>
+          <Button onClick={save} loading={busy}>Save decision</Button>
+        </div>
+        <label>Follow-up due<input className={ds.input} type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} /></label>
+        <Button variant="secondary" onClick={followUp} disabled={busy}>Create follow-up</Button>
+        {msg && <p role="status" className={styles.sub}>{msg}</p>}
+      </section>
+    </div>
   );
 }

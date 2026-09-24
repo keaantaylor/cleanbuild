@@ -2,44 +2,27 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Icon, type IconName } from "@/components/ds/Icon";
+import { Icon } from "@/components/ds/Icon";
+import { BrandMark } from "./BrandMark";
+import { NAV_GROUPS } from "./nav";
 import { useShell } from "./ShellContext";
 import styles from "./Sidebar.module.css";
 
-type Item = { href: string; label: string; icon: IconName; badge?: "work" | "alerts" };
-const GROUPS: { label: string; items: Item[] }[] = [
-  { label: "Operate", items: [
-    { href: "/overview", label: "Overview", icon: "overview" },
-    { href: "/inbox", label: "Inbox", icon: "inbox" },
-    { href: "/upload", label: "Intake", icon: "upload" },
-    { href: "/todo", label: "Work queue", icon: "todo", badge: "work" },
-  ] },
-  { label: "Analyse", items: [
-    { href: "/reports", label: "Reports", icon: "reports" },
-    { href: "/exceptions", label: "Exceptions", icon: "exceptions" },
-    { href: "/duplicates", label: "Duplicates", icon: "duplicates" },
-  ] },
-  { label: "Deliver", items: [
-    { href: "/exports", label: "Exports", icon: "exports" },
-    { href: "/automations", label: "Automations", icon: "automations" },
-  ] },
-  { label: "Govern", items: [
-    { href: "/alerts", label: "Alerts", icon: "bell", badge: "alerts" },
-    { href: "/audit", label: "Audit trail", icon: "audit" },
-  ] },
-];
-
 export function Sidebar() {
   const pathname = usePathname();
-  const { workItems, unreadAlerts } = useShell();
+  const { workItems, unreadAlerts, system } = useShell();
+  const busy = system ? system.running + system.queued : 0;
   return (
     <nav className={styles.rail} aria-label="Main navigation">
       <Link href="/overview" className={styles.brand}>
-        <span className={styles.mark} aria-hidden="true">TB</span>
+        <BrandMark />
         <span>TrueBind</span>
       </Link>
+      <button type="button" className={styles.search} onClick={() => window.dispatchEvent(new Event("tb:command"))}>
+        <Icon name="search" size={15} /><span>Search or jump to…</span><kbd>⌘K</kbd>
+      </button>
       <div className={styles.groups}>
-        {GROUPS.map((g) => (
+        {NAV_GROUPS.map((g) => (
           <div key={g.label} className={styles.group}>
             <p className={styles.groupLabel}>{g.label}</p>
             <ul className={styles.links}>
@@ -52,6 +35,7 @@ export function Sidebar() {
                           aria-current={active ? "page" : undefined}>
                       <Icon name={item.icon} size={17} />
                       <span className={styles.linkLabel}>{item.label}</span>
+                      {item.href === "/upload" && busy > 0 && <span className={styles.live} aria-label={`${busy} processing`} />}
                       {count > 0 && <span className={styles.badge} aria-label={`${count} pending`}>{count > 99 ? "99+" : count}</span>}
                     </Link>
                   </li>
@@ -60,6 +44,14 @@ export function Sidebar() {
             </ul>
           </div>
         ))}
+      </div>
+      <div className={styles.foot}>
+        <span className={`${styles.engine} ${system?.worker_available ? styles.engineUp : system ? styles.engineDown : ""}`}>
+          <span className={styles.engineDot} />
+          {!system ? "Checking engine…" : system.worker_available
+            ? busy ? `Engine · ${busy} in flight` : "Engine online"
+            : "Engine offline"}
+        </span>
       </div>
     </nav>
   );

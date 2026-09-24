@@ -47,7 +47,7 @@
   align-items: center;
   justify-content: center;
   gap: 0.5em;
-  font-family: var(--font-marketing-body), var(--font-sans);
+  font-family: var(--font-sans);
   font-weight: 600;
   font-size: 1rem;
   padding: 0.85em 1.6em;

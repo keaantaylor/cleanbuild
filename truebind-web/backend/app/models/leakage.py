@@ -16,9 +16,10 @@ class LeakageFlag(Base):
     __tablename__ = "leakage_flags"
 
     id: Mapped[str] = uuid_pk()
-    report_id: Mapped[str] = mapped_column(ForeignKey("reports.id"), index=True)
-    source_row_id: Mapped[str] = mapped_column(ForeignKey("claim_rows.id"))
-    match_row_id: Mapped[str] = mapped_column(ForeignKey("claim_rows.id"))
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    report_id: Mapped[str] = mapped_column(ForeignKey("reports.id", ondelete="CASCADE"), index=True)
+    source_row_id: Mapped[str] = mapped_column(ForeignKey("claim_rows.id", ondelete="CASCADE"))
+    match_row_id: Mapped[str] = mapped_column(ForeignKey("claim_rows.id", ondelete="CASCADE"))
     confidence_category: Mapped[str] = mapped_column(String(16))
     amount_exposure: Mapped[float | None] = mapped_column(Float, nullable=True)
     matched_fields: Mapped[dict | None] = mapped_column(JSON, nullable=True)

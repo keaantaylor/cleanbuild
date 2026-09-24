@@ -6,8 +6,10 @@ import styles from "./ExcludedRowsPanel.module.css";
 
 const REASON_LABEL: Record<string, string> = {
   blank: "Blank row",
+  blank_run: "Run of blank rows",
   subtotal: "Subtotal/total row",
   repeated_header: "Repeated header row",
+  title: "Title / label row",
 };
 
 export function ExcludedRowsPanel({ rows }: { rows: ExcludedRow[] }) {

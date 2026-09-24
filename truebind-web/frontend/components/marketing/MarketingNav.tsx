@@ -20,7 +20,7 @@ export function MarketingNav() {
           ))}
         </ul>
         <div className={styles.actions}>
-          <Link href="/upload" className="mkt-btn mkt-btn-primary">Launch the app</Link>
+          <Link href="/overview" className="mkt-btn mkt-btn-primary">Launch the app</Link>
         </div>
       </div>
     </header>

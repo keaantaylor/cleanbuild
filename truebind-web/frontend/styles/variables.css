@@ -13,9 +13,33 @@
 */
 
 :root {
-  --color-primary: #2E3FE0;
-  --color-primary-dark: #1D2AC4;
-  --color-primary-light: #5A73F5;
+  /* Brand / interaction. One accent, used for primary actions, links and
+     focus -- never for status. */
+  --color-primary: #2451D6;
+  --color-primary-dark: #1B3FAE;
+  --color-primary-light: #5B7FEA;
+  --color-primary-subtle: #EBF0FD;
+  --color-on-primary: #FFFFFF;
+  --color-focus: #2451D6;
+
+  /* Application chrome: a deep navy rail so the working area reads as the
+     product surface, and white cards on a cool grey canvas for hierarchy. */
+  --color-canvas: #F3F5F9;
+  --color-surface: #FFFFFF;
+  --color-surface-sunken: #F7F9FC;
+  --color-border-strong: #CBD3DF;
+  --color-rail: #0C1A2E;
+  --color-rail-raised: #15263F;
+  --color-rail-text: #B9C6DA;
+  --color-rail-text-active: #FFFFFF;
+  --color-rail-muted: #8C9BB3;
+  --color-rail-accent: #6E9BFF;
+  --color-live: #0F766E;
+  --color-live-bg: #DDF4F1;
+
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 16px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.14);
 
   --color-success: #15803D;
   --color-success-bg: #DCFCE7;
@@ -56,13 +80,13 @@
   --color-bg-primary: #FFFFFF;
   --color-bg-secondary: #F9FAFB;
   --color-bg-tertiary: #F3F4F6;
-  --color-text-primary: #111827;
-  --color-text-secondary: #6B7280;
+  --color-text-primary: #0F172A;
+  --color-text-secondary: #475569;
   /* Was #9CA3AF: 2.5:1 on white, well under the 4.5:1 AA minimum for
      normal text despite being used as real text (row metadata, field
      codes, tab counts) -- not just decoration. Contrast audit, Section 2A. */
-  --color-text-tertiary: #69737F;
-  --color-border: #E5E7EB;
+  --color-text-tertiary: #5B6678;
+  --color-border: #E2E7EF;
 
   /* Display/heading face is a serif -- deliberate departure from the
      system-sans-everywhere look of a generic SaaS dashboard. Body copy and
@@ -70,8 +94,11 @@
      hierarchy, not decoration. Neither loads a webfont: both are portable
      stacks so there's no build-time network dependency and no flash of
      unstyled text. */
-  --font-display: Iowan Old Style, "Source Serif Pro", Georgia, Cambria, "Times New Roman", serif;
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", sans-serif;
+  /* Faces are self-hosted via next/font/local (app/fonts.ts), which sets
+     --font-display-face / --font-body-face on <html>. System fallbacks
+     keep text readable before the woff2 arrives (font-display: swap). */
+  --font-display: var(--font-display-face), "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: var(--font-body-face), -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", sans-serif;
   --font-mono: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", monospace;
 
   --text-xs: 0.75rem;
@@ -94,6 +121,7 @@
   --spacing-2: 0.5rem;
   --spacing-3: 0.75rem;
   --spacing-4: 1rem;
+  --spacing-5: 1.25rem;
   --spacing-6: 1.5rem;
   --spacing-8: 2rem;
   --spacing-12: 3rem;
@@ -104,6 +132,11 @@
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  --rail-width: 232px;
+  --topbar-height: 56px;
+  --content-max: 1480px;
 
   --max-width-sm: 640px;
   --max-width-md: 768px;
@@ -145,6 +178,16 @@
     --color-text-secondary: #CBD5E1;
     --color-text-tertiary: #94A3B8;
     --color-border: #334155;
+    --color-canvas: #0B1220;
+    --color-surface: #111A2B;
+    --color-surface-sunken: #0E1626;
+    --color-border-strong: #475569;
+    --color-primary: #8FAEFF;
+    --color-primary-subtle: #1B2A4A;
+    --color-on-primary: #0B1220;
+    --color-focus: #8FAEFF;
+    --color-live: #5EEAD4;
+    --color-live-bg: #134E4A;
   }
 }
 
@@ -180,4 +223,14 @@
   --color-text-secondary: #CBD5E1;
   --color-text-tertiary: #94A3B8;
   --color-border: #334155;
+  --color-canvas: #0B1220;
+  --color-surface: #111A2B;
+  --color-surface-sunken: #0E1626;
+  --color-border-strong: #475569;
+  --color-primary: #8FAEFF;
+  --color-primary-subtle: #1B2A4A;
+  --color-on-primary: #0B1220;
+  --color-focus: #8FAEFF;
+  --color-live: #5EEAD4;
+  --color-live-bg: #134E4A;
 }

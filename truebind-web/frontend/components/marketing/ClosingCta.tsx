@@ -14,7 +14,7 @@ export function ClosingCta() {
               report yourself — no setup required.
             </p>
             <div className={styles.ctas}>
-              <Link href="/upload" className="mkt-btn mkt-btn-primary">Launch the app</Link>
+              <Link href="/overview" className="mkt-btn mkt-btn-primary">Launch the app</Link>
               <a href="#how-it-works" className="mkt-btn mkt-btn-secondary">Revisit how it works</a>
             </div>
           </div>

@@ -50,6 +50,7 @@ EXCLUDED_ROW_REASON_LABELS = {
     "subtotal": "subtotal/total row",
     "repeated_header": "repeated header row",
     "title": "section title/banner row",
+    "blank_run": "run of blank rows",
 }
 
 
@@ -63,9 +64,10 @@ class ExcludedRow:
     from whole-sheet skips down to individual rows)."""
     sheet_name: str
     row_number: int  # 1-based row number within the original sheet, as a user would see it in Excel
-    reason: str  # "blank" | "subtotal" | "repeated_header" | "title"
+    reason: str  # "blank" | "blank_run" | "subtotal" | "repeated_header" | "title"
     detail: str
     values: dict[str, str] = field(default_factory=dict)  # column name -> raw cell text, for drill-down
+    count: int = 1  # >1 only for a collapsed run of consecutive blank rows ("blank_run")
 
 
 @dataclass
@@ -77,6 +79,14 @@ class SheetData:
     skip_reason: str | None = None
     raw_row_count: int = 0  # every row openpyxl saw in this sheet, header/banner included
     excluded_rows: list[ExcludedRow] = field(default_factory=list)
+    hidden: bool = False  # sheet_state hidden/veryHidden in the workbook -- processed, but disclosed
+    trailing_blank_rows: int = 0  # blank rows after the last populated row: not data, reported, not counted
+    notes: list[str] = field(default_factory=list)  # read-limit and parsing disclosures for this sheet
+    source_row_numbers: list[int] = field(default_factory=list)  # 1-based sheet row of each raw row (lineage)
+
+    @property
+    def excluded_row_count(self) -> int:
+        return sum(er.count for er in self.excluded_rows)
 
 
 def load_raw(path: str | Path) -> pd.DataFrame:
@@ -95,13 +105,34 @@ def load_raw(path: str | Path) -> pd.DataFrame:
     return pd.read_excel(path, dtype="string", engine="openpyxl")
 
 
-def load_workbook_sheets(path: str | Path, source_stem: str | None = None) -> list[SheetData]:
+@dataclass(frozen=True)
+class ReadLimits:
+    """Hard bounds on what one workbook may contain. Exceeding any of them
+    rejects the file with WorkbookLimitError -- it is never truncated,
+    because a truncated read would silently lose rows."""
+    max_sheets: int = 200
+    max_rows_total: int = 1_000_000  # populated + collapsed rows across all sheets
+    max_cells_total: int = 60_000_000  # rows x columns actually read
+
+
+class WorkbookLimitError(ValueError):
+    """The workbook exceeds a configured ReadLimits bound."""
+
+
+_ACTIVE_LIMITS: list = [ReadLimits(), [0, 0]]  # (limits, [rows_read, cells_read]) for the current load
+
+
+def load_workbook_sheets(path: str | Path, source_stem: str | None = None,
+                         limits: ReadLimits | None = None) -> list[SheetData]:
     """Every sheet in the workbook (fix spec 3.1), each with its own
     detected header row (fix spec 3.2). A CSV has exactly one implicit
-    "sheet" named after the file."""
+    "sheet" named after the file. Raises WorkbookLimitError when the file
+    exceeds `limits`."""
+    _ACTIVE_LIMITS[0] = limits or ReadLimits()
+    _ACTIVE_LIMITS[1] = [0, 0]
     path = str(path)
     if path.lower().endswith(".csv"):
-        return [_build_csv_sheet_data(path)]
+        return [_build_csv_sheet_data(path, source_stem)]
 
     if path.lower().endswith(".xls"):
         return [_safe_build_sheet(name, lambda r=rows: r) for name, rows in _iter_legacy_xls_rows(path)]
@@ -111,8 +142,18 @@ def load_workbook_sheets(path: str | Path, source_stem: str | None = None) -> li
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
     sheets: list[SheetData] = []
     try:
+        if len(wb.sheetnames) > _ACTIVE_LIMITS[0].max_sheets:
+            raise WorkbookLimitError(f"workbook has {len(wb.sheetnames)} sheets; the limit is "
+                                     f"{_ACTIVE_LIMITS[0].max_sheets}")
         for name in wb.sheetnames:
-            sheets.append(_safe_build_sheet(name, lambda n=name: _read_bounded_rows(wb[n])))
+            sd = _safe_build_sheet(name, lambda n=name: _read_bounded_rows(wb[n]))
+            try:
+                sd.hidden = getattr(wb[name], "sheet_state", "visible") != "visible"
+            except Exception:  # noqa: BLE001 -- disclosure only; never blocks reading
+                pass
+            if sd.hidden:
+                sd.notes.append("sheet is hidden in the workbook; its rows were processed like any other sheet")
+            sheets.append(sd)
     finally:
         wb.close()
     return sheets
@@ -136,42 +177,75 @@ def _row_looks_blank(row: tuple) -> bool:
     return all(c is None or (isinstance(c, str) and not c.strip()) for c in row)
 
 
-def _read_bounded_rows(ws) -> list[tuple]:
-    """Reads `ws` lazily (openpyxl's read_only row iterator never
-    materializes the full declared range up front) and stops as soon as
-    real data has clearly run out, rather than trusting the sheet's
-    declared dimension. This is what keeps a stray cell at the edge of
-    Excel's absolute limits from turning one pathological file into an
-    unbounded read.
+class _BlankRun:
+    """Placeholder for a run of consecutive blank rows collapsed during
+    reading (see _read_bounded_rows). Carries the count so row numbering and
+    the row ledger stay exact without materialising every empty tuple."""
+    __slots__ = ("count",)
 
-    max_col is only capped when the sheet's own declared width is
-    already pathological (ws.max_column is a cheap metadata read in
-    read_only mode, not a full scan) -- passing it unconditionally would
-    pad every row of an ordinary, narrow sheet out to _MAX_SCAN_COLUMNS
-    with spurious blank columns, corrupting header detection for every
-    normal file."""
+    def __init__(self, count: int):
+        self.count = count
+
+
+class _ReadResult(list):
+    """A list of rows (tuples or _BlankRun markers) plus read disclosures."""
+    trailing_blank_rows: int = 0
+    notes: list
+
+
+def _read_bounded_rows(ws) -> "_ReadResult":
+    """Reads `ws` lazily and never silently stops early.
+
+    TB-005 originally *stopped* reading after 500 consecutive blank rows so
+    that a stray cell at A1048576 could not freeze the server. That also
+    silently dropped any genuine data below a long blank gap (forensic defect
+    P2: 10 of 20 rows lost while reconciliation reported "reconciles"). Now a
+    long blank run is collapsed into one counted _BlankRun marker and reading
+    continues to the end of the sheet: memory stays bounded (blank rows are
+    not stored) and every populated row is read. Blank rows after the last
+    populated row are reported as trailing_blank_rows, not as data.
+
+    Columns are capped at _MAX_SCAN_COLUMNS only when the declared width is
+    pathological, and the cap is disclosed in notes."""
     read_kwargs: dict = {"values_only": True}
-    if ws.max_column and ws.max_column > _MAX_SCAN_COLUMNS:
+    notes: list[str] = []
+    try:
+        declared_cols = ws.max_column
+    except Exception:  # noqa: BLE001
+        declared_cols = None
+    if declared_cols and declared_cols > _MAX_SCAN_COLUMNS:
         read_kwargs["max_col"] = _MAX_SCAN_COLUMNS
+        notes.append(f"sheet declares {declared_cols} columns; only the first {_MAX_SCAN_COLUMNS} were read")
 
-    rows: list[tuple] = []
-    empty_streak = 0
-    hit_limit = False
+    rows = _ReadResult()
+    pending: list[tuple] = []  # blank rows not yet known to be trailing
+    pending_count = 0
+    lim, used = _ACTIVE_LIMITS
     for row in ws.iter_rows(**read_kwargs):
-        rows.append(row)
         if _row_looks_blank(row):
-            empty_streak += 1
-            if empty_streak >= _MAX_CONSECUTIVE_EMPTY_ROWS:
-                hit_limit = True
-                break
-        else:
-            empty_streak = 0
-    if hit_limit:
-        # Only strip the specific run that triggered early termination --
-        # an ordinary trailing blank row (well under the threshold) is
-        # left in place for the existing row-classification pass to
-        # count and report as "blank", same as it always has.
-        del rows[-_MAX_CONSECUTIVE_EMPTY_ROWS:]
+            pending_count += 1
+            if pending_count <= _MAX_CONSECUTIVE_EMPTY_ROWS:
+                pending.append(row)
+            continue
+        if pending_count:
+            if pending_count <= _MAX_CONSECUTIVE_EMPTY_ROWS:
+                rows.extend(pending)
+            else:
+                rows.append(_BlankRun(pending_count))
+            pending, pending_count = [], 0
+        rows.append(row)
+        # Limits count populated rows only: collapsed blank rows cost nothing.
+        used[0] += 1
+        used[1] += len(row)
+        if used[0] > lim.max_rows_total or used[1] > lim.max_cells_total:
+            raise WorkbookLimitError(
+                f"workbook exceeds the processing limit ({lim.max_rows_total:,} populated rows / "
+                f"{lim.max_cells_total:,} cells); it was rejected rather than partially read")
+    if pending_count > _MAX_CONSECUTIVE_EMPTY_ROWS:
+        rows.trailing_blank_rows = pending_count
+    else:
+        rows.extend(pending)  # a short trailing run is still counted row-by-row, as before
+    rows.notes = notes
     return rows
 
 
@@ -184,7 +258,14 @@ def _safe_build_sheet(name: str, load_rows) -> SheetData:
     workbook keep loading."""
     try:
         rows = load_rows()
-        return _build_sheet_data(name, rows)
+        sd = _build_sheet_data(name, rows)
+        sd.trailing_blank_rows = getattr(rows, "trailing_blank_rows", 0)
+        sd.notes.extend(getattr(rows, "notes", []) or [])
+        if sd.trailing_blank_rows:
+            sd.notes.append(f"{sd.trailing_blank_rows} blank rows after the last populated row were not read as data")
+        return sd
+    except WorkbookLimitError:
+        raise
     except Exception as exc:  # noqa: BLE001 -- isolated per sheet, surfaced by name, never swallowed
         return SheetData(name, 0, pd.DataFrame(), skipped=True,
                           skip_reason=f"error while reading this sheet: {exc}", raw_row_count=0)
@@ -217,35 +298,72 @@ def _iter_legacy_xls_rows(path: str) -> list[tuple[str, list[tuple]]]:
     return out
 
 
-def _build_csv_sheet_data(path: str) -> SheetData:
-    """A CSV's header is always row 1 (no banner-row ambiguity like a
-    workbook sheet can have), but the same row-exclusion pass still
-    applies -- a CSV export can carry trailing blank lines, an embedded
-    subtotal line, or (e.g. two exports concatenated into one file) a
-    repeated header line, same as a worksheet tab can."""
-    raw = pd.read_csv(path, dtype="string")
-    name = Path(path).stem
-    columns = list(raw.columns)
-    header_row = tuple(columns)
-    candidate_rows = [tuple(r) for r in raw.itertuples(index=False, name=None)]
-    total = len(candidate_rows) + 1  # + header row
-
-    if not candidate_rows:
-        return SheetData(name, 0, pd.DataFrame(columns=columns), skipped=True,
-                          skip_reason="header row found but no data rows follow it", raw_row_count=total)
-
-    kept_rows, excluded_rows = _classify_and_filter_rows(name, 0, header_row, columns, candidate_rows)
-    if not kept_rows:
-        return SheetData(name, 0, pd.DataFrame(columns=columns), skipped=True,
-                          skip_reason="header row found but every following row was blank or excluded",
-                          raw_row_count=total, excluded_rows=excluded_rows)
-
-    df = pd.DataFrame(kept_rows, columns=columns).astype("string")
-    return SheetData(name, 0, df, raw_row_count=total, excluded_rows=excluded_rows)
+_CSV_ENCODINGS = ("utf-8-sig", "cp1252", "latin-1")
 
 
-def _build_sheet_data(name: str, rows: list[tuple]) -> SheetData:
-    total = len(rows)
+def _read_csv_rows(path: str) -> tuple[list[tuple], list[str]]:
+    """CSV is read as raw rows and then goes through exactly the same header
+    detection and row classification as a worksheet (forensic P13/P13c: the
+    old path assumed the header was row 1, and a title line above it produced
+    garbage columns). Encoding: UTF-8 (with or without BOM) first, then
+    cp1252 -- the common Excel-on-Windows export -- and only then latin-1;
+    whichever succeeded is disclosed. Delimiter: sniffed from the first 64 KiB
+    among , ; tab | (P13b: European ';' exports became one column)."""
+    import csv
+
+    raw = Path(path).read_bytes()
+    text, used = None, None
+    for enc in _CSV_ENCODINGS:
+        try:
+            text, used = raw.decode(enc), enc
+            break
+        except UnicodeDecodeError:
+            continue
+    notes = [] if used == "utf-8-sig" else [f"file is not UTF-8; decoded as {used}"]
+    sample = text[:65536]
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+        delimiter = dialect.delimiter
+    except csv.Error:
+        delimiter = ","
+    if delimiter != ",":
+        notes.append(f"delimiter detected as {delimiter!r}")
+    lim = _ACTIVE_LIMITS[0]
+    rows = []
+    cells = 0
+    for r in csv.reader(text.splitlines(), delimiter=delimiter):
+        rows.append(tuple((c if c != "" else None) for c in r))
+        cells += len(r)
+        if len(rows) > lim.max_rows_total or cells > lim.max_cells_total:
+            raise WorkbookLimitError(f"CSV exceeds the processing limit ({lim.max_rows_total:,} rows / "
+                                     f"{lim.max_cells_total:,} cells); it was rejected rather than partially read")
+    return rows, notes
+
+
+def _build_csv_sheet_data(path: str, source_stem: str | None = None) -> SheetData:
+    name = source_stem or Path(path).stem
+    rows, notes = _read_csv_rows(path)
+    sd = _build_sheet_data(name, rows)
+    sd.notes.extend(notes)
+    return sd
+
+
+def _is_blank_run(row) -> bool:
+    return isinstance(row, _BlankRun)
+
+
+def _row_width(row) -> int:
+    if _is_blank_run(row):
+        return 0
+    return sum(1 for c in row if c is not None and str(c).strip())
+
+
+def _physical_row_count(rows) -> int:
+    return sum(r.count if _is_blank_run(r) else 1 for r in rows)
+
+
+def _build_sheet_data(name: str, rows: list) -> SheetData:
+    total = _physical_row_count(rows)
     if not rows:
         return SheetData(name, 0, pd.DataFrame(), skipped=True, skip_reason="sheet is empty",
                           raw_row_count=total)
@@ -258,22 +376,27 @@ def _build_sheet_data(name: str, rows: list[tuple]) -> SheetData:
                           raw_row_count=total)
 
     header_row = rows[header_idx]
+    header_physical = _physical_row_count(rows[:header_idx])  # 0-based physical row of the header
     columns = _dedupe_columns([_clean_header_cell(c, i) for i, c in enumerate(header_row)])
     candidate_rows = rows[header_idx + 1:]
     if not candidate_rows:
-        return SheetData(name, header_idx, pd.DataFrame(columns=columns), skipped=True,
+        return SheetData(name, header_physical, pd.DataFrame(columns=columns), skipped=True,
                           skip_reason="header row found but no data rows follow it",
                           raw_row_count=total)
 
-    kept_rows, excluded_rows = _classify_and_filter_rows(name, header_idx, header_row, columns, candidate_rows)
+    kept_rows, excluded_rows = _classify_and_filter_rows(name, header_physical, header_row, columns, candidate_rows)
     if not kept_rows:
-        return SheetData(name, header_idx, pd.DataFrame(columns=columns), skipped=True,
+        return SheetData(name, header_physical, pd.DataFrame(columns=columns), skipped=True,
                           skip_reason="header row found but every following row was blank or excluded",
                           raw_row_count=total, excluded_rows=excluded_rows)
 
+    width = len(columns)
+    kept_rows = [tuple(r[:width]) + (None,) * (width - len(r)) if len(r) != width else r for r in kept_rows]
+    row_numbers = list(_LAST_KEPT_NUMBERS)
     df = pd.DataFrame(kept_rows, columns=columns)
     df = df.astype("string")
-    return SheetData(name, header_idx, df, raw_row_count=total, excluded_rows=excluded_rows)
+    return SheetData(name, header_physical, df, raw_row_count=total, excluded_rows=excluded_rows,
+                     source_row_numbers=row_numbers)
 
 
 def _normalize_cell(value: object) -> str:
@@ -288,7 +411,12 @@ def _normalize_cell(value: object) -> str:
     return " ".join(text.split()).casefold()
 
 
-_SUBTOTAL_PATTERN = re.compile(r"^(sub[\s-]?)?total:?$|^grand\s+total:?$")
+_SUBTOTAL_PATTERN = re.compile(
+    r"^(sub[\s-]?)?totals?\b.*$|^grand\s+totals?\b.*$|^sum(\s+of\b.*)?:?$|^summary:?$|^totals?:?$"
+)
+# A lone cell shaped like an identifier (CLM-00123, C2, 2024/0001) is a claim
+# row with missing fields, not a banner (forensic P1).
+_IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z]{0,8}[-_/.# ]?\d[\w\-/.#]*$")
 
 
 def _row_is_blank(row: tuple) -> bool:
@@ -315,15 +443,36 @@ def _row_matches_header(row: tuple, header_row: tuple) -> bool:
 
 
 def _row_is_subtotal(row: tuple) -> bool:
-    """The shape of a real-world embedded subtotal line: most cells blank,
-    with one of the few non-blank cells reading like a total/grand total
-    label. Requires the majority-blank shape (not just the word "total"
-    anywhere) so a genuine claim row is never misclassified just because
-    a free-text field happens to contain that word."""
+    """A total/subtotal/summary line. Two independent shapes:
+
+    1. The FIRST populated cell is a total label ("Total", "TOTAL CLAIMS",
+       "Grand total", "Sum", "Subtotal - GBP") and it is followed only by
+       numbers or blanks. That is how a totals line looks at the bottom of a
+       claims table whatever its width (forensic F2/P17: a "Total" row in a
+       7-column sheet was ingested as a claim, doubling incurred).
+    2. The original majority-blank shape with a total label anywhere among
+       the few populated cells.
+
+    A genuine claim whose free text merely contains the word "total"
+    ("Total Logistics Ltd" in the insured column, after a claim reference)
+    matches neither: its first populated cell is the claim reference."""
     non_blank = [c for c in row if _normalize_cell(c) != ""]
-    if not non_blank or len(non_blank) * 2 > len(row):
+    if not non_blank:
+        return False
+    first = _normalize_cell(non_blank[0])
+    if _SUBTOTAL_PATTERN.match(first) and all(
+        isinstance(c, (int, float)) or _looks_numeric_text(c) for c in non_blank[1:]
+    ):
+        return True
+    if len(non_blank) * 2 > len(row):
         return False
     return any(_SUBTOTAL_PATTERN.match(_normalize_cell(c)) for c in non_blank)
+
+
+def _looks_numeric_text(value: object) -> bool:
+    if isinstance(value, (int, float)):
+        return True
+    return _parse_amount_cell(str(value)) is not None
 
 
 def _row_is_title(row: tuple) -> bool:
@@ -334,7 +483,9 @@ def _row_is_title(row: tuple) -> bool:
     among a handful of populated cells): this is any row shaped like a
     lone banner, whatever it says."""
     populated = [c for c in row if _normalize_cell(c) != ""]
-    return len(populated) == 1 and isinstance(populated[0], str)
+    if len(populated) != 1 or not isinstance(populated[0], str):
+        return False
+    return not _IDENTIFIER_PATTERN.match(populated[0].strip())
 
 
 def _classify_row(row: tuple, header_row: tuple) -> tuple[str | None, str | None]:
@@ -357,21 +508,42 @@ def _classify_row(row: tuple, header_row: tuple) -> tuple[str | None, str | None
 
 
 def _classify_and_filter_rows(
-    sheet_name: str, header_idx: int, header_row: tuple, columns: list[str], candidate_rows: list[tuple],
+    sheet_name: str, header_idx: int, header_row: tuple, columns: list[str], candidate_rows: list,
 ) -> tuple[list[tuple], list[ExcludedRow]]:
+    """header_idx is the header's 0-based PHYSICAL row; candidate_rows may
+    contain _BlankRun markers, which advance the row counter by their count
+    and are recorded as one ledger entry each."""
     kept: list[tuple] = []
+    kept_numbers: list[int] = []
     excluded: list[ExcludedRow] = []
-    for offset, row in enumerate(candidate_rows):
+    physical = header_idx + 1  # 0-based physical index of the next candidate row
+    for row in candidate_rows:
+        if _is_blank_run(row):
+            excluded.append(ExcludedRow(sheet_name=sheet_name, row_number=physical + 1, reason="blank_run",
+                                         detail=f"{row.count} consecutive blank rows (rows {physical + 1}"
+                                                f"-{physical + row.count})",
+                                         values={}, count=row.count))
+            physical += row.count
+            continue
         reason, detail = _classify_row(row, header_row)
         if reason is None:
             kept.append(row)
-            continue
-        row_number = header_idx + 1 + offset + 1  # 1-based, as a user would see it in the sheet
-        values = {columns[i]: ("" if i >= len(row) or row[i] is None else str(row[i]))
-                  for i in range(len(columns))}
-        excluded.append(ExcludedRow(sheet_name=sheet_name, row_number=row_number,
-                                     reason=reason, detail=detail, values=values))
+            kept_numbers.append(physical + 1)
+        else:
+            values = {columns[i]: ("" if i >= len(row) or row[i] is None else str(row[i]))
+                      for i in range(len(columns))}
+            excluded.append(ExcludedRow(sheet_name=sheet_name, row_number=physical + 1,
+                                         reason=reason, detail=detail, values=values))
+        physical += 1
+    _LAST_KEPT_NUMBERS.clear()
+    _LAST_KEPT_NUMBERS.extend(kept_numbers)
     return kept, excluded
+
+
+# Row numbers of the rows the most recent _classify_and_filter_rows call kept
+# (module-level to keep that function's established return shape; read
+# immediately by _build_sheet_data, single-threaded per call).
+_LAST_KEPT_NUMBERS: list[int] = []
 
 
 def _clean_header_cell(value: object, position: int) -> str:
@@ -405,6 +577,8 @@ def _detect_header_row(rows: list[tuple]) -> tuple[int | None, int]:
 
     best_idx, best_score = None, -1
     for i, row in enumerate(rows[:HEADER_SCAN_ROWS]):
+        if _is_blank_run(row):
+            continue
         cells = [str(c).strip() for c in row if c is not None and str(c).strip()]
         if not cells:
             continue
@@ -436,7 +610,7 @@ def _structural_header_row(rows: list[tuple]) -> int | None:
     this structural test (no plausible tabular shape at all) is skipped."""
     best_idx, best_width = None, 0
     for i, row in enumerate(rows[:HEADER_SCAN_ROWS]):
-        width = sum(1 for c in row if c is not None and str(c).strip())
+        width = _row_width(row)
         if width > best_width:
             best_idx, best_width = i, width
 
@@ -445,7 +619,7 @@ def _structural_header_row(rows: list[tuple]) -> int | None:
 
     following = rows[best_idx + 1: best_idx + 1 + HEADER_SCAN_ROWS]
     has_comparable_data = any(
-        sum(1 for c in row if c is not None and str(c).strip()) >= max(2, best_width // 2)
+        _row_width(row) >= max(2, best_width // 2)
         for row in following
     )
     return best_idx if has_comparable_data else None
@@ -476,12 +650,23 @@ def unparseable_flag_column(field_code: str) -> str:
     return f"_unparseable_{field_code}"
 
 
-def _parse_amount_cell(text: str) -> float | None:
-    """'€900,000.00' -> 900000.0, '£1,234.56' -> 1234.56, '1.234,56'
-    (European decimal-comma) -> 1234.56, '(500.00)' -> -500.0. Returns
-    None if the text is genuinely empty OR if it still can't be read as
-    a number after all of that -- the caller distinguishes those two
-    cases itself (it already knows whether the raw cell was blank)."""
+_AMBIGUOUS = object()  # sentinel: the separator convention cannot be decided from this cell alone
+
+
+def _parse_amount_cell(text: str, decimal_sep: str | None = None, allow_ambiguous: bool = False):
+    """'€900,000.00' -> 900000.0, '£1,234.56' -> 1234.56, '1.234,56' -> 1234.56,
+    '(500.00)' -> -500.0, '1.234.567' -> 1234567.0. Returns None for empty or
+    unreadable text.
+
+    '1.234' (a single dot followed by exactly three digits) is genuinely
+    ambiguous: 1.234 in a UK/US file, 1234 in a European one (forensic P6).
+    It is resolved only by `decimal_sep` -- evidence from the *same column*,
+    see _column_decimal_separator -- and otherwise returns _AMBIGUOUS when
+    allow_ambiguous is set (the column parser turns that into "unparseable",
+    never a guessed number) or None. A single comma followed by three digits
+    ('1,234') remains thousands grouping unless the column proves a decimal
+    comma: a three-decimal money value written with a comma is not a
+    convention any market uses."""
     t = unicodedata.normalize("NFKC", text).strip()
     if not t:
         return None
@@ -501,23 +686,29 @@ def _parse_amount_cell(text: str) -> float | None:
     if not t:
         return None
 
-    has_comma, has_dot = "," in t, "." in t
-    if has_comma and has_dot:
+    n_comma, n_dot = t.count(","), t.count(".")
+    if n_comma and n_dot:
         if t.rfind(",") > t.rfind("."):
             t = t.replace(".", "").replace(",", ".")  # comma is the decimal separator (1.234,56)
         else:
             t = t.replace(",", "")  # dot is the decimal separator (1,234.56)
-    elif has_comma:
-        # Ambiguous with only a comma present: thousands grouping (1,234
-        # or 12,345) vs. a European decimal comma (1234,56). Thousands
-        # groups are conventionally exactly 3 digits; a decimal fraction
-        # is conventionally 1-2. A single comma followed by 1-2 digits is
-        # read as decimal; 3 digits (or more than one comma) is grouping.
+    elif n_comma:
         parts = t.split(",")
-        if len(parts) == 2 and len(parts[1]) in (1, 2):
-            t = t.replace(",", ".")
+        if n_comma == 1 and len(parts[1]) in (1, 2):
+            t = t.replace(",", ".")  # 12,5 / 1234,56: decimal comma
+        elif n_comma == 1 and len(parts[1]) == 3 and decimal_sep == ",":
+            t = t.replace(",", ".")  # column proves a decimal comma
         else:
-            t = t.replace(",", "")
+            t = t.replace(",", "")  # thousands grouping
+    elif n_dot > 1:
+        t = t.replace(".", "")  # 1.234.567: dots can only be grouping
+    elif n_dot == 1:
+        frac = t.split(".")[1]
+        if len(frac) == 3 and frac.isdigit() and t.split(".")[0].isdigit():
+            if decimal_sep == ",":
+                t = t.replace(".", "")
+            elif decimal_sep != ".":
+                return _AMBIGUOUS if allow_ambiguous else None
 
     try:
         value = float(t)
@@ -526,12 +717,46 @@ def _parse_amount_cell(text: str) -> float | None:
     return -value if negative else value
 
 
-def _parse_amount_series(series: pd.Series) -> tuple[pd.Series, pd.Series]:
+_DOT_DECIMAL_EVIDENCE = re.compile(r"\d,\d{3}\.\d|^[-(]?[^\d]*\d+\.\d{1,2}\)?$|\.\d{4,}\)?$")
+_COMMA_DECIMAL_EVIDENCE = re.compile(r"\d\.\d{3},\d|^[-(]?[^\d]*\d+,\d{1,2}\)?$")
+
+
+def _column_decimal_separator(texts: pd.Series, scaled: bool) -> str | None:
+    """'.' or ',' when unambiguous cells in the SAME column prove the
+    convention; None when there is no evidence or the evidence conflicts. A
+    column with a scale suffix ('(USD m)') conventionally carries decimal
+    fractions such as 36.686, so a dot is decimal there."""
+    dot = comma = False
+    for v in texts.dropna().astype(str):
+        v = "".join(unicodedata.normalize("NFKC", v).split())
+        if not dot and _DOT_DECIMAL_EVIDENCE.search(v):
+            dot = True
+        if not comma and _COMMA_DECIMAL_EVIDENCE.search(v):
+            comma = True
+        if dot and comma:
+            return None
+    if dot:
+        return "."
+    if comma:
+        return ","
+    return "." if scaled else None
+
+
+def _parse_amount_series(series: pd.Series, scaled: bool = False) -> tuple[pd.Series, pd.Series]:
     """Returns (parsed float values, unparseable mask). `series` is
     expected to already have empty strings normalized to NA by the
-    caller, so `notna()` reliably means "the source cell had text"."""
+    caller, so `notna()` reliably means "the source cell had text".
+    Ambiguous cells that the column cannot resolve count as unparseable."""
     had_text = series.notna()
-    parsed = series.map(lambda v: _parse_amount_cell(str(v)) if pd.notna(v) else None)
+    sep = _column_decimal_separator(series, scaled)
+
+    def one(v):
+        if pd.isna(v):
+            return None
+        r = _parse_amount_cell(str(v), decimal_sep=sep, allow_ambiguous=True)
+        return None if r is _AMBIGUOUS else r
+
+    parsed = series.map(one)
     parsed_numeric = pd.array(parsed, dtype="Float64")
     unparseable = had_text & pd.isna(parsed_numeric)
     return parsed_numeric, unparseable
@@ -570,53 +795,105 @@ def _parse_excel_serial_dates(series: pd.Series) -> pd.Series:
     return parsed
 
 
-def _best_date_parse(series: pd.Series) -> pd.Series:
+_UNAMBIGUOUS_DATE_FORMATS = ["%Y-%m-%d", "%Y/%m/%d", "%d-%b-%Y", "%Y-%m-%d %H:%M:%S", "%d %b %Y", "%d %B %Y"]
+_DAY_FIRST_FORMATS = {"%d/%m/%Y", "%d.%m.%Y"}
+_MONTH_FIRST_FORMATS = {"%m/%d/%Y"}
+
+
+def _best_date_parse(series: pd.Series, notes: list[str] | None = None) -> pd.Series:
+    """Pick the single explicit format that parses the most values in the
+    column; values it could not parse are then tried ONLY against
+    unambiguous formats (ISO, month names), then a flexible parse that keeps
+    the chosen day/month order, then Excel serial numbers.
+
+    Forensic P5: previously, if one value failed the winning format, the
+    whole column was re-parsed with a month-first flexible parser, silently
+    turning 03/04/2024 (3 April) into 4 March for every row. A value already
+    parsed is now never re-parsed. When every value is ambiguous (all days
+    <= 12) the order chosen is disclosed in `notes`."""
     non_null = series.dropna()
     if non_null.empty:
         return pd.to_datetime(series, errors="coerce")
 
     target = int(non_null.shape[0])
-    best_parsed = None
-    best_score = -1
+    best_parsed, best_score, best_fmt = None, -1, None
     for fmt in _DATE_FORMATS:
         parsed = pd.to_datetime(series, format=fmt, errors="coerce")
         score = int(parsed.notna().sum())
         if score > best_score:
-            best_score, best_parsed = score, parsed
+            best_score, best_parsed, best_fmt = score, parsed, fmt
         if best_score == target:
-            break  # every non-null value parsed; no need for a flexible fallback
+            break
 
-    if best_score < target:
-        fallback = pd.to_datetime(series, format="mixed", errors="coerce")
-        fallback_score = int(fallback.notna().sum())
-        if fallback_score > best_score:
-            best_score, best_parsed = fallback_score, fallback
+    if best_fmt in _DAY_FIRST_FORMATS | _MONTH_FIRST_FORMATS and best_score > 0:
+        other = "%m/%d/%Y" if best_fmt in _DAY_FIRST_FORMATS else "%d/%m/%Y"
+        alt = pd.to_datetime(series, format=other.replace("/", best_fmt[2]) if best_fmt == "%d.%m.%Y" else other,
+                             errors="coerce")
+        both = best_parsed.notna() & alt.notna()
+        if notes is not None and both.sum() == best_parsed.notna().sum():
+            order = "day/month" if best_fmt in _DAY_FIRST_FORMATS else "month/day"
+            notes.append(f"every date in this column is ambiguous between day/month and month/day; "
+                         f"read as {order} -- confirm with the sender")
 
-    if best_score < target:
-        # Whatever's still unresolved wasn't recognizable as a date
-        # string at all -- try reading it as a bare Excel serial number
-        # instead of leaving it NaT.
-        still_missing = best_parsed.isna() & series.notna()
-        if still_missing.any():
-            serial_parsed = _parse_excel_serial_dates(series[still_missing])
-            if serial_parsed.notna().any():
-                best_parsed = best_parsed.copy()
-                best_parsed.loc[still_missing] = serial_parsed
+    result = best_parsed.copy()
+    missing = result.isna() & series.notna()
+    for fmt in _UNAMBIGUOUS_DATE_FORMATS:
+        if not missing.any():
+            break
+        p = pd.to_datetime(series[missing], format=fmt, errors="coerce")
+        result.loc[p.index[p.notna()]] = p[p.notna()]
+        missing = result.isna() & series.notna()
+    if missing.any():
+        dayfirst = best_fmt not in _MONTH_FIRST_FORMATS
+        p = pd.to_datetime(series[missing], format="mixed", dayfirst=dayfirst, errors="coerce")
+        result.loc[p.index[p.notna()]] = p[p.notna()]
+        missing = result.isna() & series.notna()
+    if missing.any():
+        serial_parsed = _parse_excel_serial_dates(series[missing])
+        if serial_parsed.notna().any():
+            result.loc[serial_parsed.index[serial_parsed.notna()]] = serial_parsed[serial_parsed.notna()]
+    return result
 
-    return best_parsed
+
+class MappingConflictError(ValueError):
+    """Two source columns were bound to the same canonical field. Resolving
+    this by letting the last column win (the old behaviour, forensic P7)
+    silently discards data; it must be decided by a person."""
+
+
+TRANSFORM_RULE_VERSION = "amount-transform/2026-09-24.1"
 
 
 def apply_mapping(raw: pd.DataFrame, mapping: dict[str, str], sheet_name: str = "") -> pd.DataFrame:
     """mapping: {source_column_name: field_code}. Source columns absent
     from the mapping are dropped; canonical fields absent from the mapping
     come back as all-null columns so downstream code can always rely on
-    every field code being present as a column -- but see schema.SOURCE_
-    SHEET_CODE: validation/report consumers must check the mapping state
-    (via a MappingBatchResult) before treating a null cell as "genuinely
-    blank" rather than "column was never mapped"."""
+    every field code being present as a column -- validation/report
+    consumers check the per-sheet mapping state before treating a null cell
+    as "genuinely blank" rather than "column was never mapped".
+
+    Returned DataFrame .attrs:
+      "transforms":  one record per amount column -- source header, field,
+                     currency read from the header, scale token, multiplier,
+                     rule version. Nothing is scaled or assigned a currency
+                     without an entry here (auditable, never AI-derived).
+      "parse_notes": disclosures (ambiguous date order, mixed currencies).
+
+    Raises MappingConflictError if two source columns target one field."""
+    targets: dict[str, list[str]] = {}
+    for source_col, code in mapping.items():
+        if source_col in raw.columns and code in FIELDS_BY_CODE:
+            targets.setdefault(code, []).append(source_col)
+    conflicts = {c: cols for c, cols in targets.items() if len(cols) > 1}
+    if conflicts:
+        detail = "; ".join(f"{c} <- {cols}" for c, cols in conflicts.items())
+        raise MappingConflictError(f"sheet {sheet_name!r}: more than one source column bound to a field: {detail}")
+
     out = pd.DataFrame(index=raw.index)
-    currency_hint: str | None = None
     unparseable_cols: dict[str, pd.Series] = {}
+    transforms: list[dict] = []
+    notes: list[str] = []
+    column_currencies: set[str] = set()
 
     for source_col, code in mapping.items():
         if source_col not in raw.columns or code not in FIELDS_BY_CODE:
@@ -626,32 +903,28 @@ def apply_mapping(raw: pd.DataFrame, mapping: dict[str, str], sheet_name: str = 
         series = series.mask(series == "", pd.NA)
 
         if spec.dtype == "date":
-            out[code] = _best_date_parse(series)
+            col_notes: list[str] = []
+            out[code] = _best_date_parse(series, col_notes)
+            notes.extend(f"{source_col!r}: {n}" for n in col_notes)
         elif spec.dtype == "decimal":
-            parsed, unparseable = _parse_amount_series(series)
-            # TB-003: "Paid (USD m)" states every value in millions --
-            # previously the suffix was stripped for header matching and
-            # its meaning simply discarded, so a $36,686,000 claim
-            # exported as $36.69. Applied before the column is stored,
-            # so every downstream consumer (validation, export, report)
-            # sees the true magnitude with no separate unscaling step to
-            # remember.
             _, suffix = split_trailing_parenthetical(source_col)
             scale = parse_scale_suffix(suffix)
+            parsed, unparseable = _parse_amount_series(series, scaled=bool(scale))
+            # TB-003: "Paid (USD m)" states every value in millions. Applied
+            # before storage so every consumer sees the true magnitude, and
+            # recorded in "transforms" so the multiplier is auditable.
             if scale:
                 parsed = parsed * scale
+            ccy = parse_currency_suffix(suffix, VALID_CURRENCY_CODES)
+            if ccy:
+                column_currencies.add(ccy)
+            transforms.append({
+                "source_column": source_col, "field_code": code, "header_suffix": suffix,
+                "currency_from_header": ccy, "scale_multiplier": scale or 1.0,
+                "rule": "header-suffix", "rule_version": TRANSFORM_RULE_VERSION,
+            })
             out[code] = parsed
             unparseable_cols[code] = unparseable
-            # A monetary column's own header sometimes states its currency
-            # directly -- "Paid Amount (GBP)" -- where the sheet has no
-            # separate Currency column at all. That's not the same as
-            # guessing a default: the file itself said so in the header,
-            # so it's read rather than discarded. Only used as a last
-            # resort, see below, when no Currency column was mapped.
-            if currency_hint is None:
-                hint = parse_currency_suffix(suffix, VALID_CURRENCY_CODES)
-                if hint:
-                    currency_hint = hint
         elif spec.dtype == "enum":
             out[code] = series.str.lower()
         elif spec.dtype == "currency":
@@ -667,13 +940,29 @@ def apply_mapping(raw: pd.DataFrame, mapping: dict[str, str], sheet_name: str = 
     for code in decimal_codes:
         out[unparseable_flag_column(code)] = unparseable_cols.get(code, pd.Series(False, index=out.index))
 
-    if currency_hint and CURRENCY_CODE not in mapping.values() and len(out):
-        out[CURRENCY_CODE] = pd.array([currency_hint] * len(out), dtype="string")
+    # Forensic P9: "Paid (GBP)" + "Reserve (EUR)" used to be summed as if one
+    # currency. Different header currencies on one sheet make every row's
+    # arithmetic NOT_EVALUABLE and no single currency is assigned.
+    mixed = len(column_currencies) > 1
+    out["_mixed_currency"] = pd.Series(mixed, index=out.index, dtype=bool)
+    if mixed:
+        notes.append(f"amount columns declare different currencies {sorted(column_currencies)}; "
+                     "no currency assigned and arithmetic is not evaluable")
+    elif column_currencies and CURRENCY_CODE not in mapping.values() and len(out):
+        # The header itself states the currency ("Paid Amount (GBP)") and the
+        # sheet has no Currency column: read, not guessed, and recorded.
+        (hint,) = tuple(column_currencies)
+        out[CURRENCY_CODE] = pd.array([hint] * len(out), dtype="string")
+        notes.append(f"currency {hint} taken from amount column headers (no currency column on the sheet)")
 
     from .schema import SOURCE_SHEET_CODE
     out[SOURCE_SHEET_CODE] = pd.array([sheet_name] * len(out), dtype="string")
 
-    return out[[f.code for f in FIELDS] + [SOURCE_SHEET_CODE] + [unparseable_flag_column(c) for c in decimal_codes]]
+    result = out[[f.code for f in FIELDS] + [SOURCE_SHEET_CODE, "_mixed_currency"]
+                 + [unparseable_flag_column(c) for c in decimal_codes]]
+    result.attrs["transforms"] = transforms
+    result.attrs["parse_notes"] = notes
+    return result
 
 
 def _empty_column(dtype: str, length: int, index) -> pd.Series:

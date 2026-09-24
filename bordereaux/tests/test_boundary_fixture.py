@@ -39,6 +39,28 @@ def _run() -> tuple:
     return sheets, proposals, result
 
 
+try:  # pytest collection: provide the script's _run() outputs as module-scoped fixtures
+    import pytest
+
+    @pytest.fixture(scope="module")
+    def _run_once():
+        return _run()
+
+    @pytest.fixture(scope="module")
+    def sheets(_run_once):
+        return _run_once[0]
+
+    @pytest.fixture(scope="module")
+    def proposals(_run_once):
+        return _run_once[1]
+
+    @pytest.fixture(scope="module")
+    def result(_run_once):
+        return _run_once[2]
+except ImportError:  # running as a plain script
+    pass
+
+
 def test_all_sheets_and_rows_ingested(sheets, result) -> None:
     assert len(sheets) == ANSWER_KEY["sheets_processed"] == 10
     assert all(not s.skipped for s in sheets), [s.skip_reason for s in sheets if s.skipped]

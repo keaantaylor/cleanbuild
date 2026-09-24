@@ -18,7 +18,11 @@ import openpyxl  # noqa: E402
 
 from bordereaux import ingest  # noqa: E402
 
-FIXTURE_DIR = REPO_ROOT / "tests" / "fixtures"
+# Generated fixtures go to a temp dir: tests must never rewrite tracked files.
+import tempfile  # noqa: E402
+
+FIXTURE_DIR = Path(tempfile.gettempdir()) / "truebind_generated_fixtures"
+FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _build_stray_cell_fixture() -> Path:
@@ -49,12 +53,17 @@ def test_stray_cell_does_not_trigger_unbounded_scan() -> None:
     sheet = sheets[0]
     assert not sheet.skipped, f"sheet was skipped: {sheet.skip_reason!r}"
     assert len(sheet.raw) == 20, f"expected 20 real claim rows, got {len(sheet.raw)}"
-    assert sheet.raw_row_count < 1000, (
-        f"raw_row_count ({sheet.raw_row_count}) should reflect the true data extent, "
-        "not the inflated declared used-range"
-    )
-    print(f"OK: bounded scan completed in {elapsed:.2f}s; {len(sheet.raw)} real rows, "
-          f"raw_row_count={sheet.raw_row_count} (not ~1,048,576)")
+    # The stray cell is real sheet content: since the P2 fix (never stop
+    # reading silently) it is read and accounted for -- the 1M-row blank gap
+    # is ONE collapsed ledger entry (not a million stored rows) and the stray
+    # value is excluded with a stated reason, never dropped unseen.
+    runs = [er for er in sheet.excluded_rows if er.reason == "blank_run"]
+    assert len(runs) == 1 and runs[0].count > 1_000_000, runs
+    stray = [er for er in sheet.excluded_rows if er.values.get("Claim Ref") == "stray"]
+    assert len(stray) == 1 and stray[0].row_number == 1_048_576, stray
+    assert len(sheet.excluded_rows) < 10, "blank rows must be collapsed, not stored one by one"
+    print(f"OK: bounded scan completed in {elapsed:.2f}s; {len(sheet.raw)} real rows; stray cell at row "
+          f"{stray[0].row_number} accounted for ({stray[0].reason}); {runs[0].count} blank rows collapsed")
 
 
 if __name__ == "__main__":

@@ -66,7 +66,7 @@ SheetMappingStatus = Literal["mapped", "partial", "unmapped", "empty", "error", 
 # Insured Name plus at least one date, mirrors how a human reviewer would
 # tell "this is a claims register" from "this is a rollup of one".
 _IDENTITY_DATE_CODES = (schema.LOSS_DATE_CODE, schema.NOTIFIED_DATE_CODE)
-_MONETARY_CODES = (schema.PAID_CODE, schema.RESERVE_CODE, schema.INCURRED_CODE)
+_MONETARY_CODES = schema.MONETARY_CODES
 
 
 def _has_claim_identity(mapped_field_codes: list[str]) -> bool:
@@ -74,6 +74,21 @@ def _has_claim_identity(mapped_field_codes: list[str]) -> bool:
     if schema.CLAIM_REF_CODE in codes:
         return True
     return schema.INSURED_NAME_CODE in codes and bool(codes & set(_IDENTITY_DATE_CODES))
+
+def _looks_like_summary(mapped_field_codes: list[str], source_column_count: int | None) -> bool:
+    """TB-001 excluded any sheet with monetary columns but no claim
+    identity. Forensic F3: a French-headed claims sheet where only
+    "Réserve" happened to match an alias (1 of 10 columns) was excluded as a
+    "summary" -- 50% of a workbook's claims disappeared under a grade-5
+    report. A sheet is only auto-classified as a summary when the columns we
+    recognised make up at least half of its columns (a rollup is mostly
+    amounts). Anything else stays in the claim set as "partial", visibly
+    needing mapping review. Without a column count (legacy callers), keep the
+    original TB-001 behaviour."""
+    if source_column_count is None or source_column_count <= 0:
+        return True
+    return len(set(mapped_field_codes)) * 2 >= source_column_count
+
 
 GRADE_LABELS = {5: "Excellent", 4: "Good", 3: "Fair", 2: "Poor", 1: "Very poor"}
 EXCEPTION_WEIGHT = 1.0
@@ -102,6 +117,11 @@ class WorkbookCoverage:
     excluded_rows: list[ExcludedRow] = field(default_factory=list)
     sheet_audit: list[SheetAuditRecord] = field(default_factory=list)
     reconciliation: "ReconciliationSummary | None" = None
+    sheet_transforms: dict[str, list[dict]] = field(default_factory=dict)  # amount-column currency/scale audit
+    sheet_notes: dict[str, list[str]] = field(default_factory=dict)  # read/parse disclosures per sheet
+    # Source columns the confirmed mapping did not bind to any canonical field,
+    # per sheet. Their values are kept on each row (canonical "_unmapped_values").
+    unmapped_source_columns: dict[str, list[str]] = field(default_factory=dict)
 
     @staticmethod
     def single_sheet(row_count: int, sheet_name: str = "") -> "WorkbookCoverage":
@@ -122,7 +142,7 @@ class WorkbookCoverage:
         """{reason: count} -- e.g. {"blank": 2, "repeated_header": 1}."""
         counts: dict[str, int] = {}
         for er in self.excluded_rows:
-            counts[er.reason] = counts.get(er.reason, 0) + 1
+            counts[er.reason] = counts.get(er.reason, 0) + er.count
         return counts
 
     @property
@@ -183,6 +203,7 @@ class SheetAuditRecord:
 
 def classify_sheet_status(
     skipped: bool, skip_reason: str | None, mapped_field_codes: list[str],
+    source_column_count: int | None = None,
 ) -> tuple[SheetMappingStatus, str]:
     """The general mechanism behind SheetAuditRecord.status -- a sheet
     with 0 mapped fields is explicitly NOT the same thing as an empty
@@ -194,7 +215,8 @@ def classify_sheet_status(
         return ("error" if is_crash else "empty"), (skip_reason or "sheet contained no tabular data")
     if not mapped_field_codes:
         return "unmapped", "no recognized business fields were detected in the header row"
-    if not _has_claim_identity(mapped_field_codes) and set(mapped_field_codes) & set(_MONETARY_CODES):
+    if (not _has_claim_identity(mapped_field_codes) and set(mapped_field_codes) & set(_MONETARY_CODES)
+            and _looks_like_summary(mapped_field_codes, source_column_count)):
         return "non_claim_summary", (
             "binds only monetary column(s) with no claim reference (or insured name + date) -- "
             "recognised as a summary/aggregate sheet, not a claims register, and excluded from the claim set"
@@ -296,6 +318,7 @@ class HealthReport:
     currency_exceptions: int
     exact_duplicates: int
     probable_duplicates: int
+    period_unknown_repeats: int  # same ref on different sheets with no reporting period: review
     overall_completeness_pct: float
     exception_rate_pct: float
     duplicate_rate_pct: float
@@ -307,10 +330,14 @@ class HealthReport:
 
     @property
     def score_reliable(self) -> bool:
+        # A score is only presented as reliable when every sheet was read and
+        # bound well enough to be assessed: a "partial" sheet (required fields
+        # unmapped) contributes rows the checks cannot see (forensic F3).
         return (
             self.coverage.fully_covered
             and not self.unmapped_required_fields
             and not self.coverage.unmapped_data_sheets
+            and not any(rec.requires_review for rec in self.coverage.sheet_audit)
         )
 
 
@@ -371,6 +398,7 @@ def build_health_report(canonical: pd.DataFrame, validation_result: ValidationRe
 
     exact_dupes = int((duplicates["match_type"] == "exact_duplicate").sum()) if not duplicates.empty else 0
     probable_dupes = int((duplicates["match_type"] == "probable_duplicate").sum()) if not duplicates.empty else 0
+    period_unknown = int((duplicates["match_type"] == "repeat_period_unknown").sum()) if not duplicates.empty else 0
 
     exception_rows = exceptions["row_index"].nunique() if not exceptions.empty else 0
     exception_rate = 100.0 * exception_rows / total if total else 0.0
@@ -395,6 +423,7 @@ def build_health_report(canonical: pd.DataFrame, validation_result: ValidationRe
         currency_exceptions=currency_exceptions,
         exact_duplicates=exact_dupes,
         probable_duplicates=probable_dupes,
+        period_unknown_repeats=period_unknown,
         overall_completeness_pct=overall_completeness,
         exception_rate_pct=exception_rate,
         duplicate_rate_pct=duplicate_rate,
@@ -436,6 +465,9 @@ def _reliability_caveat(health: HealthReport) -> str | None:
         reasons.append("not every sheet/row was assessed")
     if health.unmapped_required_fields:
         reasons.append(f"required field(s) left unmapped: {', '.join(health.unmapped_required_fields)}")
+    review = [rec.sheet_name for rec in health.coverage.sheet_audit if rec.status in ("partial", "error")]
+    if review:
+        reasons.append(f"sheet(s) needing mapping review: {', '.join(review)}")
     if health.coverage.unmapped_data_sheets:
         reasons.append(
             f"sheet(s) retained but entirely unmapped: {', '.join(health.coverage.unmapped_data_sheets)}"
@@ -510,6 +542,7 @@ def write_health_report_excel(health: HealthReport, exceptions: pd.DataFrame,
         ["Currency exceptions", health.currency_exceptions],
         ["Certain duplicates (exact claim reference match)", health.exact_duplicates],
         ["Probable duplicates (similar name + nearby loss date)", health.probable_duplicates],
+        ["Same claim on several sheets, no reporting period (review)", health.period_unknown_repeats],
     ]
     summary_df = pd.DataFrame(summary_rows, columns=["Metric", "Value"])
 

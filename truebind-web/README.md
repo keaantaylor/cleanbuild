@@ -62,32 +62,56 @@ docker compose up --build
 
 The backend runs `alembic upgrade head` automatically on container start.
 
-### Option B — run each service natively
+### Option B — one command, natively (recommended for development)
 
-**Backend** (Python 3.11+):
+Windows (PowerShell): `./dev.ps1`   ·   macOS/Linux: `./dev.sh`
+
+This creates `backend/.env` from `backend/.env.example` if missing, runs the
+database migrations, starts the API **with the job worker embedded**
+(http://127.0.0.1:8000, docs at `/docs`), waits for `/health/ready`, then
+starts the frontend (http://localhost:3000).
+
+Prerequisites: Python 3.11+ with `pip install -r backend/requirements.txt`
+(a `backend/.venv` is used automatically if present) and Node 20+.
+
+**One database, always.** The API, the worker, each job's child process and
+Alembic all read `backend/.env`, so they cannot drift onto different
+databases. The default is `backend/data/truebind-mvp.db`. The legacy
+`backend/data/truebind.db` is never opened unless you point `DATABASE_URL`
+at it explicitly.
+
+**Jobs are processed by a worker, never by the web request.** In development
+the worker runs inside the API process (`TRUEBIND_EMBEDDED_WORKER=1`, the
+default outside production); each job still runs in its own isolated child
+process. In production set `TRUEBIND_ENV=production` and run
+`python -m app.worker` as separate processes (as many as you need). If no
+worker is alive, the UI says so instead of showing "queued" indefinitely
+(`GET /api/v1/system/status`).
+
+Manual equivalent:
 ```bash
-cd truebind-web/backend
-pip install -r requirements.txt   # installs ../../bordereaux as an editable dep too
-alembic upgrade head              # creates data/truebind.db (SQLite) by default
-uvicorn app.main:app --reload
+cd truebind-web/backend && cp .env.example .env && alembic upgrade head
+uvicorn app.main:app --host 127.0.0.1 --port 8000     # API + embedded worker
+cd ../frontend && npm install && npm run dev
 ```
 
-**Frontend** (Node 20+):
-```bash
-cd truebind-web/frontend
-npm install
-cp .env.local.example .env.local   # points at http://localhost:8000/api/v1
-npm run dev
-```
+Open http://localhost:3000/login and create an account (self-service sign-up
+is enabled outside production; set `ALLOW_SIGNUP=0` to disable).
 
-Open http://localhost:3000 — it redirects to `/upload`.
+**MVP limitations (internal testing only):** local-disk file storage; the
+login rate limiter is in-memory (single process); in Docker Compose the app
+connects as the Postgres superuser, which bypasses Row Level Security (the
+application's own tenant filtering still applies — use a non-superuser role,
+as the test suite does, to get database-enforced isolation).
 
 ## Tests
 
 ```bash
 cd truebind-web/backend
 pip install -r requirements-dev.txt
-pytest tests/ -v
+pytest tests/ -v                  # SQLite
+# PostgreSQL (RLS + append-only audit tests run too); the role must NOT be a superuser:
+TRUEBIND_TEST_DATABASE_URL=postgresql+psycopg://USER:PASS@localhost:5432/DB pytest tests/
 ```
 
 ```bash

@@ -17,8 +17,9 @@ class Obligation(Base):
     __tablename__ = "obligations"
 
     id: Mapped[str] = uuid_pk()
-    report_id: Mapped[str] = mapped_column(ForeignKey("reports.id"), index=True)
-    claim_row_id: Mapped[str | None] = mapped_column(ForeignKey("claim_rows.id"), nullable=True)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    report_id: Mapped[str] = mapped_column(ForeignKey("reports.id", ondelete="CASCADE"), index=True)
+    claim_row_id: Mapped[str | None] = mapped_column(ForeignKey("claim_rows.id", ondelete="CASCADE"), nullable=True)
     owner: Mapped[str | None] = mapped_column(String(255), nullable=True)
     deadline: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[str] = mapped_column(String(16), default="OPEN")

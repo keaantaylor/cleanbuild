@@ -20,9 +20,9 @@ from bordereaux.validation import validate  # noqa: E402
 
 MAPPING = {
     "Claim Ref": "CR0104M", "Insured Name": "CR0035M",
-    "Paid Amount": "CR0126CM", "Reserve Amount": "CR0130CM", "Incurred Amount": "CR0155CM",
+    "Paid Amount": "TB_PAID_TD", "Reserve Amount": "CR0130CM", "Incurred Amount": "CR0155CM",
 }
-SHEET_STATE = {"test": {"CR0126CM": "alias", "CR0130CM": "alias", "CR0155CM": "alias"}}
+SHEET_STATE = {"test": {"TB_PAID_TD": "alias", "CR0130CM": "alias", "CR0155CM": "alias"}}
 
 
 def test_currency_symbols_and_both_thousands_conventions() -> None:
@@ -55,9 +55,9 @@ def test_unparseable_value_is_not_evaluable_never_zero() -> None:
     }).astype("string")                                # it's not silently scored as a "mismatch" either
 
     canonical = apply_mapping(raw, MAPPING, sheet_name="test")
-    assert pd.isna(canonical.at[0, "CR0126CM"]), "an unparseable cell must not silently become a number"
-    assert canonical.at[0, "_unparseable_CR0126CM"], "the unparseable flag must be set for row 0"
-    assert not canonical.at[1, "_unparseable_CR0126CM"], "a normally-parsing row must not be flagged"
+    assert pd.isna(canonical.at[0, "TB_PAID_TD"]), "an unparseable cell must not silently become a number"
+    assert canonical.at[0, "_unparseable_TB_PAID_TD"], "the unparseable flag must be set for row 0"
+    assert not canonical.at[1, "_unparseable_TB_PAID_TD"], "a normally-parsing row must not be flagged"
 
     result = validate(canonical, sheet_field_state=SHEET_STATE)
     assert result.exceptions.empty, (
@@ -104,8 +104,8 @@ def test_already_numeric_excel_cell_is_not_corrupted() -> None:
     raw["Claim Ref"] = raw["Claim Ref"].astype("string")
     raw["Insured Name"] = raw["Insured Name"].astype("string")
     canonical = apply_mapping(raw, MAPPING, sheet_name="test")
-    assert canonical["CR0126CM"].tolist() == [227122.35, 1234.5, 1000000.0]
-    assert not canonical["_unparseable_CR0126CM"].any()
+    assert canonical["TB_PAID_TD"].tolist() == [227122.35, 1234.5, 1000000.0]
+    assert not canonical["_unparseable_TB_PAID_TD"].any()
     print("OK: genuinely numeric Excel cells round-trip through parsing without corruption")
 
 
@@ -140,10 +140,10 @@ def test_single_row_all_three_amounts_european_format() -> None:
         "Paid Amount": ["478.776,12"], "Reserve Amount": ["100.000,00"], "Incurred Amount": ["578.776,12"],
     }).astype("string")
     canonical = apply_mapping(raw, MAPPING, sheet_name="test")
-    assert canonical.at[0, "CR0126CM"] == 478776.12
+    assert canonical.at[0, "TB_PAID_TD"] == 478776.12
     assert canonical.at[0, "CR0130CM"] == 100000.00
     assert canonical.at[0, "CR0155CM"] == 578776.12
-    assert not canonical.at[0, "_unparseable_CR0126CM"]
+    assert not canonical.at[0, "_unparseable_TB_PAID_TD"]
     assert not canonical.at[0, "_unparseable_CR0130CM"]
     assert not canonical.at[0, "_unparseable_CR0155CM"]
     print("OK: CLM-P0-00031-style row (all-European-format paid/reserve/incurred) parses fully, nothing blank")

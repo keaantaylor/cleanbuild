@@ -13,9 +13,13 @@ from __future__ import annotations
 import pandas as pd
 import pandera.pandas as pa
 
-from .schema import FIELDS, STATUS_CODE
+from .schema import FIELDS
 
-_CHECKS = {STATUS_CODE: pa.Check.isin(["open", "closed", "reopened", "other"], ignore_na=True)}
+# No enum-domain checks here: an unexpected claim status (e.g. "Pending",
+# "+cmd") is a row-level `invalid_status` finding in validation.py. As a
+# schema check it used to raise SchemaError and abort the WHOLE file over
+# one cell (found by the export-injection test, 2026-09-24).
+_CHECKS: dict = {}
 
 _DTYPE_MAP = {
     "string": pd.StringDtype(),
@@ -30,7 +34,7 @@ def build_schema() -> pa.DataFrameSchema:
     # Nullability/"required" enforcement is deliberately NOT done here:
     # a missing mandatory field should show up as a row-level exception
     # in the health report (validation.py), not abort the whole file.
-    # This schema only checks type and, where applicable, enum domain.
+    # This schema only checks and coerces column types.
     columns = {}
     for f in FIELDS:
         columns[f.code] = pa.Column(

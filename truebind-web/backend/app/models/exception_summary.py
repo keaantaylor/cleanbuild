@@ -32,7 +32,8 @@ class ExceptionSummary(Base):
     __tablename__ = "exception_summaries"
 
     id: Mapped[str] = uuid_pk()
-    report_id: Mapped[str] = mapped_column(ForeignKey("reports.id"), index=True)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    report_id: Mapped[str] = mapped_column(ForeignKey("reports.id", ondelete="CASCADE"), index=True)
     narrative_status: Mapped[str] = mapped_column(String(32), default="GENERATING")
     # The deterministic, code-computed aggregate (counts/values by
     # category/sheet/root-cause) -- see ExceptionAggregate in

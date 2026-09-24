@@ -122,7 +122,7 @@ SHEETS: list[SheetSpec] = [
             "CR0104M": "Claim Reference", "CR0105CM": "Claim Status",
             "CR0119CM": "Loss Date", "CR0136CM": "Notified Date",
             "CR0035M": "Insured Name", "CR0029M": "Policy Reference",
-            "CR0126CM": "Amount Paid", "CR0130CM": "Reserve Amount",
+            "TB_PAID_TD": "Amount Paid", "CR0130CM": "Reserve Amount",
             "CR0155CM": "Incurred Amount", "CR0110CM": "Currency",
         },
         column_order=["Claim Reference", "Claim Status", "Loss Date", "Notified Date",
@@ -135,7 +135,7 @@ SHEETS: list[SheetSpec] = [
         columns={
             "CR0104M": "Claim No", "CR0105CM": "Status", "CR0119CM": "Date of Loss",
             "CR0136CM": "Date Notified", "CR0035M": "Insured", "CR0029M": "Policy No",
-            "CR0126CM": "Paid", "CR0130CM": "O/S Reserve", "CR0155CM": "Total Incurred",
+            "TB_PAID_TD": "Paid", "CR0130CM": "O/S Reserve", "CR0155CM": "Total Incurred",
             "CR0110CM": "Ccy",
         },
         column_order=["Claim No", "Status", "Date of Loss", "Date Notified", "Insured",
@@ -147,7 +147,7 @@ SHEETS: list[SheetSpec] = [
         columns={
             "CR0104M": "ClaimRef", "CR0105CM": "ClaimStatus", "CR0119CM": "LossDate",
             "CR0136CM": "NotifiedDate", "CR0035M": "Insured", "CR0029M": "PolicyRef",
-            "CR0126CM": "IndemnityPaid", "CR0130CM": "IndemnityReserve",
+            "TB_PAID_TD": "IndemnityPaid", "CR0130CM": "IndemnityReserve",
             "CR0155CM": "TotalIncurred", "CR0110CM": "SettlementCurrency",
         },
         column_order=["ClaimRef", "ClaimStatus", "LossDate", "NotifiedDate", "Insured",
@@ -160,7 +160,7 @@ SHEETS: list[SheetSpec] = [
         columns={
             "CR0104M": "Reference", "CR0105CM": "State", "CR0119CM": "Incident Date",
             "CR0136CM": "Advised Date", "CR0035M": "Client Name", "CR0029M": "Contract No",
-            "CR0126CM": "Paid To Date", "CR0130CM": "Case Reserve",
+            "TB_PAID_TD": "Paid To Date", "CR0130CM": "Case Reserve",
             "CR0155CM": "Incurred To Date", "CR0110CM": "Currency Code",
         },
         column_order=["Reference", "State", "Incident Date", "Advised Date", "Client Name",
@@ -173,7 +173,7 @@ SHEETS: list[SheetSpec] = [
         columns={
             "CR0104M": "Claim Number", "CR0105CM": "Claim State", "CR0119CM": "Date of Loss",
             "CR0136CM": "First Notified", "CR0035M": "Policyholder", "CR0029M": "Policy Number",
-            "CR0126CM": "Amount Paid", "CR0130CM": "Reserve O/S", "CR0155CM": "Gross Incurred",
+            "TB_PAID_TD": "Amount Paid", "CR0130CM": "Reserve O/S", "CR0155CM": "Gross Incurred",
             "CR0110CM": "Ccy Code",
         },
         column_order=["Claim Number", "Claim State", "Date of Loss", "First Notified",
@@ -186,7 +186,7 @@ SHEETS: list[SheetSpec] = [
         columns={
             "CR0104M": "Claim Ref", "CR0105CM": "Status", "CR0119CM": "Loss Date",
             "CR0136CM": "Notification Date", "CR0035M": "Insured", "CR0029M": "Policy Ref",
-            "CR0126CM": "Paid Amount", "CR0130CM": "Reserve Amount",
+            "TB_PAID_TD": "Paid Amount", "CR0130CM": "Reserve Amount",
             "CR0155CM": "Incurred Amount", "CR0110CM": "Currency",
         },
         column_order=["Claim Ref", "Status", "Loss Date", "Notification Date", "Insured",
@@ -201,7 +201,7 @@ SHEETS: list[SheetSpec] = [
             "CR0104M": "Claim Reference No", "CR0105CM": "Current Status",
             "CR0119CM": "Date Of Loss", "CR0136CM": "Date First Notified",
             "CR0035M": "Name of Insured", "CR0029M": "Policy Reference No",
-            "CR0126CM": "Indemnity Paid", "CR0130CM": "Indemnity O/S",
+            "TB_PAID_TD": "Indemnity Paid", "CR0130CM": "Indemnity O/S",
             "CR0155CM": "Total Incurred Amount", "CR0110CM": "Settlement Ccy",
         },
         column_order=["Claim Reference No", "Current Status", "Date Of Loss",
@@ -215,7 +215,7 @@ SHEETS: list[SheetSpec] = [
         columns={
             "CR0104M": "Claim Ref", "CR0105CM": "Claim Status", "CR0119CM": "Loss Date",
             "CR0136CM": "Notified Date", "CR0035M": "Insured Name", "CR0029M": "Policy No",
-            "CR0126CM": "Paid", "CR0130CM": "Reserve", "CR0155CM": "Incurred",
+            "TB_PAID_TD": "Paid", "CR0130CM": "Reserve", "CR0155CM": "Incurred",
             "CR0110CM": "Currency",
         },
         column_order=["Claim Ref", "Claim Status", "Loss Date", "Notified Date",
@@ -228,7 +228,7 @@ SHEETS: list[SheetSpec] = [
         columns={
             "CR0104M": "Claim ID", "CR0105CM": "Status Code", "CR0119CM": "Date Loss Occurred",
             "CR0136CM": "Date Claim Notified", "CR0035M": "Insured Party",
-            "CR0029M": "Policy Identifier", "CR0126CM": "Amount Paid To Date",
+            "CR0029M": "Policy Identifier", "TB_PAID_TD": "Amount Paid To Date",
             "CR0130CM": "Outstanding Reserve", "CR0155CM": "Incurred Total",
             "CR0110CM": "Currency",
         },
@@ -242,7 +242,7 @@ SHEETS: list[SheetSpec] = [
         columns={
             "CR0104M": "CLAIM_REF", "CR0105CM": "CLAIM_STATUS", "CR0119CM": "LOSS_DATE",
             "CR0136CM": "NOTIFIED_DATE", "CR0035M": "INSURED_NAME", "CR0029M": "POLICY_REF",
-            "CR0126CM": "PAID_AMT", "CR0130CM": "RESERVE_AMT", "CR0155CM": "INCURRED_AMT",
+            "TB_PAID_TD": "PAID_AMT", "CR0130CM": "RESERVE_AMT", "CR0155CM": "INCURRED_AMT",
             "CR0110CM": "CURRENCY",
         },
         column_order=["CLAIM_REF", "CLAIM_STATUS", "LOSS_DATE", "NOTIFIED_DATE",
@@ -405,7 +405,7 @@ def main() -> None:
             by_code = {
                 "CR0104M": r.claim_ref, "CR0105CM": r.status, "CR0119CM": r.loss_date,
                 "CR0136CM": r.notified_date, "CR0035M": r.insured, "CR0029M": r.policy_ref,
-                "CR0126CM": r.paid, "CR0130CM": r.reserve, "CR0155CM": r.incurred,
+                "TB_PAID_TD": r.paid, "CR0130CM": r.reserve, "CR0155CM": r.incurred,
                 "CR0110CM": r.currency,
             }
             ws.append([by_code[code_by_header[h]] for h in spec.column_order])

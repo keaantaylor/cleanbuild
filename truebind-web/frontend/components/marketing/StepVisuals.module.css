@@ -163,6 +163,6 @@
 
 .auditLine strong {
   color: var(--mkt-ink);
-  font-family: var(--font-marketing-body), var(--font-sans);
+  font-family: var(--font-sans);
   font-weight: 600;
 }

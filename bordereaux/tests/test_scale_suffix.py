@@ -20,7 +20,7 @@ from bordereaux.iso4217 import VALID_CURRENCY_CODES  # noqa: E402
 
 MAPPING = {
     "Claim Ref": "CR0104M", "Insured Name": "CR0035M",
-    "Paid (USD m)": "CR0126CM", "Reserve (USD m)": "CR0130CM", "Incurred (USD m)": "CR0155CM",
+    "Paid (USD m)": "TB_PAID_TD", "Reserve (USD m)": "CR0130CM", "Incurred (USD m)": "CR0155CM",
 }
 
 
@@ -47,14 +47,14 @@ def test_millions_suffixed_column_exports_at_full_magnitude() -> None:
 
     canonical = apply_mapping(raw, MAPPING, sheet_name="test")
 
-    assert canonical.at[1, "CR0126CM"] == 36_686_000.0, (
-        f"CLM-SCL-00002 must export at full magnitude, got {canonical.at[1, 'CR0126CM']}"
+    assert canonical.at[1, "TB_PAID_TD"] == 36_686_000.0, (
+        f"CLM-SCL-00002 must export at full magnitude, got {canonical.at[1, 'TB_PAID_TD']}"
     )
-    assert canonical.at[0, "CR0126CM"] == 12_500_000.0
+    assert canonical.at[0, "TB_PAID_TD"] == 12_500_000.0
     assert canonical.at[0, "CR0130CM"] == 1_000_000.0
     assert canonical.at[0, "CR0155CM"] == 13_500_000.0
     assert canonical.at[0, "CR0110CM"] == "USD", "currency must be inferred from the same suffix"
-    print(f"OK: CLM-SCL-00002 exports as {canonical.at[1, 'CR0126CM']:,.0f} (was 36.686 before this fix)")
+    print(f"OK: CLM-SCL-00002 exports as {canonical.at[1, 'TB_PAID_TD']:,.0f} (was 36.686 before this fix)")
 
 
 if __name__ == "__main__":

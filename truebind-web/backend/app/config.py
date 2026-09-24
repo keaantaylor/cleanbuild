@@ -63,6 +63,11 @@ def get_database_url() -> str:
             rel = url[len("sqlite:///"):]
             if rel and not Path(rel).is_absolute() and not rel.startswith(":memory:"):
                 return f"sqlite:///{(BACKEND_ROOT / rel).resolve()}"
+        # Hosted Postgres (Render, Heroku, Supabase...) hands out postgres:// or
+        # postgresql:// URLs; SQLAlchemy needs the driver named explicitly.
+        for prefix in ("postgres://", "postgresql://"):
+            if url.startswith(prefix):
+                return "postgresql+psycopg://" + url[len(prefix):]
         return url
     if IS_PRODUCTION:
         raise RuntimeError("DATABASE_URL must be set in production (PostgreSQL)")

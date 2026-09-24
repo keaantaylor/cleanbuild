@@ -23,6 +23,6 @@ EXPOSE 8000
 # via $PORT at runtime and route traffic to whatever that resolves to --
 # a hardcoded --port 8000 works for docker-compose (which maps the port
 # explicitly) but silently fails health checks on those platforms if
-# they pick a different port. Falls back to 8000 for docker-compose/
-# local runs where $PORT isn't set.
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# they pick a different port. start.sh falls back to 8000 for
+# docker-compose/local runs where $PORT isn't set, and runs migrations first.
+CMD ["sh", "/app/start.sh"]

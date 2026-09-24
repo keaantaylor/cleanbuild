@@ -74,3 +74,12 @@ def test_no_secret_material_in_responses(api, monkeypatch):
 
 def test_readiness_endpoint():
     assert TestClient(app).get("/health/ready").json() == {"status": "ready"}
+
+
+def test_hosted_postgres_urls_get_the_psycopg_driver(monkeypatch):
+    from app.config import get_database_url
+    for given in ("postgres://u:p@db:5432/truebind", "postgresql://u:p@db:5432/truebind"):
+        monkeypatch.setenv("DATABASE_URL", given)
+        assert get_database_url() == "postgresql+psycopg://u:p@db:5432/truebind"
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://u:p@db/x")
+    assert get_database_url() == "postgresql+psycopg://u:p@db/x"

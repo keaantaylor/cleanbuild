@@ -1,0 +1,39 @@
+# Render Blueprint: TrueBind API (+ embedded job worker) and PostgreSQL.
+# Deploy: render.com -> New -> Blueprint -> pick this repository.
+# The frontend is hosted on Vercel and proxies /api/v1 to this service
+# (see truebind-web/frontend/next.config.ts and DEPLOY.md).
+databases:
+  - name: truebind-db
+    plan: free
+    region: frankfurt
+    databaseName: truebind
+    user: truebind
+
+services:
+  - type: web
+    name: truebind-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerContext: .
+    dockerfilePath: ./truebind-web/backend/Dockerfile
+    healthCheckPath: /health/ready
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: truebind-db
+          property: connectionString
+      - key: TRUEBIND_ENV
+        value: production
+      # One service runs both the API and the job worker (each job still
+      # runs in its own memory/time-limited child process).
+      - key: TRUEBIND_EMBEDDED_WORKER
+        value: "1"
+      # Lets you create the first organisation from the login page. Set to
+      # "false" once your team's accounts exist.
+      - key: ALLOW_SIGNUP
+        value: "true"
+      # Optional: enables AI-assisted column mapping (headers only).
+      - key: ANTHROPIC_API_KEY
+        sync: false

@@ -99,6 +99,8 @@ def overview(ctx: Context = Depends(get_context), db: Session = Depends(get_db))
                    "latest": [AlertOut.model_validate(a).model_dump(mode="json")
                               for a in unread.order_by(Alert.created_at.desc()).limit(6)]},
         "latest_reports": [report_out(db, r).model_dump(mode="json") for r in reports[:8]],
+        "in_flight_reports": [report_out(db, r).model_dump(mode="json")
+                              for r in reports if r.status in _IN_FLIGHT][:6],
         "recommendations": recs[:8],
         "activity": [AuditLogOut.model_validate(e).model_dump(mode="json") for e in activity],
     }

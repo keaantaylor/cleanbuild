@@ -36,6 +36,10 @@ def report_out(db: Session, report: Report) -> ReportOut:
     out = ReportOut.model_validate(report)
     job = latest_job(db, report.id)
     out.job = JobOut.model_validate(job) if job is not None else None
+    summary = report.summary if isinstance(getattr(report, "summary", None), dict) else None
+    if summary:
+        out.issues_found = sum(int(summary.get(k) or 0) for k in
+                               ("missing_mandatory_rows", "arithmetic_mismatches", "exact_duplicates", "probable_duplicates"))
     return out
 
 

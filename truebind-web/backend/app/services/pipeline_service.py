@@ -68,8 +68,10 @@ def run_workbook_pipeline(
     confirmed_mappings: dict[str, dict[str, str]],
     proposals: list[SheetMappingProposal],
     source_name: str = "",
+    on_stage=None,
 ) -> WorkbookProcessResult:
-    return bpipeline.run_workbook_pipeline(sheets, confirmed_mappings, proposals, source_name=source_name)
+    return bpipeline.run_workbook_pipeline(sheets, confirmed_mappings, proposals, source_name=source_name,
+                                           on_stage=on_stage)
 
 
 def find_duplicates(canonical_df):

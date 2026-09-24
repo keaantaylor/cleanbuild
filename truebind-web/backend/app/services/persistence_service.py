@@ -15,7 +15,7 @@ Rules:
 from __future__ import annotations
 
 import math
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 import pandas as pd
 from sqlalchemy import delete, func, insert
@@ -393,7 +393,22 @@ def build_summary(result, canonical: pd.DataFrame) -> dict:
                     g[row_keys[key]] += 1
         totals = [{"currency": k, **{kk: (round(vv, 2) if isinstance(vv, float) else vv) for kk, vv in v.items()}}
                   for k, v in sorted(grp.items())]
+    def _value_counts(code: str, limit: int = 12) -> dict[str, int]:
+        """Row counts per distinct value of one canonical field, as reported
+        (dates as ISO dates); blanks are counted as "Not stated"."""
+        if canonical.empty or code not in canonical.columns:
+            return {}
+        counts: Counter = Counter()
+        for v in canonical[code].tolist():
+            if _clean(v) is None or str(v).strip() == "":
+                counts["Not stated"] += 1
+            else:
+                counts[v.date().isoformat() if hasattr(v, "date") and callable(v.date) else str(v).strip()] += 1
+        return dict(counts.most_common(limit))
+
     summary = {
+        "claim_status_counts": _value_counts("CR0105CM"),
+        "reporting_periods": _value_counts("TB_PERIOD"),
         "sheets_total": cov.sheets_total,
         "sheets_processed": cov.sheets_processed,
         "total_claims": health.total_claims,

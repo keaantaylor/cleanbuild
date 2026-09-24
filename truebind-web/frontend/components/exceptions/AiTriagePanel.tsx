@@ -63,11 +63,13 @@ export function AiTriagePanel({
 
   useEffect(() => {
     let cancelled = false;
-    setSummary(null);
-    setError(null);
-    setLoading(true);
 
     (async () => {
+      await Promise.resolve();
+      if (cancelled) return;
+      setSummary(null);
+      setError(null);
+      setLoading(true);
       try {
         const existing = await api.getExceptionSummary(reportId);
         if (cancelled) return;

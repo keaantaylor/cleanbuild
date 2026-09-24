@@ -19,7 +19,7 @@ export function Hero() {
             look like duplicates. No more checking thousands of rows by hand.
           </p>
           <div className={styles.ctas}>
-            <Link href="/upload" className="mkt-btn mkt-btn-primary">Launch the app</Link>
+            <Link href="/overview" className="mkt-btn mkt-btn-primary">Launch the app</Link>
             <a href="#how-it-works" className={styles.secondaryCta}>
               See how it works <span aria-hidden="true">↓</span>
             </a>

@@ -12,7 +12,7 @@ export function MarketingFooter() {
         <ul className={styles.links}>
           <li><a href="#how-it-works">How it works</a></li>
           <li><a href="#trust">Trust &amp; auditability</a></li>
-          <li><Link href="/upload">Launch the app</Link></li>
+          <li><Link href="/overview">Launch the app</Link></li>
         </ul>
       </div>
     </footer>

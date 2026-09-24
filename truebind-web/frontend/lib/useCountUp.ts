@@ -16,9 +16,9 @@ export function useCountUp(target: number, durationMs = 600): number {
     const reduceMotion = typeof window !== "undefined"
       && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion) {
-      setValue(target);
       fromRef.current = target;
-      return;
+      const id = requestAnimationFrame(() => setValue(target));  // async: no cascading render
+      return () => cancelAnimationFrame(id);
     }
 
     const from = fromRef.current;

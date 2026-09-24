@@ -102,6 +102,10 @@ JOB_MEMORY_MB = _int("JOB_MEMORY_MB", 4096)
 JOB_LEASE_S = _int("JOB_LEASE_S", 60)
 MAX_CONCURRENT_JOBS_PER_TENANT = _int("MAX_CONCURRENT_JOBS_PER_TENANT", 3)
 AI_MAX_CALLS_PER_REPORT = _int("AI_MAX_CALLS_PER_REPORT", 50)
+# Wall-clock budget for the whole AI-mapping stage of one report. A slow or
+# unreachable provider can delay a report by at most this long; after it,
+# remaining sheets use deterministic (alias) mapping only.
+AI_TIME_BUDGET_S = _int("AI_TIME_BUDGET_S", 30)
 # Development: the API process also runs the job worker loop (each job still
 # runs in its own isolated child process), so an upload can never sit queued
 # because nobody started a worker. Production: off -- run `python -m app.worker`

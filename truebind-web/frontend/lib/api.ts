@@ -1,4 +1,4 @@
-import type { Alert, AuditLogEntry, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Me, MappingField, Obligation, Report, ReportSummary, Sheet, SheetMapping, Template } from "./types";
+import type { Alert, AuditLogEntry, Channels, ClaimRow, Delivery, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Job, Me, MappingField, Obligation, Overview, Report, ReportSummary, Sheet, SheetMapping, SystemStatus, Template, WorkQueue } from "./types";
 
 // Default: same hostname as the page, port 8000. Using the page's own host
 // matters: a page on localhost calling an API on 127.0.0.1 is cross-site, so
@@ -71,6 +71,8 @@ async function request<T>(path: string, init?: RequestInit & { timeoutMs?: numbe
 
   if (res.status === 401 && typeof window !== "undefined" && !path.startsWith("/auth/")) {
     setCsrf(null);
+    // Full navigation on purpose: drops every in-memory cache of the expired session.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
   }
   if (!res.ok) {
@@ -195,6 +197,62 @@ export const api = {
     items(request<Page<AuditLogEntry>>(`/reports/${reportId}/audit${qs({ action_type: params.actionType, limit: 1000 })}`))
       .then((list) => (params.actor ? list.filter((e) => e.actor.includes(params.actor!)) : list)),
   listTemplates: () => request<Template[]>("/templates"),
+
+  listClaimsByRef: (reportId: string, ref: string) =>
+    items(request<Page<ClaimRow>>(`/reports/${reportId}/claims${qs({ q: ref, limit: 200 })}`))
+      .then((rows) => rows.filter((r) => r.claim_reference === ref)),
+
+  // ---- operations
+  systemStatus: () => request<SystemStatus>("/system/status"),
+  overview: () => request<Overview>("/overview"),
+  workQueue: () => request<WorkQueue>("/work-queue"),
+  channels: () => request<Channels>("/channels"),
+  countUnreadAlerts: () => request<Page<Alert>>("/alerts?acknowledged=false&limit=1").then((p) => p.total),
+  listAlertsPage: (params: { acknowledged?: boolean; limit?: number; offset?: number } = {}) =>
+    request<Page<Alert>>(`/alerts${qs({ acknowledged: params.acknowledged, limit: params.limit ?? 100, offset: params.offset ?? 0 })}`),
+  reportJobs: (reportId: string) => request<Job[]>(`/reports/${reportId}/jobs`),
+  listDeliveries: (limit = 200) => request<Page<Delivery>>(`/deliveries?limit=${limit}`),
+  sendDelivery: (reportId: string, kind: string, recipient: string) =>
+    request<Delivery>(`/reports/${reportId}/deliveries`, { method: "POST", body: JSON.stringify({ kind, channel: "email", recipient }) }),
+  reviewException: (reportId: string, validationResultId: string, body: { review_status: string; assignee?: string | null; note?: string | null }) =>
+    request<{ review_status: string }>(`/reports/${reportId}/exceptions/${validationResultId}`, { method: "PATCH", body: JSON.stringify(body) }),
+  searchExceptions: (reportId: string, p: { checkType?: string; status?: string; severity?: string; q?: string; sort?: string; limit?: number; offset?: number }) =>
+    request<Page<ExceptionRow>>(`/reports/${reportId}/exceptions${qs({ check_type: p.checkType, status: p.status, severity: p.severity, q: p.q, sort: p.sort, limit: p.limit ?? 100, offset: p.offset ?? 0 })}`),
+  tenantAudit: (limit = 200) => items(request<Page<AuditLogEntry>>(`/audit?limit=${limit}`)),
+  verifyAudit: () => request<{ intact: boolean; entries: number; first_bad_seq: number | null }>("/audit/verify"),
+  /** Upload with REAL byte-level progress (XHR upload events). */
+  uploadWithProgress: (file: File, meta: { sender?: string; programme?: string }, onProgress: (sent: number, total: number) => void) =>
+    new Promise<Report>((resolve, reject) => {
+      const form = new FormData();
+      form.append("file", file);
+      if (meta.sender) form.append("sender", meta.sender);
+      if (meta.programme) form.append("programme", meta.programme);
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${API_BASE}/reports/upload`);
+      xhr.withCredentials = true;
+      const token = getCsrf();
+      if (token) xhr.setRequestHeader("X-CSRF-Token", token);
+      xhr.timeout = 300_000;
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded, e.total); };
+      xhr.onload = () => {
+        let body: { detail?: unknown } | Report | null = null;
+        try { body = JSON.parse(xhr.responseText); } catch { body = null; }
+        if (xhr.status >= 200 && xhr.status < 300 && body) resolve(body as Report);
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+        else if (xhr.status === 401) { window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname)}`); reject(new ApiError(401, "Please sign in again.")); }
+        else reject(new ApiError(xhr.status, typeof (body as { detail?: unknown })?.detail === "string" ? (body as { detail: string }).detail : `Upload failed (${xhr.status}).`));
+      };
+      xhr.onerror = () => reject(new ApiError(0, "Network error — the upload could not reach the server."));
+      xhr.ontimeout = () => reject(new ApiError(0, "The upload timed out."));
+      xhr.send(form);
+    }),
+  uploadWithMeta: (file: File, meta: { sender?: string; programme?: string }) => {
+    const form = new FormData();
+    form.append("file", file);
+    if (meta.sender) form.append("sender", meta.sender);
+    if (meta.programme) form.append("programme", meta.programme);
+    return request<Report>("/reports/upload", { method: "POST", body: form, timeoutMs: 300_000 });
+  },
 
   // ---- exports (plain GET links; the session cookie authenticates them)
   exportClaimsUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/claims.csv`,

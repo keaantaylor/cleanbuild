@@ -1,232 +1,188 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { api, ApiError } from "@/lib/api";
-import type { MappingField, Report, Sheet } from "@/lib/types";
-import { FileUpload } from "@/components/upload/FileUpload";
-import { SheetsList } from "@/components/upload/SheetsList";
-import { MappingConfirmation } from "@/components/upload/MappingConfirmation";
-import { AlertBanner } from "@/components/ui/Alert";
-import { Button } from "@/components/ui/Button";
+import { api, ApiError, IN_PROGRESS } from "@/lib/api";
+import type { Report, Sheet } from "@/lib/types";
 import { formatBytes } from "@/lib/formatters";
-import styles from "./page.module.css";
+import { useApi } from "@/lib/useApi";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { ErrorState, Icon, Panel, PageHeader, StatusPill, ds } from "@/components/ds";
+import { useShell } from "@/components/layout/ShellContext";
+import { ProcessingView } from "@/components/intake/ProcessingView";
+import { MappingReview } from "@/components/intake/MappingReview";
+import { ReportTable } from "@/components/ops/ReportTable";
+import styles from "@/components/intake/intake.module.css";
 
-export default function UploadPage() {
+const ACCEPT = ".xlsx,.xlsm,.xls,.csv";
+
+export default function IntakePage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const [stage, setStage] = useState<string | null>(null);
+  const params = useSearchParams();
+  const shell = useShell();
+  const refreshShell = shell.refresh;  // stable callback
   const [report, setReport] = useState<Report | null>(null);
   const [sheets, setSheets] = useState<Sheet[]>([]);
-  const [activeSheet, setActiveSheet] = useState<string | null>(null);
-  const [fields, setFields] = useState<MappingField[]>([]);
-  const [headers, setHeaders] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [upload, setUpload] = useState<{ name: string; sent: number; total: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [sender, setSender] = useState("");
+  const [programme, setProgramme] = useState("");
+  const fileInput = useRef<HTMLInputElement>(null);
+  const polling = useRef<string | null>(null);
+  const recent = useApi(() => api.listReports(), []);
 
-  // Upload only stores the file and queues an INGEST job; the worker reads
-  // the workbook and proposes a mapping. Wait for that job, then show sheets.
-  async function loadForReview(reportId: string) {
-    const done = await api.waitForReport(reportId, (r) => {
-      setReport(r);
-      setStage(r.job?.stage ?? r.status);
-    });
-    setStage(null);
-    if (done.status !== "WAITING_FOR_REVIEW" && done.status !== "COMPLETE") {
-      setError(done.processing_error || done.job?.error_message || `The file could not be read (status ${done.status}).`);
-      return;
+  /** Poll one report until it leaves an in-progress state, then load what the
+   * next step needs. Polls fast (0.6 s) so a small file's review screen
+   * appears as soon as the worker finishes. */
+  const follow = useCallback(async (id: string) => {
+    polling.current = id;
+    try {
+      for (;;) {
+        const r = await api.getReport(id);
+        if (polling.current !== id) return;
+        setReport(r);
+        if (!IN_PROGRESS.has(r.status)) {
+          refreshShell();
+          if (r.status === "WAITING_FOR_REVIEW") setSheets(await api.listSheets(id));
+          if (r.status === "COMPLETE") router.push(`/reports/${id}`);
+          return;
+        }
+        await new Promise((res) => setTimeout(res, 600));
+      }
+    } catch (e) {
+      if (polling.current === id) setError(e instanceof ApiError ? e.message : "Lost contact with the server.");
     }
-    const sheetList = await api.listSheets(reportId);
-    setSheets(sheetList);
-    const firstOpen = sheetList.find((s) => s.status === "PENDING_CONFIRMATION") ?? sheetList.find((s) => s.status !== "SKIPPED");
-    if (firstOpen) setActiveSheet(firstOpen.id);
-  }
+  }, [router, refreshShell]);
+
+  useEffect(() => {
+    const id = params.get("reportId");
+    if (!id || polling.current === id) return;
+    const t = setTimeout(() => { void follow(id); }, 0);
+    return () => clearTimeout(t);
+  }, [params, follow]);
+
+  useEffect(() => () => { polling.current = null; }, []);
 
   async function handleFile(file: File) {
-    setBusy(true);
     setError(null);
+    setUpload({ name: file.name, sent: 0, total: file.size });
     try {
-      const uploaded = await api.uploadReport(file);
-      setReport(uploaded);
-      await loadForReview(uploaded.id);
+      const r = await api.uploadWithProgress(file, { sender, programme }, (sent, total) => setUpload({ name: file.name, sent, total }));
+      setUpload(null);
+      setReport(r);
+      router.replace(`/upload?reportId=${r.id}`);
+      shell.refresh();
+      void follow(r.id);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Could not upload the file.");
-    } finally {
-      setBusy(false);
+      setUpload(null);
+      setError(e instanceof ApiError ? e.message : "The upload failed.");
     }
   }
 
-  useEffect(() => {
-    const resumeId = searchParams.get("reportId");
-    if (!resumeId || report) return;
-    void (async () => {
-      setBusy(true);
-      try {
-        await loadForReview(resumeId);
-      } catch (e) {
-        setError(e instanceof ApiError ? e.message : "Could not load this report.");
-      } finally {
-        setBusy(false);
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
-
-  useEffect(() => {
-    if (!report || !activeSheet) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const m = await api.getSheetMappingFull(report.id, activeSheet);
-        if (!cancelled) {
-          setFields(m.fields);
-          setHeaders(m.headers);
-        }
-      } catch (e) {
-        if (!cancelled) setError(e instanceof ApiError ? e.message : "Could not load this sheet's mapping.");
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [report?.id, activeSheet]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function handleConfirm(choices: Record<string, string | null>) {
-    if (!report || !activeSheet) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await api.confirmSheetMapping(report.id, activeSheet, choices);
-      const sheetList = await api.listSheets(report.id);
-      setSheets(sheetList);
-      const nextOpen = sheetList.find((s) => s.status === "PENDING_CONFIRMATION");
-      // Cleared in the same batch as activeSheet so MappingConfirmation
-      // never mounts using the outgoing sheet's fields while the new
-      // sheet's mapping is still in flight (see useEffect below) --
-      // that race previously let a later sheet silently submit an
-      // earlier sheet's column names.
-      setFields([]);
-      setHeaders([]);
-      setActiveSheet(nextOpen ? nextOpen.id : null);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Could not confirm this sheet's mapping.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleProcess() {
+  async function startProcessing() {
     if (!report) return;
-    setBusy(true);
+    const r = await api.processReport(report.id);
+    setReport(r);
+    void follow(r.id);
+  }
+
+  function reset() {
+    polling.current = null;
+    setReport(null);
+    setSheets([]);
     setError(null);
-    try {
-      await api.processReport(report.id);
-      router.push(`/reports/${report.id}`);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Could not process this report.");
-    } finally {
-      setBusy(false);
-    }
+    router.replace("/upload");
   }
 
-  const allDone = sheets.length > 0 && sheets.every((s) => s.status !== "PENDING_CONFIRMATION");
-  const activeFields = fields;
-
-  const activeSheetObj = sheets.find((s) => s.id === activeSheet);
-
-  if (report && sheets.length === 0) {
+  // ---------------------------------------------------------------- views
+  if (report && (IN_PROGRESS.has(report.status) || report.status === "FAILED" || report.status === "CANCELLED")) {
     return (
-      <div className={styles.page}>
-        <h1>{report.file_name}</h1>
-        {error ? (
-          <AlertBanner tone="error" title="The file could not be processed">{error}</AlertBanner>
-        ) : (
-          <AlertBanner tone="info" title="Reading your workbook…">
-            {stage ? `Current step: ${stage.replace(/_/g, " ").toLowerCase()}.` : "Queued."} This updates automatically.
-          </AlertBanner>
-        )}
-        {error && <Button onClick={() => { setReport(null); setError(null); router.replace("/upload"); }}>Upload another file</Button>}
-      </div>
+      <>
+        <PageHeader eyebrow="Intake" title={report.file_name}
+          description={<>{formatBytes(report.file_size_bytes)} · {(report.file_kind ?? "").toUpperCase()}{report.sender ? ` · from ${report.sender}` : ""}</>}
+          actions={<><StatusPill status={report.status} /><Button variant="secondary" onClick={reset}>Upload another</Button></>} />
+        <ProcessingView report={report} system={shell.system}
+          onCancel={IN_PROGRESS.has(report.status) ? () => api.cancelReport(report.id).then(setReport).catch((e) => setError(String(e.message ?? e))) : undefined}
+          onRetry={report.status === "FAILED" ? () => api.retryReport(report.id).then((r) => { setReport(r); void follow(r.id); }).catch((e) => setError(String(e.message ?? e))) : () => shell.refresh()} />
+        {error && <div style={{ marginTop: 16, maxWidth: 760 }}><ErrorState message={error} /></div>}
+      </>
     );
   }
 
-  if (!report) {
+  if (report && report.status === "WAITING_FOR_REVIEW") {
     return (
-      <div className={`${styles.page} ${styles.landing}`}>
-        <div className={styles.intro}>
-          <span className="eyebrow">Step one of three</span>
-          <h1>Bring any bordereau.</h1>
-          <p className={styles.subhead}>Any sender&rsquo;s layout, any column order, one sheet or twenty.</p>
-        </div>
-
-        {error && <AlertBanner tone="error" title="Upload failed">{error}</AlertBanner>}
-        <FileUpload onFile={handleFile} busy={busy} />
-
-        <ol className={`stepList ${styles.explainer}`}>
-          <li>
-            <span className="stepNumber">01</span>
-            <div>
-              <p className="stepTitle">Every sheet, not the first</p>
-              <p className="stepBody">A workbook can carry any number of sender tabs. Truebind inspects each one and detects its own header row, even below a title banner.</p>
-            </div>
-          </li>
-          <li>
-            <span className="stepNumber">02</span>
-            <div>
-              <p className="stepTitle">You confirm the mapping</p>
-              <p className="stepBody">Every column is matched by alias or AI, never assumed. Nothing is ingested until you&rsquo;ve reviewed and confirmed each sheet&rsquo;s mapping.</p>
-            </div>
-          </li>
-          <li>
-            <span className="stepNumber">03</span>
-            <div>
-              <p className="stepTitle">Flags, never edits</p>
-              <p className="stepBody">Mismatches, missing fields and probable duplicates are surfaced for review. Truebind never silently corrects or merges your data.</p>
-            </div>
-          </li>
-        </ol>
-      </div>
+      <>
+        <PageHeader eyebrow="Intake · review mapping" title={report.file_name}
+          description="TrueBind proposed a column for every canonical field. Check anything marked “Check” or “Ambiguous”, confirm each sheet, then produce the report."
+          actions={<><StatusPill status={report.status} /><Button variant="ghost" onClick={reset}>Upload another</Button></>} />
+        {sheets.length ? (
+          <MappingReview report={report} sheets={sheets} onSheetsChange={setSheets} onProcess={startProcessing} />
+        ) : <Panel><p style={{ margin: 0 }}>Loading sheets…</p></Panel>}
+      </>
     );
   }
 
+  if (report && report.status === "COMPLETE") {
+    return (
+      <Panel>
+        <p style={{ marginTop: 0 }}>This report is complete.</p>
+        <ButtonLink href={`/reports/${report.id}`} variant="primary">Open the report</ButtonLink>
+      </Panel>
+    );
+  }
+
+  const pct = upload && upload.total ? Math.round((100 * upload.sent) / upload.total) : 0;
   return (
-    <div className={styles.page}>
-      <div className={styles.summary}>
-        <div>
-          <span className="eyebrow">Step two of three</span>
-          <h1>{report.file_name}</h1>
-          <span className={styles.meta}>{formatBytes(report.file_size_bytes)} · {report.sheet_count_total} sheet(s)</span>
-        </div>
-        <Button onClick={handleProcess} disabled={!allDone || busy}>
-          {busy ? "Working…" : "Proceed to health report"}
-        </Button>
-      </div>
-
-      {error && <AlertBanner tone="error" title="Something went wrong">{error}</AlertBanner>}
-
+    <>
+      <PageHeader eyebrow="Intake" title="Bring in a bordereau"
+        description="Any sender's layout, any column order, one sheet or many. TrueBind reads every sheet, finds its header row, proposes a mapping, then validates and reconciles every row." />
       <div className={styles.layout}>
-        <aside className={styles.sheetsPane}>
-          <h3>Sheets</h3>
-          <SheetsList sheets={sheets} activeSheet={activeSheet} onSelect={setActiveSheet} />
-        </aside>
-        <div className={styles.mappingPane}>
-          {activeSheet && activeFields.length > 0 ? (
-            <MappingConfirmation
-              key={activeSheet}
-              sheetName={activeSheetObj?.sheet_name ?? ""}
-              headerRowIndex={activeSheetObj?.header_row_index ?? null}
-              fields={activeFields}
-              headers={headers}
-              onConfirm={handleConfirm}
-              saving={busy}
-            />
-          ) : activeSheet ? (
-            <p>Loading {activeSheetObj?.sheet_name}&rsquo;s mapping…</p>
-          ) : (
-            <AlertBanner tone="info" title="All sheets confirmed">
-              Every sheet has been mapped or skipped. Click &ldquo;Proceed to health report&rdquo; above.
-            </AlertBanner>
-          )}
+        <div className={ds.stack}>
+          <Panel>
+            <label
+              className={`${styles.drop} ${dragging ? styles.dragging : ""}`}
+              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files?.[0]; if (f) void handleFile(f); }}>
+              <span className={styles.dropIcon}><Icon name="upload" size={24} /></span>
+              <p className={styles.dropTitle}>{upload ? `Uploading ${upload.name}…` : "Drop a workbook here, or browse"}</p>
+              <p className={styles.dropHint}>.xlsx · .xlsm · .xls · .csv — macros are never run; password-protected files are rejected</p>
+              <input ref={fileInput} type="file" accept={ACCEPT} className="sr-only" disabled={!!upload}
+                     onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); e.target.value = ""; }} />
+              {!upload && <span className={ds.input} style={{ display: "inline-flex", alignItems: "center", fontWeight: 600 }}>Choose file</span>}
+              {upload && (
+                <div style={{ width: "100%", maxWidth: 420 }} aria-live="polite">
+                  <div className={styles.progress}><div className={styles.progressFill} style={{ width: `${pct}%` }} /></div>
+                  <p className={styles.dropHint} style={{ marginTop: 6 }}>{formatBytes(upload.sent)} of {formatBytes(upload.total)} sent</p>
+                </div>
+              )}
+            </label>
+            <div className={styles.meta}>
+              <label className={styles.field}>Sender (optional)
+                <input className={ds.input} value={sender} onChange={(e) => setSender(e.target.value)} maxLength={200} placeholder="e.g. Meridian MGA" />
+              </label>
+              <label className={styles.field}>Programme / account (optional)
+                <input className={ds.input} value={programme} onChange={(e) => setProgramme(e.target.value)} maxLength={200} placeholder="e.g. Property binder 2024" />
+              </label>
+            </div>
+          </Panel>
+          {error && <ErrorState title="Upload failed" message={error} />}
+          <Panel title="Recent intake" icon="inbox" flush actions={<Link href="/inbox" className={ds.muted}>Inbox →</Link>}>
+            {(recent.data ?? []).length ? <ReportTable reports={(recent.data ?? []).slice(0, 5)} /> : <p className={ds.muted} style={{ padding: "0 20px 16px" }}>Nothing yet.</p>}
+          </Panel>
         </div>
+        <Panel title="What happens next" icon="automations">
+          <ol className={styles.steps}>
+            <li><div><p className={styles.stepTitle}>File checks</p><p className={styles.stepBody}>Type, size and structure are verified before anything reads it.</p></div></li>
+            <li><div><p className={styles.stepTitle}>Workbook reading</p><p className={styles.stepBody}>Every sheet is inspected; header rows are found even below titles. Totals and blank lines are recorded, never counted.</p></div></li>
+            <li><div><p className={styles.stepTitle}>Mapping proposal</p><p className={styles.stepBody}>Columns are matched to Lloyd&rsquo;s CRS fields by alias rules first; AI is used only for headers the rules can&rsquo;t place (headers only, never cell values).</p></div></li>
+            <li><div><p className={styles.stepTitle}>You confirm</p><p className={styles.stepBody}>Nothing is validated until you accept or correct each sheet&rsquo;s mapping.</p></div></li>
+            <li><div><p className={styles.stepTitle}>Validation &amp; report</p><p className={styles.stepBody}>Arithmetic, required data, duplicates vs development, and a row-by-row reconciliation.</p></div></li>
+          </ol>
+        </Panel>
       </div>
-    </div>
+    </>
   );
 }

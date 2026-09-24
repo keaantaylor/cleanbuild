@@ -201,3 +201,49 @@ def test_same_host_worker_with_dead_pid_is_recovered_immediately(api, db):
     w = Worker(worker_id="restarted", prewarm=False)
     w.housekeeping()
     assert api.get(f"/api/v1/reports/{rid}").json()["status"] == "QUEUED"
+
+
+def test_slow_ai_is_bounded_by_a_time_budget(api, db, monkeypatch):
+    import time
+    from bordereaux import mapping as mapping_mod
+    import app.services.job_handlers as jh
+
+    class SlowMapper:
+        model = "slow-model"
+        last_usage = None
+
+        def propose(self, headers):
+            time.sleep(0.4)
+            return {}
+
+    monkeypatch.setattr(mapping_mod, "ai_mapping_available", lambda: True)
+    monkeypatch.setattr(mapping_mod, "ClaudeAIMapper", SlowMapper)
+    monkeypatch.setattr(jh, "AI_TIME_BUDGET_S", 0.5)
+    odd = [["Claim Reference", "Insured Name", "Mystery Col"], ["C1", "Acme", "x"]]
+    t = time.perf_counter()
+    rid = api.ingest("slow.xlsx", xlsx_bytes(odd, extra_sheets={f"S{i}": odd for i in range(6)}))
+    elapsed = time.perf_counter() - t
+    notes = api.get(f"/api/v1/reports/{rid}").json()["ingest_notes"]
+    assert notes["ai_capped"] is True and notes["ai_cap_reason"] == "time budget"
+    assert notes["ai_calls"] <= 2 and elapsed < 3, "7 sheets x 0.4s would take 2.8s+ without the budget"
+    assert api.get(f"/api/v1/reports/{rid}").json()["status"] == "WAITING_FOR_REVIEW"
+
+
+def test_failing_ai_degrades_to_deterministic_mapping(api, db, monkeypatch):
+    from bordereaux import mapping as mapping_mod
+
+    class BrokenMapper:
+        model = "broken"
+        last_usage = None
+
+        def propose(self, headers):
+            raise TimeoutError("provider timed out")
+
+    monkeypatch.setattr(mapping_mod, "ai_mapping_available", lambda: True)
+    monkeypatch.setattr(mapping_mod, "ClaudeAIMapper", BrokenMapper)
+    rid = api.ingest("a.xlsx", xlsx_bytes([["Claim Reference", "Insured Name", "Mystery Col"], ["C1", "Acme", "x"]]))
+    r = api.get(f"/api/v1/reports/{rid}").json()
+    assert r["status"] == "WAITING_FOR_REVIEW"
+    sheet = api.get(f"/api/v1/reports/{rid}/sheets").json()[0]
+    fields = {f["field_code"]: f for f in api.get(f"/api/v1/reports/{rid}/sheets/{sheet['id']}/mapping").json()["fields"]}
+    assert fields["CR0104M"]["source_column"] == "Claim Reference"

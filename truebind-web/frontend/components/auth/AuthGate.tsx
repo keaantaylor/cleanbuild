@@ -1,28 +1,53 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
-import { api } from "@/lib/api";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { api, ApiError } from "@/lib/api";
 import type { Me } from "@/lib/types";
+import { ShellSkeleton } from "@/components/layout/ShellSkeleton";
+import { ErrorState } from "@/components/ds";
 
 const MeContext = createContext<Me | null>(null);
 export const useMe = () => useContext(MeContext);
 
-/** Client-side gate: the API enforces auth on every request; this only
- * avoids rendering dashboard pages for a signed-out visitor. */
+/** Client-side gate. The API enforces auth on every request; this decides
+ * what to render: a shaped skeleton while checking, the app when signed in,
+ * a redirect to /login only on 401, and an explained, retryable error when
+ * the API itself cannot be reached (never a blank screen, never a loop). */
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [me, setMe] = useState<Me | null>(null);
-  const [checked, setChecked] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const check = useCallback(() => {
+    setError(null);
     api.me()
       .then(setMe)
-      .catch(() => router.replace(`/login?next=${encodeURIComponent(pathname)}`))
-      .finally(() => setChecked(true));
+      .catch((e) => {
+        if (e instanceof ApiError && e.status === 401) {
+          router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+        } else {
+          setError(e instanceof ApiError ? e.message : "The TrueBind API could not be reached.");
+        }
+      });
   }, [router, pathname]);
 
-  if (!checked || !me) return <p style={{ padding: 24 }}>Checking your session…</p>;
+  useEffect(() => {
+    if (me) return;
+    const t = setTimeout(check, 0);
+    return () => clearTimeout(t);
+  }, [check, me]);
+
+  if (error) {
+    return (
+      <div style={{ maxWidth: 560, margin: "12vh auto", padding: 24 }}>
+        <ErrorState title="TrueBind can't reach its server" onRetry={check}
+          message="The web app is running but the TrueBind API did not respond. If you are running locally, start the backend (./dev.ps1 or ./dev.sh starts everything), then try again."
+          details={error} />
+      </div>
+    );
+  }
+  if (!me) return <ShellSkeleton message="Checking your session…" />;
   return <MeContext.Provider value={me}>{children}</MeContext.Provider>;
 }

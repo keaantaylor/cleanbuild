@@ -27,6 +27,10 @@ export interface Report {
   expires_at?: string | null;
   ingest_notes?: Record<string, unknown> | null;
   job?: Job | null;
+  source_channel?: string;
+  file_kind?: string | null;
+  sender?: string | null;
+  programme?: string | null;
 }
 
 export interface Job {
@@ -42,6 +46,7 @@ export interface Job {
   started_at: string | null;
   finished_at: string | null;
   heartbeat_at: string | null;
+  metrics?: Record<string, unknown> | null;
 }
 
 export interface Me {
@@ -78,6 +83,11 @@ export interface Sheet {
   mapping_status: SheetMappingStatus;
   fields_mapped: number;
   fields_total: number;
+  needs_review?: number;
+  source_column_count?: number;
+  hidden?: boolean;
+  notes?: string[];
+  trailing_blank_rows?: number;
 }
 
 export interface MappingField {
@@ -104,6 +114,9 @@ export interface ExceptionRow {
   source_row_number?: number | null;
   currency?: string | null;
   rule?: string | null;
+  review_status?: string | null;
+  assignee?: string | null;
+  note?: string | null;
   amount: number | null;
   check_type: CheckType;
   status: ValidationStatus;
@@ -160,7 +173,9 @@ export interface Alert {
 
 export interface AuditLogEntry {
   id: string;
-  report_id: string;
+  seq?: number;
+  entry_hash?: string;
+  report_id: string | null;
   action_type: string;
   entity_type: string;
   entity_id: string;
@@ -202,11 +217,18 @@ export interface ReportSummary {
   probable_duplicates: number;
   field_completeness: FieldCompleteness[];
   missing_mandatory_by_sheet?: Record<string, number>;
-  totals_by_currency?: { currency: string; rows: number; paid_to_date: number; reserve: number; incurred: number }[];
+  totals_by_currency?: { currency: string; rows: number; paid_to_date: number; reserve: number; incurred: number; fees_paid_to_date?: number; fees_rows?: number; paid_rows?: number; reserve_rows?: number; incurred_rows?: number }[];
   score_reliable?: boolean;
   unmapped_source_columns?: { sheet_name: string; columns: string[] }[];
   development_pairs?: number;
   development_refs?: string[];
+  recommendations?: Recommendation[];
+  total_claims?: number;
+  grade?: number | string;
+  grade_label?: string;
+  composite_score?: number;
+  exception_counts_by_rule?: Record<string, number>;
+  sheet_audit?: { sheet_name: string; status: string; reason: string; rows_processed: number; rows_rejected: number; fields_mapped: number }[];
   arithmetic_matches?: number;
   period_unknown_repeats?: number;
   definitions?: Record<string, string>;
@@ -299,4 +321,97 @@ export interface Template {
   is_deletable: boolean;
   created_by: string | null;
   created_at: string;
+}
+
+
+export interface SystemStatus {
+  workers_alive: number;
+  worker_available: boolean;
+  worker_modes: string[];
+  last_worker_check_in_s: number | null;
+  embedded_worker_configured: boolean;
+  stale_after_s: number;
+  queued: number;
+  running: number;
+  oldest_queued_s: number | null;
+}
+
+export interface Recommendation {
+  id: string;
+  severity: Severity;
+  title: string;
+  evidence: string;
+  action: string;
+  target: string | null;
+  report_id?: string;
+  file_name?: string;
+}
+
+export interface Overview {
+  reports: { total: number; complete: number; awaiting_review: number; in_flight: number; failed: number };
+  received: { last_24h: number; last_7d: number };
+  findings: {
+    open_by_severity: Record<string, number>;
+    missing_mandatory_rows?: number; arithmetic_mismatches?: number; exact_duplicates?: number;
+    probable_duplicates?: number; development_pairs?: number; arithmetic_not_evaluable?: number;
+    unmapped_columns?: number; claims?: number;
+  };
+  trend: { date: string; reports: number; rows: number }[];
+  processing: { worker_available: boolean; workers_alive: number; jobs_24h: number; failed_24h: number; median_job_s: number | null };
+  alerts: { unread: number; latest: Alert[] };
+  latest_reports: Report[];
+  recommendations: Recommendation[];
+  activity: AuditLogEntry[];
+}
+
+export interface WorkItem {
+  kind: string;
+  priority: Severity;
+  title: string;
+  detail: string;
+  count: number;
+  report_id: string | null;
+  file_name: string | null;
+  href: string | null;
+}
+export interface WorkQueue { items: WorkItem[]; total: number }
+
+export interface Channel { id: string; name: string; status: "active" | "planned" | "not_configured"; detail: string }
+export interface Channels {
+  inbound: Channel[];
+  outbound: Channel[];
+  pipeline: string[];
+  limits: { max_upload_mb: number; ai_mapping: boolean };
+}
+
+export interface Delivery {
+  id: string;
+  report_id: string;
+  kind: string;
+  channel: string;
+  destination: string | null;
+  file_name: string;
+  size_bytes: number | null;
+  status: "DELIVERED" | "FAILED" | "NOT_CONFIGURED";
+  error: string | null;
+  created_by: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface ClaimRow {
+  id: string;
+  sheet_id: string;
+  source_row_number: number | null;
+  claim_reference: string | null;
+  insured_name: string | null;
+  claim_status: string | null;
+  date_of_loss: string | null;
+  reporting_period: string | null;
+  currency: string | null;
+  paid_amount: number | null;
+  reserve_amount: number | null;
+  incurred_amount: number | null;
+  fees_paid_to_date?: number | null;
+  unmapped_values?: Record<string, unknown> | null;
 }

@@ -1,64 +1,181 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
-import type { DuplicatePair, DuplicateReviewStatus } from "@/lib/types";
-import { ReportPicker } from "@/components/report/ReportPicker";
-import { SideBySideComparison } from "@/components/duplicates/SideBySideComparison";
-import styles from "./page.module.css";
+import { useState } from "react";
+import { api, ApiError } from "@/lib/api";
+import { useApi } from "@/lib/useApi";
+import type { DuplicatePair } from "@/lib/types";
+import { findingGuide } from "@/lib/findings";
+import { formatDate, formatMoney, formatNumber } from "@/lib/formatters";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { Tabs } from "@/components/ui/Tabs";
+import { EmptyState, ErrorState, Panel, PageHeader, Pill, SkeletonRows, StatTile, ds } from "@/components/ds";
+import { PageSkeleton } from "@/components/layout/ShellSkeleton";
+import { ReportSelect, useSelectedReport } from "@/components/ops/ReportSelect";
+import styles from "./duplicates.module.css";
+
+type Row = Record<string, unknown>;
+const FIELDS: { key: string; label: string; money?: boolean; date?: boolean }[] = [
+  { key: "claim_reference", label: "Claim reference" }, { key: "insured_name", label: "Insured" },
+  { key: "reporting_period", label: "Reporting period" }, { key: "date_of_loss", label: "Date of loss", date: true },
+  { key: "currency", label: "Currency" }, { key: "paid_amount", label: "Paid to date", money: true },
+  { key: "reserve_amount", label: "Reserve", money: true }, { key: "incurred_amount", label: "Total incurred", money: true },
+];
+const REVIEW_LABEL: Record<string, string> = { not_duplicate: "Not a duplicate", flagged_for_sender: "Flagged for sender", confirmed_duplicate: "Confirmed duplicate" };
+
+function show(row: Row, f: (typeof FIELDS)[number]): string {
+  const v = row[f.key];
+  if (v === null || v === undefined || v === "") return "—";
+  if (f.money) return formatMoney(v as number, (row.currency as string) ?? "");
+  if (f.date) return formatDate(v as string);
+  return String(v);
+}
+const norm = (v: unknown) => String(v ?? "").trim().toLowerCase();
+
+function Compare({ pair, onReview }: { pair: DuplicatePair; onReview: (s: string) => Promise<void> }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const g = findingGuide(pair.match_type);
+  const matches = FIELDS.filter((f) => pair.row_a[f.key] != null && pair.row_b[f.key] != null && norm(pair.row_a[f.key]) === norm(pair.row_b[f.key])).length;
+  async function act(s: string) { setBusy(s); try { await onReview(s); } finally { setBusy(null); } }
+  return (
+    <Panel title={g.title} icon="duplicates" subtitle={pair.detail}
+      actions={pair.review_status ? <Pill tone="brand">{REVIEW_LABEL[pair.review_status]}</Pill> : <Pill tone="warn">Unreviewed</Pill>}>
+      <p className={styles.why}>{g.why}</p>
+      <div className={styles.tableWrap}>
+        <table className={styles.table}>
+          <thead><tr><th scope="col">Field</th>
+            <th scope="col">Row A <span className={styles.src}>{String(pair.row_a.sheet_name ?? "")} · row {String(pair.row_a.source_row_number ?? "—")}</span></th>
+            <th scope="col">Row B <span className={styles.src}>{String(pair.row_b.sheet_name ?? "")} · row {String(pair.row_b.source_row_number ?? "—")}</span></th>
+            <th scope="col">Match</th></tr></thead>
+          <tbody>
+            {FIELDS.map((f) => {
+              const a = pair.row_a[f.key], b = pair.row_b[f.key];
+              const state = a == null || b == null ? "n/a" : norm(a) === norm(b) ? "same" : "differs";
+              return (
+                <tr key={f.key} className={state === "differs" ? styles.diff : undefined}>
+                  <td className={styles.field}>{f.label}</td><td>{show(pair.row_a, f)}</td><td>{show(pair.row_b, f)}</td>
+                  <td>{state === "same" ? <Pill tone="good" dot={false}>same</Pill> : state === "differs" ? <Pill tone="bad" dot={false}>differs</Pill> : <Pill tone="neutral" dot={false}>not comparable</Pill>}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className={styles.evidence}><strong>{matches} of {FIELDS.length}</strong> compared fields are identical. {g.next}</p>
+      <div className={styles.actions}>
+        <Button variant="primary" loading={busy === "confirmed_duplicate"} onClick={() => act("confirmed_duplicate")}>Confirm duplicate</Button>
+        <Button variant="secondary" loading={busy === "flagged_for_sender"} onClick={() => act("flagged_for_sender")}>Flag for sender</Button>
+        <Button variant="ghost" loading={busy === "not_duplicate"} onClick={() => act("not_duplicate")}>Not a duplicate</Button>
+      </div>
+    </Panel>
+  );
+}
+
+function Development({ reportId, refs }: { reportId: string; refs: string[] }) {
+  const [ref, setRef] = useState(refs[0] ?? null);
+  const rows = useApi(() => (ref ? api.listClaimsByRef(reportId, ref) : Promise.resolve([])), [reportId, ref]);
+  if (!refs.length) return <Panel><EmptyState icon="activity" title="No claim development in this report" body="When a claim is re-reported with a later period or changed amounts, it appears here as movement, not as a duplicate." /></Panel>;
+  return (
+    <div className={styles.split}>
+      <Panel title="Developing claims" icon="activity" subtitle="Same reference, later period or moved amounts" flush>
+        <ul className={styles.list}>
+          {refs.map((r) => (
+            <li key={r}><button type="button" className={`${styles.item} ${r === ref ? styles.itemActive : ""}`} onClick={() => setRef(r)}>
+              <span className={ds.mono}>{r}</span><Pill tone="live" dot={false}>development</Pill></button></li>
+          ))}
+        </ul>
+      </Panel>
+      <Panel title={ref ? `Movement for ${ref}` : "Select a claim"} icon="layers"
+        subtitle="Every row reported for this claim reference in the file, in source order. Movement between periods is normal and is never counted as duplication.">
+        {rows.loading && !rows.data ? <SkeletonRows rows={4} /> : (
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead><tr><th scope="col">Source</th><th scope="col">Period</th><th scope="col">Status</th><th scope="col" className={styles.num}>Paid to date</th><th scope="col" className={styles.num}>Reserve</th><th scope="col" className={styles.num}>Total incurred</th></tr></thead>
+              <tbody>
+                {(rows.data ?? []).map((c) => (
+                  <tr key={c.id}><td className={styles.src}>row {c.source_row_number ?? "—"}</td><td>{c.reporting_period ?? "—"}</td><td>{c.claim_status ?? "—"}</td>
+                    <td className={styles.num}>{formatMoney(c.paid_amount, c.currency)}</td><td className={styles.num}>{formatMoney(c.reserve_amount, c.currency)}</td>
+                    <td className={styles.num}>{formatMoney(c.incurred_amount, c.currency)}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+    </div>
+  );
+}
 
 export default function DuplicatesPage() {
-  const [reportId, setReportId] = useState<string | null>(null);
-  const [pairs, setPairs] = useState<DuplicatePair[]>([]);
-  const [index, setIndex] = useState(0);
+  const { reportId, reports, loading: rl, select } = useSelectedReport();
+  const [tab, setTab] = useState("exact_duplicate");
+  const [idx, setIdx] = useState(0);
+  const pairs = useApi(() => (reportId ? api.listDuplicates(reportId) : Promise.resolve([] as DuplicatePair[])), [reportId]);
+  const summary = useApi(() => (reportId ? api.getReportSummary(reportId) : Promise.resolve(null)), [reportId]);
+  const [err, setErr] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!reportId) return;
-    api.listDuplicates(reportId).then((list) => {
-      setPairs(list);
-      setIndex(0);
-    });
-  }, [reportId]);
+  if (rl) return <PageSkeleton label="Loading duplicates" />;
+  if (!reportId) return (<><PageHeader eyebrow="Analyse" title="Duplicate intelligence" />
+    <Panel><EmptyState icon="duplicates" title="No completed reports yet" action={<ButtonLink href="/upload" variant="primary">Upload a bordereau</ButtonLink>} /></Panel></>);
 
-  async function handleReview(status: DuplicateReviewStatus) {
-    if (!reportId) return;
-    const pair = pairs[index];
-    const updated = await api.reviewDuplicate(reportId, pair.validation_result_id, status);
-    setPairs((prev) => prev.map((p, i) => (i === index ? updated : p)));
+  const all = pairs.data ?? [];
+  const by = (t: string) => all.filter((p) => p.match_type === t);
+  const s = summary.data;
+  const current = by(tab);
+  const pair = current[Math.min(idx, Math.max(current.length - 1, 0))];
+
+  async function review(status: string) {
+    if (!pair || !reportId) return;
+    try {
+      await api.reviewDuplicate(reportId, pair.validation_result_id, status);
+      setErr(null);
+      pairs.reload();
+      if (idx < current.length - 1) setIdx(idx + 1);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : "Could not record the decision.");
+    }
   }
 
   return (
-    <div className={styles.page}>
-      <div className={styles.header}>
-        <div>
-          <span className="eyebrow">Truebind never auto-merges</span>
-          <h1>Duplicates</h1>
+    <>
+      <PageHeader eyebrow="Analyse" title="Duplicate intelligence"
+        description="Exact resubmissions, probable duplicates and repeats TrueBind cannot classify — kept separate from normal claim development. Nothing is ever merged or removed automatically."
+        actions={<ReportSelect reportId={reportId} reports={reports} onSelect={(id) => { select(id); setIdx(0); }} />} />
+      <div className={ds.stack}>
+        <div className={`${ds.grid} ${ds.cols4}`}>
+          <StatTile label="Exact resubmissions" value={formatNumber(by("exact_duplicate").length)} tone={by("exact_duplicate").length ? "warn" : "good"} hint="same ref, period and amounts" />
+          <StatTile label="Probable duplicates" value={formatNumber(by("probable_duplicate").length)} tone="info" hint="similar insured, close loss dates" />
+          <StatTile label="Need a reporting period" value={formatNumber(by("repeat_period_unknown").length)} tone="neutral" hint="cannot be classified yet" />
+          <StatTile label="Claim development" value={formatNumber(s?.development_pairs ?? 0)} tone="good" hint="movement — not duplicates" />
         </div>
-        <ReportPicker value={reportId} onChange={setReportId} />
-      </div>
-
-      {reportId && pairs.length === 0 && <p>No probable duplicates found in this report.</p>}
-
-      {reportId && pairs.length > 0 && (
-        <div className={styles.layout}>
-          <ul className={styles.list}>
-            {pairs.map((p, i) => (
-              <li key={p.validation_result_id}>
-                <button
-                  className={i === index ? styles.activeItem : styles.item}
-                  onClick={() => setIndex(i)}
-                >
-                  {String(p.row_a.claim_reference ?? "—")} ↔ {String(p.row_b.claim_reference ?? "—")}
-                  {p.review_status && <span className={styles.reviewedMark}>✓</span>}
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className={styles.comparison}>
-            <SideBySideComparison pair={pairs[index]} index={index} total={pairs.length} onReview={handleReview} />
+        <Tabs active={tab} onChange={(t) => { setTab(t); setIdx(0); }} options={[
+          { value: "exact_duplicate", label: "Exact", count: by("exact_duplicate").length },
+          { value: "probable_duplicate", label: "Probable", count: by("probable_duplicate").length },
+          { value: "repeat_period_unknown", label: "Needs period", count: by("repeat_period_unknown").length },
+          { value: "development", label: "Development", count: s?.development_pairs ?? 0 },
+        ]} />
+        {err && <ErrorState message={err} />}
+        {tab === "development" ? <Development reportId={reportId} refs={s?.development_refs ?? []} />
+          : pairs.loading && !pairs.data ? <Panel><SkeletonRows rows={6} /></Panel>
+          : current.length === 0 ? <Panel><EmptyState icon="check" title="Nothing in this category" body="TrueBind found no pairs of this kind in the selected report." /></Panel>
+          : (
+          <div className={styles.split}>
+            <Panel title="Pairs" icon="duplicates" subtitle={`${current.filter((p) => !p.review_status).length} unreviewed`} flush>
+              <ul className={styles.list}>
+                {current.map((p, i) => (
+                  <li key={p.validation_result_id}>
+                    <button type="button" className={`${styles.item} ${p === pair ? styles.itemActive : ""}`} onClick={() => setIdx(i)}>
+                      <span><span className={ds.mono}>{String(p.row_a.claim_reference ?? "—")}</span>
+                        <span className={styles.src}>{String(p.row_a.sheet_name ?? "")} rows {String(p.row_a.source_row_number ?? "?")} & {String(p.row_b.source_row_number ?? "?")}</span></span>
+                      {p.review_status ? <Pill tone="brand" dot={false}>{REVIEW_LABEL[p.review_status]?.split(" ")[0]}</Pill> : <Pill tone="warn" dot={false}>new</Pill>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+            {pair && <Compare key={pair.validation_result_id} pair={pair} onReview={review} />}
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 }

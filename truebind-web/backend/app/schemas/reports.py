@@ -81,6 +81,9 @@ class JobOut(BaseModel):
     started_at: UtcDatetime | None
     finished_at: UtcDatetime | None
     heartbeat_at: UtcDatetime | None
+    # Stage progress facts (sheets found, rows detected) and stage timings.
+    # Counts and seconds only -- never file content or internal error detail.
+    metrics: dict | None = None
 
 
 class ReportOut(BaseModel):

@@ -26,7 +26,7 @@ from bordereaux import mapping as mapping_mod
 from bordereaux.ingest import MappingConflictError, ReadLimits, WorkbookLimitError
 from bordereaux.pipeline import SheetMappingProposal
 
-from ..config import AI_MAX_CALLS_PER_REPORT, MAX_CELLS, MAX_ROWS, MAX_SHEETS
+from ..config import AI_MAX_CALLS_PER_REPORT, AI_TIME_BUDGET_S, MAX_CELLS, MAX_ROWS, MAX_SHEETS
 from ..database import set_tenant
 from ..models.jobs import Job
 from ..models.reports import Report, Sheet
@@ -101,13 +101,16 @@ def propose_with_ai_cap(sheets) -> tuple[list[SheetMappingProposal], dict]:
     model/timeouts are fixed for the whole report."""
     mapper = mapping_mod.ClaudeAIMapper() if mapping_mod.ai_mapping_available() else None
     calls, tokens_in, tokens_out, capped, model = 0, 0, 0, False, None
+    cap_reason = None
+    started = perf_counter()
     proposals = []
     for s in sheets:
         if s.skipped:
             continue
-        budget_left = calls < AI_MAX_CALLS_PER_REPORT
-        if not budget_left:
+        budget_left = calls < AI_MAX_CALLS_PER_REPORT and perf_counter() - started < AI_TIME_BUDGET_S
+        if not budget_left and mapper is not None:
             capped = True
+            cap_reason = cap_reason or ("call limit" if calls >= AI_MAX_CALLS_PER_REPORT else "time budget")
         m = mapping_mod.build_mapping(list(s.raw.columns), ai_mapper=mapper if budget_left else None,
                                       use_ai=budget_left and mapper is not None)
         if m.ai_attempted:
@@ -118,6 +121,7 @@ def propose_with_ai_cap(sheets) -> tuple[list[SheetMappingProposal], dict]:
             tokens_out += int(usage.get("output_tokens") or 0)
         proposals.append(SheetMappingProposal(s, m))
     meta = {"ai_available": mapper is not None, "ai_calls": calls, "ai_model": model, "ai_capped": capped,
+            "ai_cap_reason": cap_reason, "ai_seconds": round(perf_counter() - started, 2),
             "ai_input_tokens": tokens_in, "ai_output_tokens": tokens_out,
             "ai_data_sent": "column header text only (no cell values)" if calls else "none"}
     return proposals, meta

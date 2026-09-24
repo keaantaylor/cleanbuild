@@ -70,8 +70,11 @@
      hierarchy, not decoration. Neither loads a webfont: both are portable
      stacks so there's no build-time network dependency and no flash of
      unstyled text. */
-  --font-display: Iowan Old Style, "Source Serif Pro", Georgia, Cambria, "Times New Roman", serif;
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", sans-serif;
+  /* Faces are self-hosted via next/font/local (app/fonts.ts), which sets
+     --font-display-face / --font-body-face on <html>. System fallbacks
+     keep text readable before the woff2 arrives (font-display: swap). */
+  --font-display: var(--font-display-face), "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: var(--font-body-face), -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", sans-serif;
   --font-mono: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", monospace;
 
   --text-xs: 0.75rem;

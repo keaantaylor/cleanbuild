@@ -14,7 +14,6 @@ log only, never to an API response."""
 from __future__ import annotations
 
 import logging
-import resource
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
@@ -68,8 +67,12 @@ def _classify(exc: BaseException) -> JobFailure:
     return JobFailure("internal_error", "Processing failed unexpectedly. The team has the details.", True, detail)
 
 
-def _peak_rss_mb() -> float:
-    return round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, 1)
+def _peak_rss_mb() -> float | None:
+    try:
+        import resource  # POSIX only
+        return round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, 1)
+    except ImportError:  # Windows
+        return None
 
 
 def _load(db: Session, job: Job) -> tuple[Report, Path]:

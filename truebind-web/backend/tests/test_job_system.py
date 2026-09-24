@@ -143,3 +143,45 @@ def test_worker_survives_child_that_exceeds_memory(api, db):
     assert j.error_code in ("resource_limit", "worker_crash", "internal_error"), j.error_code
     # the parent (this process) is unaffected and the report is not stuck
     assert api.get(f"/api/v1/reports/{rid}").json()["status"] in ("FAILED", "QUEUED")
+
+
+# ---------------------------------------------------------------- worker liveness (queued-forever regression)
+
+def test_status_reports_no_worker_so_ui_never_waits_forever(api, db):
+    _queued(api, db)
+    s = api.get("/api/v1/system/status").json()
+    assert s["worker_available"] is False and s["workers_alive"] == 0
+    assert s["queued"] == 1 and s["oldest_queued_s"] is not None
+
+
+def test_status_sees_a_checked_in_worker(api):
+    w = Worker(worker_id="status-worker", prewarm=False)
+    w.check_in(force=True)
+    s = api.get("/api/v1/system/status").json()
+    assert s["worker_available"] is True and s["workers_alive"] == 1
+    w.check_out()
+    assert api.get("/api/v1/system/status").json()["worker_available"] is False
+
+
+def test_jobs_of_a_dead_worker_are_recovered_before_lease_expiry(api, db):
+    from app.models.jobs import WorkerHeartbeat
+    rid, job = _queued(api, db)
+    claimed = job_service.claim_next(db, "dead-worker")
+    assert claimed.lease_expires_at is not None  # lease still valid for ~60s
+    db.add(WorkerHeartbeat(id="dead-worker", hostname="h", pid=1, mode="standalone",
+                           started_at=utcnow() - timedelta(minutes=5), last_seen_at=utcnow() - timedelta(minutes=2)))
+    db.commit()
+    assert job_service.reap_expired(db) == 1
+    report = api.get(f"/api/v1/reports/{rid}").json()
+    assert report["status"] == "QUEUED" and report["job"]["error_code"] == "worker_lost"
+    assert "queued again automatically" in report["job"]["error_message"]
+
+
+@pytest.mark.slow
+def test_prewarmed_child_runs_job_and_worker_loop_checks_in(api, db):
+    rid, _ = _queued(api, db)
+    w = Worker(worker_id="warm-worker", timeout_s=120, memory_mb=0)
+    w.warm_up()
+    assert w.run_one() is True
+    w.discard_warm()
+    assert api.get(f"/api/v1/reports/{rid}").json()["status"] == "WAITING_FOR_REVIEW"

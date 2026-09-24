@@ -1,6 +1,13 @@
 import type { Alert, AuditLogEntry, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Me, MappingField, Obligation, Report, ReportSummary, Sheet, SheetMapping, Template } from "./types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+// Default: same hostname as the page, port 8000. Using the page's own host
+// matters: a page on localhost calling an API on 127.0.0.1 is cross-site, so
+// the session cookie would not be sent and every request would bounce to login.
+function defaultApiBase(): string {
+  if (typeof window !== "undefined") return `${window.location.protocol}//${window.location.hostname}:8000/api/v1`;
+  return "http://localhost:8000/api/v1";
+}
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || defaultApiBase();
 
 export class ApiError extends Error {
   status: number;

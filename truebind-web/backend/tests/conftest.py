@@ -24,6 +24,7 @@ from pathlib import Path
 
 _TMP = Path(tempfile.mkdtemp(prefix="truebind-tests-"))
 os.environ.setdefault("TRUEBIND_ENV", "test")
+os.environ["TRUEBIND_NO_DOTENV"] = "1"  # never pick up a developer's backend/.env (keys, DB) in tests
 os.environ["TRUEBIND_DATA_DIR"] = str(_TMP / "data")
 os.environ["TRUEBIND_STORAGE_DIR"] = str(_TMP / "objects")
 os.environ["DATABASE_URL"] = os.environ.get("TRUEBIND_TEST_DATABASE_URL") or f"sqlite:///{_TMP / 'test.db'}"

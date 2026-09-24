@@ -26,31 +26,48 @@ import threading
 import time
 import uuid
 
-from .config import JOB_LEASE_S, JOB_MEMORY_MB, JOB_TIMEOUT_S
+from .config import JOB_LEASE_S, JOB_MEMORY_MB, JOB_TIMEOUT_S, describe_database_url
 from .database import get_session_factory, set_tenant
-from .models.jobs import Job
+from .models._util import utcnow
+from .models.jobs import Job, WorkerHeartbeat
 from .services import job_service, retention_service
 
 log = logging.getLogger("truebind.worker")
 
-POLL_S = 1.0
-REAP_EVERY_S = 30.0
+POLL_S = 0.5
+REAP_EVERY_S = 10.0
 RETENTION_EVERY_S = 3600.0
 
 
-def _child_main(job_id: str, tenant_id: str, memory_mb: int) -> None:
-    """Entry point of the isolated child process."""
-    if memory_mb > 0:
-        try:
-            import resource
-            limit = memory_mb * 1024 * 1024
-            resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
-        except (ImportError, ValueError, OSError):  # pragma: no cover -- non-Linux dev boxes
-            pass
+def _limit_memory(memory_mb: int) -> None:
+    if memory_mb <= 0:
+        return
+    try:
+        import resource  # POSIX only; Windows has no RLIMIT_AS (see README: run the worker on Linux in production)
+        limit = memory_mb * 1024 * 1024
+        resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+    except (ImportError, ValueError, OSError):  # pragma: no cover
+        pass
+
+
+def _child_entry(conn, memory_mb: int) -> None:
+    """Entry point of an isolated child process. It imports the heavy
+    modules first and then WAITS for one job id: the parent keeps one such
+    child warm, so a claimed job starts in milliseconds instead of paying
+    process start + pandas/openpyxl/SQLAlchemy import time. Each child runs
+    exactly one job and exits (isolation is unchanged)."""
+    _limit_memory(memory_mb)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     from .database import get_session_factory as _factory  # fresh engine in this process
     from .services import job_handlers
 
+    try:
+        msg = conn.recv()
+    except (EOFError, OSError):
+        return
+    if not msg:
+        return
+    job_id, tenant_id = msg
     db = _factory()()
     try:
         job_handlers.execute(db, job_id, tenant_id)
@@ -59,25 +76,68 @@ def _child_main(job_id: str, tenant_id: str, memory_mb: int) -> None:
 
 
 def _exit_failure(exitcode: int | None) -> tuple[str, str]:
-    if exitcode is not None and exitcode < 0 and -exitcode == signal.SIGKILL:
+    sigkill = getattr(signal, "SIGKILL", 9)  # Windows has no SIGKILL constant
+    if exitcode is not None and exitcode < 0 and -exitcode == sigkill:
         return "resource_limit", "Processing was stopped because it exceeded the memory allowed for one file."
-    return "worker_crash", "Processing stopped unexpectedly while reading this file."
+    return "worker_crash", "The processing worker stopped unexpectedly while handling this file."
+
+
+REGISTRY_EVERY_S = 5.0
+JOIN_TICK_S = 1.0
 
 
 class Worker:
     def __init__(self, worker_id: str | None = None, timeout_s: int = JOB_TIMEOUT_S,
-                 memory_mb: int = JOB_MEMORY_MB, lease_s: int = JOB_LEASE_S):
+                 memory_mb: int = JOB_MEMORY_MB, lease_s: int = JOB_LEASE_S, mode: str = "standalone",
+                 prewarm: bool = True):
         self.id = worker_id or f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:6]}"
-        self.timeout_s, self.memory_mb = timeout_s, memory_mb
+        self.timeout_s, self.memory_mb, self.mode, self.prewarm = timeout_s, memory_mb, mode, prewarm
         self.hb_interval = max(1.0, lease_s / 3)
         self.factory = get_session_factory()
         self._stop = threading.Event()
         self._ctx = mp.get_context("spawn")
         self._last_reap = 0.0
         self._last_retention = 0.0
+        self._last_registry = 0.0
+        self._started_at = utcnow()
+        self._warm: tuple | None = None  # (process, parent_conn)
 
     def stop(self) -> None:
         self._stop.set()
+
+    # ------------------------------------------------------------ liveness registry
+    def check_in(self, current_job_id: str | None = None, force: bool = False) -> None:
+        now = time.monotonic()
+        if not force and now - self._last_registry < REGISTRY_EVERY_S:
+            return
+        self._last_registry = now
+        db = self.factory()
+        try:
+            row = db.get(WorkerHeartbeat, self.id)
+            if row is None:
+                row = WorkerHeartbeat(id=self.id, hostname=socket.gethostname()[:255], pid=os.getpid(),
+                                      mode=self.mode, started_at=self._started_at, last_seen_at=utcnow())
+                db.add(row)
+            row.last_seen_at = utcnow()
+            row.current_job_id = current_job_id
+            db.commit()
+        except Exception:  # noqa: BLE001 -- liveness reporting must never stop processing
+            db.rollback()
+            log.exception("worker check-in failed")
+        finally:
+            db.close()
+
+    def check_out(self) -> None:
+        db = self.factory()
+        try:
+            row = db.get(WorkerHeartbeat, self.id)
+            if row is not None:
+                db.delete(row)
+                db.commit()
+        except Exception:  # noqa: BLE001
+            db.rollback()
+        finally:
+            db.close()
 
     def housekeeping(self) -> None:
         now = time.monotonic()
@@ -87,7 +147,7 @@ class Worker:
             try:
                 n = job_service.reap_expired(db)
                 if n:
-                    log.warning("reaped %d job(s) with expired leases", n)
+                    log.warning("recovered %d job(s) from a stopped or unresponsive worker", n)
             finally:
                 db.close()
         if now - self._last_retention >= RETENTION_EVERY_S:
@@ -100,6 +160,38 @@ class Worker:
             finally:
                 db.close()
 
+    # ------------------------------------------------------------ child processes
+    def _spawn_child(self):
+        parent_conn, child_conn = self._ctx.Pipe()
+        proc = self._ctx.Process(target=_child_entry, args=(child_conn, self.memory_mb), daemon=True)
+        proc.start()
+        child_conn.close()
+        return proc, parent_conn
+
+    def _take_child(self):
+        warm, self._warm = self._warm, None
+        if warm is not None and warm[0].is_alive():
+            return warm
+        if warm is not None:
+            warm[0].join(0)
+        return self._spawn_child()
+
+    def warm_up(self) -> None:
+        if self.prewarm and (self._warm is None or not self._warm[0].is_alive()):
+            self._warm = self._spawn_child()
+
+    def discard_warm(self) -> None:
+        if self._warm is not None:
+            proc, conn = self._warm
+            try:
+                conn.send(None)
+            except (OSError, BrokenPipeError):
+                pass
+            proc.join(2)
+            if proc.is_alive():
+                proc.kill()
+            self._warm = None
+
     def run_one(self) -> bool:
         """Claim and run one job. Returns False when the queue is empty."""
         db = self.factory()
@@ -111,17 +203,23 @@ class Worker:
         finally:
             db.close()
         log.info("job %s (%s) claimed by %s", job_id, kind, self.id)
-        proc = self._ctx.Process(target=_child_main, args=(job_id, tenant_id, self.memory_mb), daemon=True)
-        proc.start()
-        started = time.monotonic()
+        self.check_in(job_id, force=True)
+        proc, conn = self._take_child()
+        conn.send((job_id, tenant_id))
+        self.warm_up()  # the next job's child starts importing now, in parallel
+        started = last_hb = time.monotonic()
         outcome = None  # None | "timeout" | "cancel"
+        tick = min(JOIN_TICK_S, self.hb_interval)
         while True:
-            proc.join(self.hb_interval)
+            proc.join(tick)
             if not proc.is_alive():
                 break
-            if time.monotonic() - started > self.timeout_s:
+            self.check_in(job_id)
+            now = time.monotonic()
+            if now - started > self.timeout_s:
                 outcome = "timeout"
-            else:
+            elif now - last_hb >= self.hb_interval:
+                last_hb = now
                 db = self.factory()
                 try:
                     state = job_service.heartbeat(db, job_id, self.id)
@@ -137,7 +235,9 @@ class Worker:
                 proc.kill()
                 proc.join(10)
                 break
+        conn.close()
         self._record_abnormal(job_id, tenant_id, outcome, proc.exitcode)
+        self.check_in(None, force=True)
         return True
 
     def _record_abnormal(self, job_id: str, tenant_id: str, outcome: str | None, exitcode: int | None) -> None:
@@ -163,15 +263,23 @@ class Worker:
             db.close()
 
     def run_forever(self) -> None:
-        log.info("worker %s started (timeout=%ss memory=%sMB)", self.id, self.timeout_s, self.memory_mb)
-        while not self._stop.is_set():
-            try:
-                self.housekeeping()
-                if not self.run_one():
-                    self._stop.wait(POLL_S)
-            except Exception:  # noqa: BLE001 -- e.g. DB briefly unavailable: back off, keep going
-                log.exception("worker loop error; backing off")
-                self._stop.wait(5)
+        log.info("worker %s started (%s, timeout=%ss memory=%sMB, db=%s)", self.id, self.mode, self.timeout_s,
+                 self.memory_mb, describe_database_url())
+        self.check_in(force=True)
+        self.warm_up()
+        try:
+            while not self._stop.is_set():
+                try:
+                    self.check_in()
+                    self.housekeeping()
+                    if not self.run_one():
+                        self._stop.wait(POLL_S)
+                except Exception:  # noqa: BLE001 -- e.g. DB briefly unavailable: back off, keep going
+                    log.exception("worker loop error; backing off")
+                    self._stop.wait(5)
+        finally:
+            self.discard_warm()
+            self.check_out()
         log.info("worker %s stopped", self.id)
 
 
@@ -202,19 +310,25 @@ def run_pending_jobs_inline(max_jobs: int = 100) -> int:
 
 
 _embedded: Worker | None = None
+_embedded_thread: threading.Thread | None = None
 
 
 def start_embedded() -> Worker:
-    global _embedded
+    global _embedded, _embedded_thread
     if _embedded is None:
-        _embedded = Worker()
-        threading.Thread(target=_embedded.run_forever, name="truebind-worker", daemon=True).start()
+        _embedded = Worker(mode="embedded")
+        _embedded_thread = threading.Thread(target=_embedded.run_forever, name="truebind-worker", daemon=True)
+        _embedded_thread.start()
     return _embedded
 
 
-def stop_embedded() -> None:
+def stop_embedded(timeout_s: float = 10.0) -> None:
+    global _embedded, _embedded_thread
     if _embedded is not None:
         _embedded.stop()
+        if _embedded_thread is not None:
+            _embedded_thread.join(timeout_s)
+    _embedded, _embedded_thread = None, None
 
 
 def main() -> None:

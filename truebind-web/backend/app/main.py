@@ -11,12 +11,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .config import EMBEDDED_WORKER, IS_PRODUCTION, MAX_UPLOAD_BYTES, get_cors_origins
+from .config import EMBEDDED_WORKER, ENV, IS_PRODUCTION, MAX_UPLOAD_BYTES, get_cors_origins
 from .database import get_session_factory, set_tenant
 from .models._util import utcnow
 from .models.exception_summary import ExceptionSummary
 from .models.identity import Tenant
-from .routes import alerts, audit, auth, exception_summary, findings, mapping, obligations, reports, templates
+from .routes import alerts, audit, auth, exception_summary, findings, mapping, obligations, reports, system, templates
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("truebind")
@@ -49,6 +49,12 @@ def _fail_stale_summaries() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     _fail_stale_summaries()
+    from .config import describe_database_url
+    logger.info("TrueBind API starting: env=%s database=%s embedded_worker=%s", ENV, describe_database_url(),
+                EMBEDDED_WORKER)
+    if not EMBEDDED_WORKER:
+        logger.warning("Embedded worker is OFF: uploads will stay queued unless `python -m app.worker` is running "
+                       "against the same database.")
     if EMBEDDED_WORKER:
         from .worker import start_embedded, stop_embedded
         start_embedded()
@@ -125,7 +131,8 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
         "detail": "An unexpected error occurred.", "correlation_id": correlation_id}, headers=_cors_headers_for(request))
 
 
-for router_module in (auth, reports, mapping, findings, exception_summary, obligations, alerts, audit, templates):
+for router_module in (auth, reports, mapping, findings, exception_summary, obligations, alerts, audit, templates,
+                      system):
     app.include_router(router_module.router)
 
 

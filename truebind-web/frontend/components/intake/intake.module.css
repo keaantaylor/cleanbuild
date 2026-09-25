@@ -45,7 +45,75 @@
   padding: 0 8px; font: inherit; font-size: var(--text-sm); background: var(--color-surface); color: var(--color-text-primary); }
 .changed { border-color: var(--color-primary); box-shadow: 0 0 0 1px var(--color-primary); }
 .samples { font-size: var(--text-xs); color: var(--color-text-secondary); max-width: 240px; overflow-wrap: anywhere; }
-.evidence { font-size: 0.6875rem; color: var(--color-text-tertiary); margin-top: 4px; max-width: 280px; }
+.evidence { font-size: 0.6875rem; color: var(--color-text-tertiary); margin-top: 6px; max-width: 280px; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
 .bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 20px;
   border-top: 1px solid var(--color-border); flex-wrap: wrap; }
 .stickyBar { position: sticky; bottom: 0; background: var(--color-surface); border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+
+/* ---------- live processing ---------- */
+.procCard { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm); overflow: hidden; }
+.procHead { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border); }
+.procActions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.procStage { display: flex; align-items: center; gap: 20px; padding: 22px 20px;
+  background: linear-gradient(120deg, var(--color-processing-bg) 0%, var(--color-surface) 70%); }
+.procEyebrow { margin: 0; font-size: var(--text-xs); font-weight: 700; letter-spacing: var(--tracking-wider);
+  text-transform: uppercase; color: var(--color-processing); }
+.procNow { margin: 4px 0 2px; font-family: var(--font-display); font-size: 1.45rem; font-weight: 600; letter-spacing: -0.02em;
+  line-height: 1.2; }
+.procStep { margin: 0; font-size: var(--text-xs); color: var(--color-text-tertiary); }
+.facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; border-top: 1px solid var(--color-border); }
+.fact { padding: 14px 20px; border-left: 1px solid var(--color-border); }
+.fact:first-child { border-left: 0; }
+.fact dt { font-size: var(--text-xs); color: var(--color-text-tertiary); font-weight: 600; }
+.fact dd { margin: 2px 0 0; font-family: var(--font-display); font-size: 1.6rem; font-weight: 600; letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums; animation: factIn var(--dur-3) var(--ease-out); }
+.factPending { color: var(--color-border-strong); }
+@keyframes factIn { from { opacity: 0.2; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (max-width: 700px) { .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .fact:nth-child(3) { border-left: 0; } }
+.procTimeline { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-xl);
+  padding: 20px 20px 6px; }
+
+/* engine glyph */
+.engine { flex-shrink: 0; }
+.engineBg { fill: var(--color-rail); }
+.strands path { fill: none; stroke: #8FA2FF; stroke-width: 2.2; stroke-linecap: round; stroke-dasharray: 5 5; opacity: 0.9; }
+.rows path { fill: none; stroke: #FFFFFF; stroke-width: 2.6; stroke-linecap: round; stroke-dasharray: 28; stroke-dashoffset: 0; }
+.bind { fill: var(--color-signal); }
+.pulseDot { fill: #FFFFFF; opacity: 0; }
+.engineOn .strands path { animation: flow 0.9s linear infinite; }
+.engineOn .rows path { animation: emit 1.8s var(--ease-out) infinite; }
+.engineOn .rows path:nth-child(2) { animation-delay: 0.2s; }
+.engineOn .rows path:nth-child(3) { animation-delay: 0.4s; }
+.engineOn .pulseDot { animation: bindPulse 1.8s var(--ease-in-out) infinite; }
+@keyframes flow { to { stroke-dashoffset: -10; } }
+@keyframes emit { 0% { stroke-dashoffset: 28; } 45%, 100% { stroke-dashoffset: 0; } }
+@keyframes bindPulse { 0%, 100% { opacity: 0; transform: translateY(-14px); } 50% { opacity: 1; transform: translateY(14px); } }
+.pulseDot { transform-box: fill-box; }
+@media (prefers-reduced-motion: reduce) { .engineOn .strands path, .engineOn .rows path, .engineOn .pulseDot { animation: none; } }
+
+.mapTools { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 4px 20px 14px; }
+.colName { font-family: var(--font-mono); font-size: 0.8125rem; font-weight: 600; overflow-wrap: anywhere; }
+.why { font-size: var(--text-xs); color: var(--color-text-secondary); max-width: 320px; overflow-wrap: anywhere; }
+.mapTable tbody tr { transition: background-color var(--dur-1) var(--ease-out); }
+.mapTable tbody tr:hover td { background: var(--color-surface-sunken); }
+
+/* ---------- seven-step intake stepper ---------- */
+.stepper { list-style: none; margin: 0 0 20px; padding: 12px 16px; display: flex; gap: 4px; background: var(--color-surface);
+  border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow-x: auto; }
+.step { display: flex; align-items: center; gap: 8px; flex: 1; min-width: max-content; font-size: var(--text-xs);
+  font-weight: 600; color: var(--color-text-tertiary); position: relative; padding-right: 12px; }
+.step:not(:last-child)::after { content: ""; flex: 1; height: 2px; min-width: 12px; border-radius: 2px; background: var(--color-border);
+  margin-left: 4px; }
+.st-done:not(:last-child)::after { background: var(--color-success); }
+.stepDot { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; font-size: 0.6875rem;
+  border: 1.5px solid var(--color-border-strong); background: var(--color-surface); transition: all var(--dur-2) var(--ease-out); }
+.st-done { color: var(--color-text-secondary); }
+.st-done .stepDot { background: var(--color-success); border-color: var(--color-success); color: #fff; }
+.st-active { color: var(--color-text-primary); }
+.st-active .stepDot { border-color: var(--color-processing); color: var(--color-processing); background: var(--color-processing-bg);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-processing) 14%, transparent); }
+.st-failed { color: var(--color-error); }
+.st-failed .stepDot { background: var(--color-error); border-color: var(--color-error); color: #fff; }
+.stepLabel { white-space: nowrap; }

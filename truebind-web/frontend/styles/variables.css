@@ -15,28 +15,51 @@
 :root {
   /* Brand / interaction. One accent, used for primary actions, links and
      focus -- never for status. */
-  --color-primary: #2451D6;
-  --color-primary-dark: #1B3FAE;
-  --color-primary-light: #5B7FEA;
-  --color-primary-subtle: #EBF0FD;
+  --color-primary: #2446E0;
+  --color-primary-dark: #1C38B8;
+  --color-primary-light: #5B7BF0;
+  --color-primary-subtle: #EDF0FE;
   --color-on-primary: #FFFFFF;
-  --color-focus: #2451D6;
+  --color-focus: #2446E0;
 
   /* Application chrome: a deep navy rail so the working area reads as the
      product surface, and white cards on a cool grey canvas for hierarchy. */
-  --color-canvas: #F3F5F9;
+  --color-canvas: #F4F6FA;
   --color-surface: #FFFFFF;
   --color-surface-sunken: #F7F9FC;
   --color-border-strong: #CBD3DF;
-  --color-rail: #0C1A2E;
-  --color-rail-raised: #15263F;
-  --color-rail-text: #B9C6DA;
+  --color-rail: #0A1324;
+  --color-rail-raised: #142038;
+  --color-rail-text: #B7C3D9;
   --color-rail-text-active: #FFFFFF;
-  --color-rail-muted: #8C9BB3;
-  --color-rail-accent: #6E9BFF;
+  --color-rail-muted: #8A99B4;
+  --color-rail-accent: #8FA2FF;
   --color-live: #0F766E;
   --color-live-bg: #DDF4F1;
 
+  /* Signal: the "bound" mint used only on ink surfaces (rail live dot,
+     marketing engine visual) -- the moment messy input becomes structure. */
+  --color-signal: #6FE3C1;
+
+  /* Two semantic families the brief adds. Processing = work in motion
+     (indigo, animated); AI = model-assisted output (fuchsia) so an AI
+     suggestion is never mistaken for a deterministic finding. Neither
+     reuses the not-evaluable violet. */
+  --color-processing: #4338CA;
+  --color-processing-bg: #E8EAFD;
+  --color-ai: #A21CAF;
+  --color-ai-bg: #FBEAFD;
+
+  /* Motion. Level 1 = state feedback (hover/press), level 2 = element
+     transitions (drawer, toast), level 3 = narrative (landing engine).
+     All collapse to near-zero under prefers-reduced-motion (globals.css). */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-1: 120ms;
+  --dur-2: 220ms;
+  --dur-3: 420ms;
+
+  --shadow-xs: 0 1px 1px rgba(10, 19, 36, 0.04);
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
   --shadow-md: 0 4px 16px rgba(15, 23, 42, 0.08);
   --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.14);
@@ -188,6 +211,10 @@
     --color-focus: #8FAEFF;
     --color-live: #5EEAD4;
     --color-live-bg: #134E4A;
+    --color-processing: #A5B4FC;
+    --color-processing-bg: #1E1B4B;
+    --color-ai: #F0ABFC;
+    --color-ai-bg: #4A044E;
   }
 }
 
@@ -233,4 +260,8 @@
   --color-focus: #8FAEFF;
   --color-live: #5EEAD4;
   --color-live-bg: #134E4A;
+  --color-processing: #A5B4FC;
+  --color-processing-bg: #1E1B4B;
+  --color-ai: #F0ABFC;
+  --color-ai-bg: #4A044E;
 }

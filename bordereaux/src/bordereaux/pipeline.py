@@ -8,6 +8,7 @@ same mapping-outcome objects, never two separately-derived ones)."""
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from time import perf_counter
@@ -212,10 +213,20 @@ def run_workbook_pipeline(
     confirmed_mappings: dict[str, dict[str, str]],
     proposals: list[SheetMappingProposal],
     source_name: str = "",
+    on_stage: Callable[[str, dict], None] | None = None,
 ) -> WorkbookProcessResult:
     """confirmed_mappings: {sheet_name: {source_column: field_code}},
-    one entry per non-skipped sheet, after human confirmation."""
+    one entry per non-skipped sheet, after human confirmation.
+
+    on_stage(stage, facts), when given, is called as each stage starts with
+    facts already established (row counts, finding counts) -- so a caller can
+    show real progress. It never changes the result."""
+    def _stage(name: str, **facts) -> None:
+        if on_stage is not None:
+            on_stage(name, facts)
+
     proposal_by_sheet = {p.sheet.sheet_name: p for p in proposals}
+    _stage("mapping")
     stage_timings: dict[str, float] = {}
     _t = perf_counter()
 
@@ -275,13 +286,17 @@ def run_workbook_pipeline(
     schema_failures = validate_schema_lazily(canonical)
     stage_timings["mapping"], _t = perf_counter() - _t, perf_counter()
 
+    _stage("validating", rows_mapped=int(len(canonical)))
     validation_result = validation.validate(canonical, sheet_field_state=sheet_field_state)
     validation_result = validation.add_row_findings(validation_result, schema_failures)
     stage_timings["validation"], _t = perf_counter() - _t, perf_counter()
 
+    _stage("checking_duplicates", row_findings=int(len(validation_result.exceptions)),
+           arithmetic_mismatches=int(validation_result.arithmetic_mismatch_count))
     duplicates = dedupe.find_duplicates(canonical)
     developments = dedupe.find_developments(canonical)
     stage_timings["dedupe"], _t = perf_counter() - _t, perf_counter()
+    _stage("building_report", duplicate_pairs=int(len(duplicates)) if duplicates is not None else 0)
 
     skipped_sheets = [(s.sheet_name, s.skip_reason or "skipped") for s in sheets if s.skipped]
     # TB-001: a non-claim-summary sheet's rows are deliberately excluded

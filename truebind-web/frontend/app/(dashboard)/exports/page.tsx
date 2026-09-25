@@ -6,7 +6,8 @@ import { api, ApiError } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { formatBytes, formatDateTime, timeAgo } from "@/lib/formatters";
 import { Button } from "@/components/ui/Button";
-import { EmptyState, ErrorState, Panel, PageHeader, Pill, ds } from "@/components/ds";
+import { EmptyState, ErrorState, Panel, PageHeader, Pill, ds, useToast } from "@/components/ds";
+import type { Delivery } from "@/lib/types";
 import { PageSkeleton } from "@/components/layout/ShellSkeleton";
 import styles from "@/components/ops/ops.module.css";
 
@@ -22,6 +23,23 @@ export default function ExportsPage() {
   const [recipient, setRecipient] = useState("");
   const [msg, setMsg] = useState<{ tone: "good" | "bad"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [retrying, setRetrying] = useState<string | null>(null);
+  const toast = useToast();
+
+  /** Re-send a failed or unsent e-mail delivery; a new delivery is recorded. */
+  async function retry(d: Delivery) {
+    setRetrying(d.id);
+    try {
+      const r = await api.sendDelivery(d.report_id, d.kind, d.destination ?? "");
+      toast(r.status === "DELIVERED" ? { tone: "good", title: "Delivered", body: `Sent to ${r.destination}.` }
+        : { tone: "bad", title: "Still not sent", body: r.error ?? "The delivery was recorded but not sent." });
+      deliveries.reload();
+    } catch (err) {
+      toast({ tone: "bad", title: "Retry failed", body: err instanceof ApiError ? err.message : "Could not send." });
+    } finally {
+      setRetrying(null);
+    }
+  }
 
   const complete = (reports.data ?? []).filter((r) => r.status === "COMPLETE");
   const email = channels.data?.outbound.find((c) => c.id === "email");
@@ -65,7 +83,10 @@ export default function ExportsPage() {
                       <td className={styles.sub}>{d.destination ?? `by ${d.created_by ?? "—"}`}</td>
                       <td><time dateTime={d.created_at} title={formatDateTime(d.created_at)}>{timeAgo(d.created_at)}</time></td>
                       <td><Pill tone={STATUS_TONE[d.status]}>{d.status === "NOT_CONFIGURED" ? "Not configured" : d.status.toLowerCase()}</Pill>
-                        {d.error && <div className={styles.sub} style={{ maxWidth: 280 }}>{d.error}</div>}</td>
+                        {d.error && <div className={styles.sub} style={{ maxWidth: 280 }}>{d.error}</div>}
+                        {d.channel === "email" && d.status !== "DELIVERED" && d.destination && (
+                          <Button size="sm" variant="ghost" loading={retrying === d.id} onClick={() => retry(d)}>Retry</Button>
+                        )}</td>
                     </tr>
                   ))}
                 </tbody>

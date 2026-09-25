@@ -13,6 +13,7 @@ import { useShell } from "@/components/layout/ShellContext";
 import { ProcessingView } from "@/components/intake/ProcessingView";
 import { MappingReview } from "@/components/intake/MappingReview";
 import { ReportTable } from "@/components/ops/ReportTable";
+import { IntakeStepper, intakeStep } from "@/components/intake/IntakeStepper";
 import styles from "@/components/intake/intake.module.css";
 
 const ACCEPT = ".xlsx,.xlsm,.xls,.csv";
@@ -103,6 +104,7 @@ export default function IntakePage() {
         <PageHeader eyebrow="Intake" title={report.file_name}
           description={<>{formatBytes(report.file_size_bytes)} · {(report.file_kind ?? "").toUpperCase()}{report.sender ? ` · from ${report.sender}` : ""}</>}
           actions={<><StatusPill status={report.status} /><Button variant="secondary" onClick={reset}>Upload another</Button></>} />
+        <IntakeStepper current={intakeStep(report, false)} failed={report.status === "FAILED"} />
         <ProcessingView report={report} system={shell.system}
           onCancel={IN_PROGRESS.has(report.status) ? () => api.cancelReport(report.id).then(setReport).catch((e) => setError(String(e.message ?? e))) : undefined}
           onRetry={report.status === "FAILED" ? () => api.retryReport(report.id).then((r) => { setReport(r); void follow(r.id); }).catch((e) => setError(String(e.message ?? e))) : () => shell.refresh()} />
@@ -115,8 +117,9 @@ export default function IntakePage() {
     return (
       <>
         <PageHeader eyebrow="Intake · review mapping" title={report.file_name}
-          description="TrueBind proposed a column for every canonical field. Check anything marked “Check” or “Ambiguous”, confirm each sheet, then produce the report."
+          description="TrueBind proposed a source column for every canonical field. Check anything marked “Needs review” or “Ambiguous”, confirm each sheet, then produce the report."
           actions={<><StatusPill status={report.status} /><Button variant="ghost" onClick={reset}>Upload another</Button></>} />
+        <IntakeStepper current={4} />
         {sheets.length ? (
           <MappingReview report={report} sheets={sheets} onSheetsChange={setSheets} onProcess={startProcessing} />
         ) : <Panel><p style={{ margin: 0 }}>Loading sheets…</p></Panel>}
@@ -138,6 +141,7 @@ export default function IntakePage() {
     <>
       <PageHeader eyebrow="Intake" title="Bring in a bordereau"
         description="Any sender's layout, any column order, one sheet or many. TrueBind reads every sheet, finds its header row, proposes a mapping, then validates and reconciles every row." />
+      <IntakeStepper current={intakeStep(null, !!upload)} />
       <div className={styles.layout}>
         <div className={ds.stack}>
           <Panel>

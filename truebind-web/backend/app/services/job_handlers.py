@@ -130,13 +130,14 @@ def propose_with_ai_cap(sheets) -> tuple[list[SheetMappingProposal], dict]:
 def run_ingest(db: Session, job: Job) -> dict:
     t0 = perf_counter()
     report, path = _load(db, job)
-    job_service.set_stage(db, job, "parsing")
+    job_service.set_stage(db, job, "inspecting")
     sheets = _parse(path, report)
     t_parse = perf_counter() - t0
     usable = [s for s in sheets if not s.skipped]
-    job_service.set_stage(db, job, "proposing_mapping", sheets_found=len(sheets), sheets_with_data=len(usable),
-                          rows_detected=sum(len(s.raw) for s in usable),
-                          sheets_skipped=len(sheets) - len(usable))
+    facts = dict(sheets_found=len(sheets), sheets_with_data=len(usable),
+                 rows_detected=sum(len(s.raw) for s in usable), sheets_skipped=len(sheets) - len(usable))
+    job_service.set_stage(db, job, "detecting_sheets", **facts)
+    job_service.set_stage(db, job, "proposing_mapping")
     proposals, ai_meta = propose_with_ai_cap(sheets)
     t_map = perf_counter() - t0 - t_parse
     job_service.set_stage(db, job, "saving", ai_calls=ai_meta["ai_calls"])
@@ -162,12 +163,14 @@ def run_process(db: Session, job: Job) -> dict:
     job_service.set_stage(db, job, "parsing")
     sheets = _parse(path, report)
     t_parse = perf_counter() - t0
-    job_service.set_stage(db, job, "validating", sheets_found=len(sheets),
+    job_service.set_stage(db, job, "mapping", sheets_found=len(sheets),
                           rows_detected=sum(len(s.raw) for s in sheets if not s.skipped))
     proposals = persistence_service.proposals_from_db(db, report, sheets)
     confirmed = {s.sheet_name: persistence_service.confirmed_mapping_for_sheet(db, s)
                  for s in db_sheets if s.status == "CONFIRMED"}
-    result = pipeline_service.run_workbook_pipeline(sheets, confirmed, proposals, source_name=report.file_name)
+    result = pipeline_service.run_workbook_pipeline(
+        sheets, confirmed, proposals, source_name=report.file_name,
+        on_stage=lambda stage, facts: job_service.set_stage(db, job, stage, **facts))
     t_pipe = perf_counter() - t0 - t_parse
     job_service.set_stage(db, job, "saving")
     t = perf_counter()

@@ -6,18 +6,21 @@ import { Icon, type IconName } from "./Icon";
 import s from "./ds.module.css";
 
 export { Icon };
+export * from "./data";
+export * from "./overlays";
 export type { IconName };
 export const ds = s;
 
 export type Tone = "neutral" | "good" | "warn" | "bad" | "info" | "brand" | "violet" | "live";
 
-export function PageHeader({ eyebrow, title, description, actions }: {
-  eyebrow?: string; title: ReactNode; description?: ReactNode; actions?: ReactNode;
+export function PageHeader({ eyebrow, title, description, actions, breadcrumbs }: {
+  eyebrow?: string; title: ReactNode; description?: ReactNode; actions?: ReactNode; breadcrumbs?: ReactNode;
 }) {
   return (
     <header className={s.pageHeader}>
       <div style={{ minWidth: 0 }}>
-        {eyebrow && <p className={s.pageEyebrow}>{eyebrow}</p>}
+        {breadcrumbs && <div className={s.pageCrumbs}>{breadcrumbs}</div>}
+        {!breadcrumbs && eyebrow && <p className={s.pageEyebrow}>{eyebrow}</p>}
         <h1 className={s.pageTitle}>{title}</h1>
         {description && <p className={s.pageDescription}>{description}</p>}
       </div>

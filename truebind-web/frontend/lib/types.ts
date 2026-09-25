@@ -31,6 +31,7 @@ export interface Report {
   file_kind?: string | null;
   sender?: string | null;
   programme?: string | null;
+  issues_found?: number | null;
 }
 
 export interface Job {
@@ -232,6 +233,8 @@ export interface ReportSummary {
   arithmetic_matches?: number;
   period_unknown_repeats?: number;
   definitions?: Record<string, string>;
+  claim_status_counts?: Record<string, number>;
+  reporting_periods?: Record<string, number>;
   not_evaluable_by_reason: Record<string, number>;
   excluded_row_counts: Record<string, number>;
   skipped_sheets: { sheet_name: string; reason: string }[];
@@ -360,6 +363,7 @@ export interface Overview {
   processing: { worker_available: boolean; workers_alive: number; jobs_24h: number; failed_24h: number; median_job_s: number | null };
   alerts: { unread: number; latest: Alert[] };
   latest_reports: Report[];
+  in_flight_reports?: Report[];
   recommendations: Recommendation[];
   activity: AuditLogEntry[];
 }

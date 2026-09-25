@@ -184,3 +184,48 @@ def test_operational_endpoints_are_tenant_isolated(api, api_b):
     if vr["items"]:
         assert api_b.patch(f"/api/v1/reports/{rid}/exceptions/{vr['items'][0]['validation_result_id']}",
                            json={"review_status": "resolved"}).status_code == 404
+
+
+# ---------------------------------------------------------------- real stages + product fields
+
+def test_jobs_report_every_real_stage_in_order(api, monkeypatch):
+    from app.services import job_service
+    seen: list[tuple[str, str]] = []
+    original = job_service.set_stage
+
+    def record(db, job, stage, **progress):
+        seen.append((job.kind, stage))
+        return original(db, job, stage, **progress)
+
+    monkeypatch.setattr(job_service, "set_stage", record)
+    rid, _ = api.full_run("stages.xlsx", xlsx_bytes(simple_rows(5)))
+    ingest = [s for k, s in seen if k == "INGEST"]
+    process = [s for k, s in seen if k == "PROCESS"]
+    assert ingest == ["inspecting", "detecting_sheets", "proposing_mapping", "saving"]
+    assert process == ["parsing", "mapping", "mapping", "validating", "checking_duplicates", "building_report", "saving"]
+
+
+def test_stage_facts_are_recorded_for_the_ui(api, db):
+    from app.models.jobs import Job
+    rid, _ = api.full_run("facts.xlsx", xlsx_bytes(simple_rows(4)))
+    job = api.get(f"/api/v1/reports/{rid}/jobs").json()
+    process = [j for j in job if j["kind"] == "PROCESS"][0]
+    progress = process["metrics"]["progress"]
+    assert progress["rows_mapped"] == 4 and progress["duplicate_pairs"] == 0
+    assert "row_findings" in progress and "arithmetic_mismatches" in progress
+
+
+def test_summary_has_status_and_period_breakdowns_and_list_has_issues(api):
+    rid, _ = api.full_run("breakdown.xlsx", xlsx_bytes(simple_rows(6)))
+    summary = api.get(f"/api/v1/reports/{rid}/summary").json()["summary"]
+    assert summary["claim_status_counts"] == {"open": 6}  # engine normalises statuses
+    assert summary["reporting_periods"] == {"Not stated": 6} or summary["reporting_periods"] == {}
+    listed = {r["id"]: r for r in api.get("/api/v1/reports").json()["items"]}
+    assert listed[rid]["issues_found"] == (summary["missing_mandatory_rows"] + summary["arithmetic_mismatches"]
+                                         + summary["exact_duplicates"] + summary["probable_duplicates"])
+
+
+def test_overview_lists_in_flight_reports(api):
+    rid = api.upload("waiting.xlsx", xlsx_bytes(simple_rows(2))).json()["id"]
+    o = api.get("/api/v1/overview").json()
+    assert [r["id"] for r in o["in_flight_reports"]] == [rid]

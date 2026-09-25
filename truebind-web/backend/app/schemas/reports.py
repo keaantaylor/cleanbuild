@@ -111,6 +111,9 @@ class ReportOut(BaseModel):
     processing_error: str | None = None
     ingest_notes: dict | None = None
     job: JobOut | None = None
+    # Issues found when the report was produced (from its stored summary);
+    # None until the report is complete.
+    issues_found: int | None = None
 
 
 class ReportSummaryOut(BaseModel):

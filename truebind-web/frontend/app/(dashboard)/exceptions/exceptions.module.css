@@ -27,3 +27,5 @@
 /* keep the selected finding's detail in view while scrolling a long list */
 .layout > :last-child { position: sticky; top: calc(var(--topbar-height) + 12px); max-height: calc(100vh - var(--topbar-height) - 24px); overflow-y: auto; }
 @media (max-width: 1180px) { .layout > :last-child { position: static; max-height: none; } }
+.tileBtn:hover > * { border-color: var(--color-border-strong); box-shadow: var(--shadow-md); }
+.table tbody tr { cursor: pointer; }

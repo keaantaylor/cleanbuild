@@ -165,8 +165,20 @@ Existing tests changed (evidence — both encoded behaviour that non-negotiable 
 
 Implementation: `app/services/storage.py` (strict; `LocalObjectStore` creates 0400 files via `link()` so a key can never be replaced; `S3ObjectStore` via boto3), migration `0010_report_soft_delete`, one ORM rule in `models/reports.py` hides soft-deleted reports and the alerts/obligations/deliveries that point at them (`include_deleted` opt-in). Upload stores the original before the DB transaction, so a failed transaction leaves an unused immutable object instead of deleting one. `docs/RETENTION.md` documents that physical purge is an operator lifecycle rule. docker-compose.test.yml: MinIO gets a test-only KMS key for SSE. Legacy mypy ratchet 100 → 98.
 
+### P1.6 Money as exact decimals (D1) — done
+Acceptance (`tests/test_money.py`, 14):
+- [x] One normalisation at the boundary: 2 dp, ROUND_HALF_UP; float artefacts vanish (0.1+0.2 → 0.30); NaN/∞/non-numbers → NULL — `test_to_money_normalises_once` (10 cases).
+- [x] Every money column (10 on claim rows, `validation_results.delta`, `leakage_flags.amount_exposure`) uses the `Money` type; no money-like Float column remains anywhere in the schema — `test_every_money_column_uses_the_money_type`.
+- [x] Persisted amounts are exact Decimals, currency kept per row; the API carries the exact 2-dp value — `test_persisted_amounts_are_exact_decimals`.
+- [x] SQL aggregation stays exact (10 × 0.10 at stake = 1.00, not 0.9999…) — `test_money_aggregation_is_exact`.
+- [x] PostgreSQL columns are `numeric(18,2)` — `test_postgres_columns_are_numeric_18_2`.
+- [x] Golden regression unchanged (verify `golden` step).
+
+Existing test changed (evidence): `test_audit_and_exports.py::test_exports_neutralise_formula_injection_and_keep_lineage` expected the CSV text `-50.0`; money now exports as the exact decimal `-50.00`. The property under test (a negative amount is not formula-escaped) is unchanged and now asserted both ways.
+
+Scope note (D1): the engine still computes in float with its 0.01 tolerance; values become exact money once, when persisted. New modules (P3+) compute in Decimal from the start. SQLite (development only) stores the quantised value as REAL and converts back through text, so application code only sees 2-dp Decimals. Ambiguous-date flagging (D9) moves to P3, where the binder rules consume dates. Legacy mypy ratchet 98 → 97.
+
 Remaining tasks (acceptance criteria written in full when each starts):
-- P1.6 Money: `Numeric(18,2)` + currency, Decimal at the API boundary (D1); per-cell ambiguous-date flag (D9).
 - P1.7 Jobs: Redis wake-ups + idempotency keys + retries on the existing DB queue (D6); 50k-row workbook < 120 s without blocking the API.
 - P1.8 Observability: JSON logs with request IDs + PII scrubber, Sentry (env-gated, scrubbed), `/healthz` `/readyz`.
 - P1.9 Audit: every new event type chained; tamper-detection test on PostgreSQL and SQLite.

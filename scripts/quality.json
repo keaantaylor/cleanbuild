@@ -25,10 +25,13 @@
     "truebind-web/backend/tests/test_sso.py",
     "truebind-web/backend/app/services/storage.py",
     "truebind-web/backend/migrations/versions/0010_report_soft_delete.py",
-    "truebind-web/backend/tests/test_storage.py"
+    "truebind-web/backend/tests/test_storage.py",
+    "truebind-web/backend/app/models/money.py",
+    "truebind-web/backend/migrations/versions/0011_money_numeric.py",
+    "truebind-web/backend/tests/test_money.py"
   ],
   "baseline": {
-    "mypy_legacy_errors": 98,
+    "mypy_legacy_errors": 97,
     "coverage_total_pct": 89.69
   },
   "new_code_coverage_min_pct": 85

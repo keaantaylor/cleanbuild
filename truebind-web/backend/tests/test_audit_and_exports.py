@@ -63,7 +63,9 @@ def test_exports_neutralise_formula_injection_and_keep_lineage(api):
     cells = [c for r in body for c in r]
     assert not any(c.startswith(("=", "+", "@")) for c in cells), cells
     assert "'=HYPERLINK(\"http://evil\",\"x\")" in cells and "'@SUM(A1)" in cells and "'-negative name" in cells
-    assert "-50.0" in cells, "numbers stay numeric (a negative amount is not escaped)"
+    # P1.6: money is exported as an exact 2-dp decimal (was "-50.0" from float).
+    assert "-50.00" in cells, "numbers stay numeric (a negative amount is not escaped)"
+    assert "'-50.00" not in cells
     assert {r[1] for r in body} == {"2", "3"}, "source row numbers point at the original sheet rows"
 
 

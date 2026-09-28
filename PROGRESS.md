@@ -109,8 +109,25 @@ Acceptance (tests in `tests/test_isolation_all_endpoints.py`, 5):
 
 Implementation: migration `0007_identity_rls` (memberships: tenant OR `app.user_id`; auth_sessions: tenant OR `app.session_token_hash`; writes always in-tenant); `database.set_identity()` sets those GUCs per transaction; session lookup and sign-in set them before reading. Found while building it: other tests inject probe routes (`/__boom`) into the shared app; the walker ignores `/__*`.
 
+### P1.4a TOTP two-factor authentication — done
+Acceptance (tests in `tests/test_mfa.py`, 8):
+- [x] Setup returns secret + otpauth URI; enable with a valid code returns 10 unique recovery codes; seed stored encrypted (HKDF-derived Fernet key per purpose), recovery codes only as hashes — `test_setup_enable_and_login_with_totp`.
+- [x] With 2FA on, the password alone creates no session: login returns a 5-minute encrypted challenge; wrong code 401, right code signs in — same test.
+- [x] Codes cannot be replayed (last-used step recorded) — `test_codes_cannot_be_replayed`.
+- [x] Recovery codes work once and their use is audited — `test_recovery_code_works_once`.
+- [x] Challenges are tamper-evident and expire — `test_challenge_tokens_expire_and_are_bound`.
+- [x] Wrong codes count towards lockout; the password step does not reset the counter — `test_wrong_codes_lock_the_account`.
+- [x] Org enforcement: password-only sessions of a 2FA-requiring org get 403 (`X-TrueBind-Reason: mfa_setup_required`) everywhere except me/logout/2FA setup; completing setup upgrades the session; disabling is refused while required — `test_org_enforcement_confines_members_until_set_up`.
+- [x] Disable needs a valid code; enabling revokes the user's other sessions; MFA_SETUP_STARTED/ENABLED/DISABLED audited — `test_disable_needs_a_code_and_enable_revokes_other_sessions`, `test_setup_is_refused_when_already_enabled`.
+
+Existing-test change (evidence): `test_org_members.py::test_membership_and_settings_changes_are_audited` turned on `require_2fa` with an owner who had no 2FA, then kept using that session. Under enforcement that owner is (correctly) confined to setup, so the test failed on the next call. Rather than weaken enforcement, `PATCH /org` now refuses (409) to require 2FA unless the acting admin's own session used it — an admin can no longer lock everyone out by accident. The test now asserts that 409, sets up the owner's 2FA, then continues with every original assertion unchanged. `test_mfa.py`'s enforcement test does the same.
+
+P1.3 test adjusted (evidence): `test_identity_rows_are_visible_only_to_their_tenant_user_or_token_holder` checked the token-hash path on a DB session that still had a user id bound; 0008 intentionally lets a user see their own sessions, so that check now runs on a fresh session with no user bound, and a new assertion covers the user path. Every original assertion is kept.
+
+Implementation: `app/security/crypto.py`, `app/security/mfa.py`, `app/routes/mfa.py` (strict); migration `0008_mfa` (`user_mfa`, `auth_sessions.auth_method`, users may see their own sessions for revocation); login returns `MeOut | MfaChallengeOut`; `/auth/me` adds `mfa {enabled, required, setup_required}`. OpenAPI: +5 operations under `/api/v1/auth/2fa`.
+
 Remaining tasks (acceptance criteria written in full when each starts):
-- P1.4 Auth: TOTP 2FA (per-org enforcement), login lockout (Redis-backed), OIDC SSO via Authlib against mock-oauth2-server.
+- P1.4b OIDC SSO via Authlib against mock-oauth2-server; P1.4c frontend: MFA sign-in step + Settings (organisation, members, security, SSO).
 - P1.5 Storage: S3-compatible adapter (boto3; MinIO in tests), SSE, SHA-256 on write, no delete path; report delete → soft delete (D5).
 - P1.6 Money: `Numeric(18,2)` + currency, Decimal at the API boundary (D1); per-cell ambiguous-date flag (D9).
 - P1.7 Jobs: Redis wake-ups + idempotency keys + retries on the existing DB queue (D6); 50k-row workbook < 120 s without blocking the API.

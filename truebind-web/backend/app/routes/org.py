@@ -23,15 +23,13 @@ from sqlalchemy.orm import Session
 from ..database import get_db, set_tenant
 from ..models._util import utcnow
 from ..models.identity import AuthSession, Invitation, Membership, Tenant, User
-from ..schemas.reports import MeOut, TenantOut, UserOut
+from ..schemas.reports import MeOut
 from ..security import passwords
 from ..security.auth import Context, _aware, create_session, require, token_hash
 from ..security.permissions import (
     ASSIGNABLE_BY_ADMIN,
     ROLES,
     Permission,
-    has_permission,
-    permissions_for,
 )
 from ..security.ratelimit import client_ip, limiter
 from ..services import audit_service
@@ -160,6 +158,11 @@ def get_org(ctx: Context = Depends(_org_read), db: Session = Depends(get_db)) ->
 @router.patch("", response_model=OrgOut)
 def patch_org(body: OrgPatch, ctx: Context = Depends(_org_manage), db: Session = Depends(get_db)) -> OrgOut:
     t = _tenant(db, ctx)
+    if body.require_2fa and not t.require_2fa and ctx.auth_method == "password":
+        # Otherwise the admin would lock themselves (and everyone) into setup.
+        raise HTTPException(
+            status_code=409, detail="Turn on two-factor authentication for your own account before requiring it."
+        )
     before: dict[str, object] = {}
     after: dict[str, object] = {}
     for field in ("name", "org_type", "require_2fa"):
@@ -356,20 +359,9 @@ def accept_invitation(body: AcceptIn, request: Request, response: Response, db: 
     tenant = db.get(Tenant, inv.tenant_id)
     if tenant is None:
         raise HTTPException(status_code=404, detail="This invitation is not valid.")
-    return MeOut(
-        user=UserOut(id=user.id, email=user.email, display_name=user.display_name),
-        tenant=TenantOut(
-            id=tenant.id,
-            name=tenant.name,
-            retention_days=tenant.retention_days,
-            org_type=tenant.org_type,
-            require_2fa=bool(tenant.require_2fa),
-        ),
-        role=inv.role,
-        can_write=has_permission(inv.role, Permission.DATA_WRITE),
-        permissions=sorted(p.value for p in permissions_for(inv.role)),
-        csrf_token=session.csrf_token,
-    )
+    from .auth import me_out
+
+    return me_out(db, user, inv.tenant_id, inv.role, session.csrf_token)
 
 
 __all__ = ["ROLES", "public_router", "router"]

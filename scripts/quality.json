@@ -13,10 +13,15 @@
     "truebind-web/backend/migrations/versions/0006_roles_orgs_invitations.py",
     "truebind-web/backend/tests/test_org_members.py",
     "truebind-web/backend/tests/test_isolation_all_endpoints.py",
-    "truebind-web/backend/migrations/versions/0007_identity_rls.py"
+    "truebind-web/backend/migrations/versions/0007_identity_rls.py",
+    "truebind-web/backend/app/security/crypto.py",
+    "truebind-web/backend/app/security/mfa.py",
+    "truebind-web/backend/app/routes/mfa.py",
+    "truebind-web/backend/migrations/versions/0008_mfa.py",
+    "truebind-web/backend/tests/test_mfa.py"
   ],
   "baseline": {
-    "mypy_legacy_errors": 101,
+    "mypy_legacy_errors": 100,
     "coverage_total_pct": 89.69
   },
   "new_code_coverage_min_pct": 85

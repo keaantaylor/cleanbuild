@@ -65,6 +65,8 @@ class MeOut(BaseModel):
     can_write: bool
     permissions: list[str] = []
     csrf_token: str
+    # {"enabled", "required", "setup_required"}; see routes/mfa.py
+    mfa: dict[str, bool] | None = None
 
 
 # ---------------------------------------------------------------- reports

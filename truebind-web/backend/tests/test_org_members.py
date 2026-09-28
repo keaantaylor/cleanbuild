@@ -16,6 +16,7 @@ from __future__ import annotations
 from datetime import timedelta
 from pathlib import Path
 
+import pyotp
 import pytest
 from alembic import command
 from alembic.config import Config
@@ -190,6 +191,10 @@ def test_membership_and_settings_changes_are_audited(api: Api) -> None:
     _accept(_invite(api, "audited@a.example", "VIEWER"))
     mid = _member_id(api, "audited@a.example")
     api.patch(f"/api/v1/org/members/{mid}", json={"role": "ANALYST"})
+    refused = api.patch("/api/v1/org", json={"require_2fa": True})
+    assert refused.status_code == 409, "an admin without 2FA cannot require it (would lock themselves out)"
+    setup = api.post("/api/v1/auth/2fa/setup").json()
+    assert api.post("/api/v1/auth/2fa/enable", json={"code": pyotp.TOTP(setup["secret"]).now()}).status_code == 200
     r = api.patch("/api/v1/org", json={"org_type": "mga", "require_2fa": True})
     assert r.status_code == 200 and r.json()["org_type"] == "mga" and r.json()["require_2fa"] is True
     api.delete(f"/api/v1/org/members/{mid}")

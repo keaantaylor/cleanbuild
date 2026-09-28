@@ -13,6 +13,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..config import ALLOW_SIGNUP
@@ -20,7 +21,7 @@ from ..database import get_db, set_identity, set_tenant
 from ..models._util import utcnow
 from ..models.identity import AuthSession, Membership, Tenant, User
 from ..schemas.reports import LoginRequest, MeOut, SignupRequest, TenantOut, UserOut
-from ..security import passwords
+from ..security import mfa, passwords
 from ..security.auth import Context, _aware, clear_cookie, create_session, get_context
 from ..security.permissions import Permission, has_permission, permissions_for
 from ..security.ratelimit import client_ip, limiter
@@ -33,7 +34,9 @@ LOCKOUT_MINUTES = 15
 _BAD_LOGIN = "Email or password is incorrect."
 
 
-def _me(db: Session, user: User, tenant_id: str, role: str, csrf: str) -> MeOut:
+def me_out(db: Session, user: User, tenant_id: str, role: str, csrf: str, auth_method: str = "password") -> MeOut:
+    from .mfa import MfaStatusOut
+
     t = db.get(Tenant, tenant_id)
     if t is None:  # the session's tenant was deleted underneath it
         raise HTTPException(status_code=401, detail="Not signed in or your session has expired.")
@@ -41,7 +44,9 @@ def _me(db: Session, user: User, tenant_id: str, role: str, csrf: str) -> MeOut:
                  tenant=TenantOut(id=t.id, name=t.name, retention_days=t.retention_days, org_type=t.org_type,
                                   require_2fa=bool(t.require_2fa)),
                  role=role, can_write=has_permission(role, Permission.DATA_WRITE),
-                 permissions=sorted(p.value for p in permissions_for(role)), csrf_token=csrf)
+                 permissions=sorted(p.value for p in permissions_for(role)), csrf_token=csrf,
+                 mfa=MfaStatusOut(enabled=mfa.is_enabled(db, user.id), required=bool(t.require_2fa),
+                                  setup_required=bool(t.require_2fa) and auth_method == "password").model_dump())
 
 
 @router.post("/signup", response_model=MeOut, status_code=201)
@@ -66,11 +71,18 @@ def signup(body: SignupRequest, request: Request, response: Response, db: Sessio
     audit_service.log_action(db, tenant.id, None, "ACCOUNT_CREATED", "USER", user.id, after={"role": "OWNER"},
                              actor=email, actor_user_id=user.id)
     db.commit()
-    return _me(db, user, tenant.id, "OWNER", s.csrf_token)
+    return me_out(db, user, tenant.id, "OWNER", s.csrf_token)
 
 
-@router.post("/login", response_model=MeOut)
-def login(body: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)) -> MeOut:
+class MfaChallengeOut(BaseModel):
+    mfa_required: bool = True
+    mfa_token: str
+    methods: list[str] = ["totp", "recovery_code"]
+
+
+@router.post("/login", response_model=MeOut | MfaChallengeOut)
+def login(body: LoginRequest, request: Request, response: Response,
+          db: Session = Depends(get_db)) -> MeOut | MfaChallengeOut:
     email = body.email.lower()
     limiter.check("login-ip", client_ip(request), limit=20, window_s=300)
     limiter.check("login-account", email, limit=10, window_s=300)
@@ -97,12 +109,17 @@ def login(body: LoginRequest, request: Request, response: Response, db: Session 
                                      after={"ip": client_ip(request)}, actor=email, actor_user_id=user.id)
         db.commit()
         raise HTTPException(status_code=401, detail=_BAD_LOGIN)
+    if mfa.is_enabled(db, user.id):
+        # Password proven; the failure counter is NOT reset until the second
+        # factor is too, so codes cannot be brute-forced by re-entering it.
+        db.commit()
+        return MfaChallengeOut(mfa_token=mfa.issue_challenge(user.id, membership.tenant_id))
     user.failed_logins, user.locked_until = 0, None
     s = create_session(db, response, user, membership.tenant_id, request)
     audit_service.log_action(db, membership.tenant_id, None, "LOGIN_SUCCEEDED", "SESSION", s.id,
                              after={"ip": client_ip(request)}, actor=email, actor_user_id=user.id)
     db.commit()
-    return _me(db, user, membership.tenant_id, membership.role, s.csrf_token)
+    return me_out(db, user, membership.tenant_id, membership.role, s.csrf_token)
 
 
 @router.post("/logout", status_code=204)
@@ -120,4 +137,7 @@ def logout(response: Response, ctx: Context = Depends(get_context), db: Session 
 
 @router.get("/me", response_model=MeOut)
 def me(ctx: Context = Depends(get_context), db: Session = Depends(get_db)) -> MeOut:
-    return _me(db, db.get(User, ctx.user_id), ctx.tenant_id, ctx.role, ctx.csrf_token)
+    user = db.get(User, ctx.user_id)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not signed in or your session has expired.")
+    return me_out(db, user, ctx.tenant_id, ctx.role, ctx.csrf_token, auth_method=ctx.auth_method)

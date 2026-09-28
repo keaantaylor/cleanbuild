@@ -21,10 +21,14 @@ from sqlalchemy.orm import Session
 
 from ..config import COOKIE_SECURE, SESSION_TTL_HOURS
 from ..database import get_db, set_identity, set_tenant
-from ..models.identity import AuthSession, Membership, User
+from ..models.identity import AuthSession, Membership, Tenant, User
 from .permissions import Permission, has_permission, permissions_for
 
 COOKIE_NAME = "tb_session"
+# While an organisation requires 2FA and the session was established with a
+# password alone, only these endpoints answer (so the user can set it up).
+MFA_SETUP_PATHS = frozenset({"/api/v1/auth/me", "/api/v1/auth/logout", "/api/v1/auth/2fa",
+                             "/api/v1/auth/2fa/setup", "/api/v1/auth/2fa/enable"})
 CSRF_HEADER = "X-CSRF-Token"
 _UNSAFE = {"POST", "PUT", "PATCH", "DELETE"}
 
@@ -51,6 +55,7 @@ class Context:
     session_id: str
     actor: str  # display label for audit entries, derived from the identity
     csrf_token: str
+    auth_method: str = "password"
 
     @property
     def can_write(self) -> bool:
@@ -64,11 +69,12 @@ class Context:
         return has_permission(self.role, permission)
 
 
-def create_session(db: Session, response: Response, user: User, tenant_id: str, request: Request) -> AuthSession:
+def create_session(db: Session, response: Response, user: User, tenant_id: str, request: Request,
+                   auth_method: str = "password") -> AuthSession:
     token = secrets.token_urlsafe(32)
     s = AuthSession(token_hash=token_hash(token), csrf_token=secrets.token_urlsafe(24), user_id=user.id,
                     tenant_id=tenant_id, expires_at=_now() + timedelta(hours=SESSION_TTL_HOURS),
-                    user_agent=(request.headers.get("user-agent") or "")[:300])
+                    user_agent=(request.headers.get("user-agent") or "")[:300], auth_method=auth_method)
     db.add(s)
     db.flush()
     response.set_cookie(COOKIE_NAME, token, httponly=True, secure=COOKIE_SECURE, samesite="lax",
@@ -107,8 +113,13 @@ def get_context(request: Request, db: Session = Depends(get_db)) -> Context:
         if not sent or not hmac.compare_digest(sent, s.csrf_token):
             raise HTTPException(status_code=403, detail="Missing or invalid CSRF token.")
     set_tenant(db, s.tenant_id)
+    if s.auth_method == "password" and request.url.path not in MFA_SETUP_PATHS:
+        tenant = db.get(Tenant, s.tenant_id)
+        if tenant is not None and tenant.require_2fa:
+            raise HTTPException(status_code=403, headers={"X-TrueBind-Reason": "mfa_setup_required"},
+                                detail="Your organisation requires two-factor authentication. Set it up to continue.")
     return Context(user_id=user.id, tenant_id=s.tenant_id, role=m.role, session_id=s.id,
-                   actor=user.email, csrf_token=s.csrf_token)
+                   actor=user.email, csrf_token=s.csrf_token, auth_method=s.auth_method)
 
 
 def require(permission: Permission):

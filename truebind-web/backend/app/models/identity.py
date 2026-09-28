@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint, false as sa_false
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint, false as sa_false
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..database import Base
@@ -71,6 +71,9 @@ class AuthSession(Base):
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # How the session was established: password | password+totp | sso. An
+    # organisation that requires 2FA accepts only the last two.
+    auth_method: Mapped[str] = mapped_column(String(24), default="password", server_default="password")
 
 
 class Invitation(Base):
@@ -90,3 +93,18 @@ class Invitation(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class UserMfa(Base):
+    """A user's TOTP second factor. The seed is encrypted (security/crypto.py,
+    purpose "totp"); recovery codes are stored only as SHA-256 hashes.
+    `last_used_step` rejects replay of a code within its validity window."""
+
+    __tablename__ = "user_mfa"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    secret_enc: Mapped[str] = mapped_column(String(500))
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    recovery_code_hashes: Mapped[list[str]] = mapped_column(JSON, default=list)
+    last_used_step: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = created_at_col()

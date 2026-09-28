@@ -391,6 +391,21 @@
     "title": "ClaimRowOut",
     "type": "object"
    },
+   "CodeIn": {
+    "properties": {
+     "code": {
+      "maxLength": 32,
+      "minLength": 6,
+      "title": "Code",
+      "type": "string"
+     }
+    },
+    "required": [
+     "code"
+    ],
+    "title": "CodeIn",
+    "type": "object"
+   },
    "DeliveryOut": {
     "properties": {
      "channel": {
@@ -597,6 +612,22 @@
      "review_status"
     ],
     "title": "DuplicateReviewRequest",
+    "type": "object"
+   },
+   "EnabledOut": {
+    "properties": {
+     "recovery_codes": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Recovery Codes",
+      "type": "array"
+     }
+    },
+    "required": [
+     "recovery_codes"
+    ],
+    "title": "EnabledOut",
     "type": "object"
    },
    "ExceptionReviewRequest": {
@@ -1338,6 +1369,20 @@
       "title": "Csrf Token",
       "type": "string"
      },
+     "mfa": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "type": "boolean"
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Mfa"
+     },
      "permissions": {
       "default": [],
       "items": {
@@ -1404,6 +1449,58 @@
      "created_at"
     ],
     "title": "MemberOut",
+    "type": "object"
+   },
+   "MfaChallengeOut": {
+    "properties": {
+     "methods": {
+      "default": [
+       "totp",
+       "recovery_code"
+      ],
+      "items": {
+       "type": "string"
+      },
+      "title": "Methods",
+      "type": "array"
+     },
+     "mfa_required": {
+      "default": true,
+      "title": "Mfa Required",
+      "type": "boolean"
+     },
+     "mfa_token": {
+      "title": "Mfa Token",
+      "type": "string"
+     }
+    },
+    "required": [
+     "mfa_token"
+    ],
+    "title": "MfaChallengeOut",
+    "type": "object"
+   },
+   "MfaStatusOut": {
+    "properties": {
+     "enabled": {
+      "title": "Enabled",
+      "type": "boolean"
+     },
+     "required": {
+      "title": "Required",
+      "type": "boolean"
+     },
+     "setup_required": {
+      "title": "Setup Required",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "enabled",
+     "required",
+     "setup_required"
+    ],
+    "title": "MfaStatusOut",
     "type": "object"
    },
    "ObligationCreateRequest": {
@@ -2239,6 +2336,24 @@
     "title": "RolePatch",
     "type": "object"
    },
+   "SetupOut": {
+    "properties": {
+     "otpauth_uri": {
+      "title": "Otpauth Uri",
+      "type": "string"
+     },
+     "secret": {
+      "title": "Secret",
+      "type": "string"
+     }
+    },
+    "required": [
+     "secret",
+     "otpauth_uri"
+    ],
+    "title": "SetupOut",
+    "type": "object"
+   },
    "SheetMappingOut": {
     "properties": {
      "fields": {
@@ -2601,6 +2716,45 @@
     ],
     "title": "ValidationError",
     "type": "object"
+   },
+   "VerifyIn": {
+    "properties": {
+     "code": {
+      "anyOf": [
+       {
+        "maxLength": 12,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Code"
+     },
+     "mfa_token": {
+      "maxLength": 2000,
+      "minLength": 10,
+      "title": "Mfa Token",
+      "type": "string"
+     },
+     "recovery_code": {
+      "anyOf": [
+       {
+        "maxLength": 32,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Recovery Code"
+     }
+    },
+    "required": [
+     "mfa_token"
+    ],
+    "title": "VerifyIn",
+    "type": "object"
    }
   }
  },
@@ -2820,6 +2974,164 @@
     ]
    }
   },
+  "/api/v1/auth/2fa": {
+   "get": {
+    "operationId": "mfa_status_api_v1_auth_2fa_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MfaStatusOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Mfa Status",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
+  "/api/v1/auth/2fa/disable": {
+   "post": {
+    "operationId": "disable_api_v1_auth_2fa_disable_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CodeIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Disable",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
+  "/api/v1/auth/2fa/enable": {
+   "post": {
+    "operationId": "enable_api_v1_auth_2fa_enable_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CodeIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/EnabledOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Enable",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
+  "/api/v1/auth/2fa/setup": {
+   "post": {
+    "operationId": "setup_api_v1_auth_2fa_setup_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SetupOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Setup",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
+  "/api/v1/auth/2fa/verify": {
+   "post": {
+    "operationId": "verify_api_v1_auth_2fa_verify_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/VerifyIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MeOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Verify",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
   "/api/v1/auth/invitations/accept": {
    "post": {
     "operationId": "accept_invitation_api_v1_auth_invitations_accept_post",
@@ -2879,7 +3191,15 @@
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/MeOut"
+         "anyOf": [
+          {
+           "$ref": "#/components/schemas/MeOut"
+          },
+          {
+           "$ref": "#/components/schemas/MfaChallengeOut"
+          }
+         ],
+         "title": "Response Login Api V1 Auth Login Post"
         }
        }
       },

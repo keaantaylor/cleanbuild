@@ -188,6 +188,12 @@ def test_identity_rows_are_visible_only_to_their_tenant_user_or_token_holder(api
         assert s.query(Membership).count() == 0, "no tenant, no identity: nothing visible"
         set_identity(s, user_id=a_user)
         assert {m.tenant_id for m in s.query(Membership)} == {a_tenant}, "a user sees only their own memberships"
+        assert {x.tenant_id for x in s.query(AuthSession)} == {a_tenant}, "a user sees only their own sessions (0008)"
+    finally:
+        s.close()
+    # Token-holder path, on a fresh session with no user identity bound.
+    s = get_session_factory()()
+    try:
         set_identity(s, session_token_hash=token_hash("not-a-real-session-token"))
         assert s.query(AuthSession).count() == 0, "a wrong token hash reveals no session"
         cookie = api.client.cookies.get("tb_session")

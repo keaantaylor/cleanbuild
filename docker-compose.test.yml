@@ -1,0 +1,85 @@
+# Throwaway services for `python scripts/verify.py --full` and integration
+# tests. Test-only credentials; nothing here is used by a deployment.
+# Host ports are offset (5xxxx) so a developer's own services never clash.
+# Images come from registries that do not rate-limit anonymous CI pulls
+# where possible (ECR public, GHCR).
+name: truebind-test
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: postgres-test-only
+    volumes:
+      - ./scripts/testenv/pg-init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+    ports: ["55433:5432"]
+    tmpfs: ["/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d truebind_test"]
+      interval: 2s
+      retries: 30
+
+  redis:
+    image: public.ecr.aws/docker/library/redis:7-alpine
+    ports: ["56379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      retries: 30
+
+  minio:
+    # Community build of MinIO server (upstream stopped publishing images).
+    image: pgsty/minio:latest
+    command: server /data --address :9000 --console-address :9001
+    environment:
+      MINIO_ROOT_USER: truebind-test
+      MINIO_ROOT_PASSWORD: truebind-test-secret
+    ports: ["59000:9000"]
+    tmpfs: ["/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live || wget -qO- http://localhost:9000/minio/health/live"]
+      interval: 2s
+      retries: 30
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports: ["51025:1025", "58025:8025"]
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 2s
+      retries: 30
+
+  sftpgo:
+    image: ghcr.io/drakkan/sftpgo:v2.6-alpine
+    environment:
+      SFTPGO_DEFAULT_ADMIN_USERNAME: admin
+      SFTPGO_DEFAULT_ADMIN_PASSWORD: sftpgo-test-only
+      SFTPGO_DATA_PROVIDER__CREATE_DEFAULT_ADMIN: "true"
+    ports: ["52022:2022", "58080:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz || exit 1"]
+      interval: 2s
+      retries: 30
+
+  mock-oauth2:
+    image: ghcr.io/navikt/mock-oauth2-server:2.1.10
+    environment:
+      SERVER_PORT: "8080"
+    # Distroless image (no shell): readiness is polled from the host by
+    # scripts/verify.py (GET /default/.well-known/openid-configuration).
+    ports: ["58081:8080"]
+
+  stripe-mock:
+    image: stripe/stripe-mock:latest
+    ports: ["52111:12111"]
+
+  webhook-receiver:
+    image: public.ecr.aws/docker/library/python:3.11-alpine
+    command: ["python", "/app/receiver.py"]
+    volumes:
+      - ./scripts/testenv/webhook_receiver.py:/app/receiver.py:ro
+    ports: ["58090:8090"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8090/health')"]
+      interval: 2s
+      retries: 30

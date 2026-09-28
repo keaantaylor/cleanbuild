@@ -17,7 +17,6 @@ near-duplicate (fix spec D7). Normalizing first fixes it.
 
 from __future__ import annotations
 
-import itertools
 import re
 
 import pandas as pd

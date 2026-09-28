@@ -9,4 +9,4 @@ where = ["."]
 include = ["app*"]
 
 [tool.pytest.ini_options]
-markers = ["slow: spawns real worker child processes", "pg: requires TRUEBIND_TEST_DATABASE_URL (PostgreSQL)"]
+markers = ["slow: spawns real worker child processes", "pg: requires TRUEBIND_TEST_DATABASE_URL (PostgreSQL)", "integration: needs docker-compose.test.yml services (verify.py --full)"]

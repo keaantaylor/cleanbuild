@@ -1,0 +1,39 @@
+{
+  "_comment": "Quality ratchet for scripts/verify.py. 'strict_paths' get the full ruff ruleset, ruff format and mypy --strict; every module added from P1 onwards is listed here. Legacy code is held to its measured baseline: the numbers below may only go DOWN (tighten) -- raising one is a test-weakening change and needs evidence in PROGRESS.md.",
+  "strict_paths": [
+    "scripts/verify.py",
+    "scripts/testenv/webhook_receiver.py",
+    "truebind-web/backend/tests/integration",
+    "truebind-web/backend/tests/integration_env.py"
+  ],
+  "strict_ruff_select": [
+    "E",
+    "F",
+    "W",
+    "I",
+    "B",
+    "UP",
+    "S",
+    "SIM",
+    "RUF",
+    "DTZ",
+    "N",
+    "A",
+    "C4",
+    "PIE",
+    "T20",
+    "BLE",
+    "ERA"
+  ],
+  "baseline": {
+    "mypy_legacy_errors": 105,
+    "coverage_total_pct": 89.69
+  },
+  "new_code_coverage_min_pct": 85,
+  "strict_per_file_ignores": [
+    "**/tests/**:S101",
+    "**/tests/**:S310",
+    "scripts/verify.py:T201",
+    "scripts/verify.py:S603"
+  ]
+}

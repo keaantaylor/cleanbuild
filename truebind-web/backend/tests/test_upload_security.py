@@ -10,7 +10,7 @@ import zipfile
 import pytest
 
 from app.config import STORAGE_DIR
-from conftest import XLSX, run_jobs, simple_rows, xlsx_bytes
+from conftest import run_jobs, simple_rows, xlsx_bytes
 
 
 def _stored_files():

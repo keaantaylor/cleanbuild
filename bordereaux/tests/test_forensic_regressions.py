@@ -463,6 +463,6 @@ def test_same_period_changed_amounts_is_restatement_not_duplicate():
     df = pd.DataFrame({"CR0104M": ["A", "A", "A"], "TB_PERIOD": ["2024-03", "2024-03", "2024-03"],
                        "TB_PAID_TD": [100.0, 100.0, 250.0], "CR0105CM": ["open"] * 3,
                        "_source_sheet": ["S"] * 3})
-    d, dev = dedupe._reference_repeats(df), None
+    d = dedupe._reference_repeats(df)
     kinds = sorted(r["match_type"] for r in d)
     assert kinds == ["development", "exact_duplicate"], kinds

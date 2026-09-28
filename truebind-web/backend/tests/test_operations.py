@@ -206,7 +206,6 @@ def test_jobs_report_every_real_stage_in_order(api, monkeypatch):
 
 
 def test_stage_facts_are_recorded_for_the_ui(api, db):
-    from app.models.jobs import Job
     rid, _ = api.full_run("facts.xlsx", xlsx_bytes(simple_rows(4)))
     job = api.get(f"/api/v1/reports/{rid}/jobs").json()
     process = [j for j in job if j["kind"] == "PROCESS"][0]

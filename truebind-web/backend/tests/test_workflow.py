@@ -157,7 +157,7 @@ def test_mapping_override_is_audited_with_session_identity(api):
 
 
 def test_lists_are_paginated(api):
-    rows = simple_rows(0) + [[f"DUP", "Same Insured", "2024-01-15", "Open", "GBP", 1, 1, 99]] * 30
+    rows = simple_rows(0) + [["DUP", "Same Insured", "2024-01-15", "Open", "GBP", 1, 1, 99]] * 30
     rid, _ = api.full_run("dups.xlsx", xlsx_bytes(rows))
     page = api.get(f"/api/v1/reports/{rid}/exceptions", params={"limit": 5, "offset": 0}).json()
     assert len(page["items"]) == 5 and page["total"] > 5

@@ -1,0 +1,7 @@
+# verify.py outputs and fetched tools
+.verify/
+.tools/
+verify-report.json
+# Playwright
+truebind-web/frontend/test-results/
+truebind-web/frontend/playwright-report/

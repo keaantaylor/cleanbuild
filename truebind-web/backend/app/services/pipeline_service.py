@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from bordereaux import dedupe, mapping as mapping_mod, pipeline as bpipeline, report as report_mod, schema
+from bordereaux import dedupe, mapping as mapping_mod, pipeline as bpipeline, report as report_mod, schema  # noqa: F401 (mapping_mod re-exported)
 from bordereaux.ingest import SheetData
 from bordereaux.mapping import MappingBatchResult, MappingSuggestion
 from bordereaux.pipeline import SheetMappingProposal, WorkbookProcessResult

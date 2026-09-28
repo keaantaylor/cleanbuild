@@ -11,7 +11,7 @@ Python (`truebind-web/backend/.venv`).
 | P0 Recon & harness | **done** — gate green (see evidence) |
 | P1 Platform foundation | **done** — gate green |
 | P2 Channels & integrations | **done** — gate green |
-| P3 Binder compliance | in progress |
+| P3 Binder compliance | **done** — gate green |
 | P4 Leakage & overpayment | pending |
 | P5 Sanctions screening | pending |
 | P6 Scorecard | pending |
@@ -300,7 +300,7 @@ Acceptance:
 - Self-review against the non-negotiables: every channel enters through one intake gate (no path skips the file checks); webhooks and SFTP never report "sent" unless they were; AI runs EU/UK only, sends headers plus masked samples, and never applies a suggestion without confirmation; FX conversion is exact Decimal with NOT_ASSESSED when a rate is missing; all new tenant tables have forced RLS; every new state change is audited (the walker covers 48 operations); secrets are encrypted and write-only; nothing is deployed.
 - Summary: (1) Files arrive by upload, API or e-mail (Postmark/SES) through one gate. (2) Outputs leave by download, SMTP, signed webhooks or pinned-key SFTP, each with honest outcomes and retries. (3) ECB rates convert exactly with stated dates. (4) AI sits behind an EU/UK-only interface with masking; the narrative left the direct Anthropic path. (5) Settings -> Channels shows and manages it all; humans still need to provide the Postmark/SES, AI and SMTP accounts (HUMAN_TODO.md).
 
-## P3 — Binder compliance (in progress)
+## P3 — Binder compliance (done)
 
 Note on criteria: the original P3–P8 acceptance criteria were lost with an earlier session's context. They are **reconstructed** from each module's name, the brief's shared rules (a Finding model; golden fixtures per module with dirty file + answer key at 100% precision and recall, a clean file with zero findings, and an unmapped variant giving NOT_ASSESSED) and standard Lloyd's delegated-authority practice. Correct any of them and the tests follow.
 
@@ -316,5 +316,11 @@ Acceptance (reconstructed):
 - [x] Findings can be confirmed or dismissed (dismissing needs a note). The decision is audited and survives a re-run while the finding is still raised (stable fingerprint) — `test_dispositions_need_a_reason_and_survive_a_rerun`. Checks run only on processed reports and only for writers — `test_checks_need_a_processed_report_and_a_writer`. Rules a binder does not set are NOT_ASSESSED with the reason — `test_unconfigured_rules_are_not_assessed_with_reasons`, `test_blank_values_are_counted_not_passed`. '$' is never guessed as USD — `test_currencies_are_read_strictly`.
 - [x] UI: the report page has a "Checks" section. Each module shows its coverage statement, a rule table with assessed and not-assessed counts, a binder picker, and findings with an explanation, source reference, evidence and a confirm/dismiss/reopen decision. There is a Settings → Binders tab. e2e `tests/e2e/checks.spec.ts`; vitest `check modules` (3).
 - Existing tests extended (evidence), with no assertion weakened: the audit walker (`test_audit_coverage.py`) and the isolation walker (`test_isolation_all_endpoints.py`) gained steps and ids for the 7 new operations, as both walkers require. `conftest.Api` gained `put()`. `scripts/ruff-strict.toml` treats `fixtures/golden/**` like `**/tests/**` for S101 (asserts) and also ignores DTZ001 there, because spreadsheet cells hold naive dates.
+
+### P3 phase gate
+- Gate evidence — `verify --full` (P3 run): ruff/mypy clean (legacy 92/92); engine 90; vitest 20; migrations round-trip to 0014; backend on PostgreSQL 340 passed; golden 2 suites / 12 passed (engine boundary + binder); next build; perf realistic 35.3 s / adversarial 31.5 s (now including the check modules); security clean; coverage 91.98% (baseline 91.65), 94.07% of 3,490 changed lines. Two failures at the gate, both fixed and re-run green with `--only services,migrations,next-build,e2e`: e2e 4 passed. (1) In the new e2e spec, my Playwright locator used `has:` with a locator scoped to the list, and one assertion matched two elements; the spec was corrected and the feature itself was fine. (2) OpenAPI: 8 additive operations (binders, checks, findings, binder assignment), accepted with `--update-openapi` (92 operations).
+- Grep review: no float money, TODO/FIXME, print() or bare except in the new code. The one `except Exception` (a crashing module is logged and recorded NOT_ASSESSED) is deliberate and tested. Every Finding/ModuleRun/Binder query filters by tenant.
+- Self-review against the non-negotiables: tri-state mapping is untouched (modules read only confirmed mappings); nothing passes silently (NOT_ASSESSED with reasons, coverage statement per module); Decimal money with ISO currency; RLS on the new tables; every state change is audited (the walker covers them); explanations and drill-down on every finding.
+- Summary: (1) A shared findings framework now carries every module. (2) Binder compliance checks period, currency, authority and aggregate, and turns ambiguous dates into REVIEW. (3) The golden fixtures prove 100% precision and recall, zero findings on the clean file and NOT_ASSESSED when unmapped. (4) People confirm or dismiss findings with an audited reason that survives re-runs. (5) The report page has a Checks section and Settings has Binders.
 
 Remaining tasks (acceptance criteria written in full when each starts):

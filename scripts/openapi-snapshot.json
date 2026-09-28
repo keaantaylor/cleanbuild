@@ -74,6 +74,24 @@
     "title": "AlertOut",
     "type": "object"
    },
+   "AssignBinderIn": {
+    "properties": {
+     "binder_id": {
+      "anyOf": [
+       {
+        "maxLength": 36,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Binder Id"
+     }
+    },
+    "title": "AssignBinderIn",
+    "type": "object"
+   },
    "AuditLogOut": {
     "properties": {
      "action_type": {
@@ -189,6 +207,204 @@
      "first_bad_seq"
     ],
     "title": "AuditVerifyOut",
+    "type": "object"
+   },
+   "BinderIn": {
+    "properties": {
+     "aggregate_limit": {
+      "anyOf": [
+       {
+        "minimum": 0.0,
+        "type": "number"
+       },
+       {
+        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,17}0*$)\\d{0,14}\\.\\d{0,2}0*$)",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Aggregate Limit"
+     },
+     "claims_authority": {
+      "anyOf": [
+       {
+        "minimum": 0.0,
+        "type": "number"
+       },
+       {
+        "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,17}0*$)\\d{0,14}\\.\\d{0,2}0*$)",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Claims Authority"
+     },
+     "coverholder": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Coverholder"
+     },
+     "currencies": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 50,
+      "title": "Currencies",
+      "type": "array"
+     },
+     "expiry_date": {
+      "format": "date",
+      "title": "Expiry Date",
+      "type": "string"
+     },
+     "inception_date": {
+      "format": "date",
+      "title": "Inception Date",
+      "type": "string"
+     },
+     "limit_currency": {
+      "title": "Limit Currency",
+      "type": "string"
+     },
+     "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+     },
+     "umr": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Umr"
+     }
+    },
+    "required": [
+     "name",
+     "inception_date",
+     "expiry_date",
+     "limit_currency"
+    ],
+    "title": "BinderIn",
+    "type": "object"
+   },
+   "BinderOut": {
+    "properties": {
+     "aggregate_limit": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Aggregate Limit"
+     },
+     "claims_authority": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Claims Authority"
+     },
+     "coverholder": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Coverholder"
+     },
+     "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+     },
+     "created_by": {
+      "title": "Created By",
+      "type": "string"
+     },
+     "currencies": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Currencies",
+      "type": "array"
+     },
+     "expiry_date": {
+      "format": "date",
+      "title": "Expiry Date",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "inception_date": {
+      "format": "date",
+      "title": "Inception Date",
+      "type": "string"
+     },
+     "limit_currency": {
+      "title": "Limit Currency",
+      "type": "string"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "umr": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Umr"
+     }
+    },
+    "required": [
+     "id",
+     "name",
+     "umr",
+     "coverholder",
+     "inception_date",
+     "expiry_date",
+     "currencies",
+     "limit_currency",
+     "claims_authority",
+     "aggregate_limit",
+     "created_at",
+     "created_by"
+    ],
+    "title": "BinderOut",
     "type": "object"
    },
    "Body_upload_report_api_v1_reports_upload_post": {
@@ -623,6 +839,36 @@
      "channel"
     ],
     "title": "DeliveryRequest",
+    "type": "object"
+   },
+   "DispositionIn": {
+    "properties": {
+     "disposition": {
+      "enum": [
+       "OPEN",
+       "CONFIRMED",
+       "DISMISSED"
+      ],
+      "title": "Disposition",
+      "type": "string"
+     },
+     "note": {
+      "anyOf": [
+       {
+        "maxLength": 1000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Note"
+     }
+    },
+    "required": [
+     "disposition"
+    ],
+    "title": "DispositionIn",
     "type": "object"
    },
    "DuplicatePairOut": {
@@ -1187,6 +1433,200 @@
      "values"
     ],
     "title": "ExcludedRowOut",
+    "type": "object"
+   },
+   "FindingOut": {
+    "properties": {
+     "amount": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Amount"
+     },
+     "claim_reference": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Claim Reference"
+     },
+     "claim_row_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Claim Row Id"
+     },
+     "currency": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Currency"
+     },
+     "disposed_at": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Disposed At"
+     },
+     "disposed_by": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Disposed By"
+     },
+     "disposition": {
+      "title": "Disposition",
+      "type": "string"
+     },
+     "disposition_note": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Disposition Note"
+     },
+     "evidence": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Evidence"
+     },
+     "explanation": {
+      "title": "Explanation",
+      "type": "string"
+     },
+     "field_code": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Field Code"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "module": {
+      "title": "Module",
+      "type": "string"
+     },
+     "row_number": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Row Number"
+     },
+     "rule_code": {
+      "title": "Rule Code",
+      "type": "string"
+     },
+     "severity": {
+      "title": "Severity",
+      "type": "string"
+     },
+     "sheet_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Sheet Name"
+     },
+     "source_column": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Source Column"
+     },
+     "status": {
+      "title": "Status",
+      "type": "string"
+     },
+     "title": {
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "module",
+     "rule_code",
+     "status",
+     "severity",
+     "title",
+     "explanation",
+     "sheet_name",
+     "row_number",
+     "field_code",
+     "source_column",
+     "claim_row_id",
+     "claim_reference",
+     "amount",
+     "currency",
+     "evidence",
+     "disposition",
+     "disposition_note",
+     "disposed_by",
+     "disposed_at"
+    ],
+    "title": "FindingOut",
     "type": "object"
    },
    "HTTPValidationError": {
@@ -1776,6 +2216,89 @@
     "title": "MfaStatusOut",
     "type": "object"
    },
+   "ModuleRunOut": {
+    "properties": {
+     "coverage_statement": {
+      "title": "Coverage Statement",
+      "type": "string"
+     },
+     "finding_count": {
+      "title": "Finding Count",
+      "type": "integer"
+     },
+     "label": {
+      "title": "Label",
+      "type": "string"
+     },
+     "module": {
+      "title": "Module",
+      "type": "string"
+     },
+     "open_count": {
+      "title": "Open Count",
+      "type": "integer"
+     },
+     "ran_at": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ran At"
+     },
+     "ran_by": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ran By"
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     },
+     "rules": {
+      "items": {
+       "$ref": "#/components/schemas/RuleOut"
+      },
+      "title": "Rules",
+      "type": "array"
+     },
+     "state": {
+      "title": "State",
+      "type": "string"
+     }
+    },
+    "required": [
+     "module",
+     "label",
+     "state",
+     "reason",
+     "rules",
+     "finding_count",
+     "open_count",
+     "ran_at",
+     "ran_by",
+     "coverage_statement"
+    ],
+    "title": "ModuleRunOut",
+    "type": "object"
+   },
    "ObligationCreateRequest": {
     "additionalProperties": false,
     "properties": {
@@ -2289,6 +2812,37 @@
     "title": "Page[ExcludedRowOut]",
     "type": "object"
    },
+   "Page_FindingOut_": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/FindingOut"
+      },
+      "title": "Items",
+      "type": "array"
+     },
+     "limit": {
+      "title": "Limit",
+      "type": "integer"
+     },
+     "offset": {
+      "title": "Offset",
+      "type": "integer"
+     },
+     "total": {
+      "title": "Total",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "items",
+     "total",
+     "limit",
+     "offset"
+    ],
+    "title": "Page[FindingOut]",
+    "type": "object"
+   },
    "Page_ObligationOut_": {
     "properties": {
      "items": {
@@ -2424,6 +2978,17 @@
    },
    "ReportOut": {
     "properties": {
+     "binder_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Binder Id"
+     },
      "coverage_pct": {
       "anyOf": [
        {
@@ -2678,6 +3243,42 @@
      "role"
     ],
     "title": "RolePatch",
+    "type": "object"
+   },
+   "RuleOut": {
+    "properties": {
+     "assessed": {
+      "title": "Assessed",
+      "type": "integer"
+     },
+     "code": {
+      "title": "Code",
+      "type": "string"
+     },
+     "label": {
+      "title": "Label",
+      "type": "string"
+     },
+     "not_assessed": {
+      "title": "Not Assessed",
+      "type": "integer"
+     },
+     "reasons": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Reasons",
+      "type": "array"
+     }
+    },
+    "required": [
+     "code",
+     "label",
+     "assessed",
+     "not_assessed",
+     "reasons"
+    ],
+    "title": "RuleOut",
     "type": "object"
    },
    "SetupOut": {
@@ -4133,6 +4734,105 @@
     ]
    }
   },
+  "/api/v1/binders": {
+   "get": {
+    "operationId": "list_binders_api_v1_binders_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/BinderOut"
+         },
+         "title": "Response List Binders Api V1 Binders Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "List Binders",
+    "tags": [
+     "checks"
+    ]
+   },
+   "post": {
+    "operationId": "create_binder_api_v1_binders_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/BinderIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BinderOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Binder",
+    "tags": [
+     "checks"
+    ]
+   }
+  },
+  "/api/v1/binders/{binder_id}": {
+   "delete": {
+    "operationId": "delete_binder_api_v1_binders__binder_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "binder_id",
+      "required": true,
+      "schema": {
+       "title": "Binder Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Binder",
+    "tags": [
+     "checks"
+    ]
+   }
+  },
   "/api/v1/channels": {
    "get": {
     "description": "Inbound and outbound channels and whether each is live for this\norganisation on this server. Nothing is shown as working unless it is\nconfigured; planned connectors are listed as planned.",
@@ -5547,6 +6247,62 @@
     ]
    }
   },
+  "/api/v1/reports/{report_id}/binder": {
+   "put": {
+    "operationId": "assign_binder_api_v1_reports__report_id__binder_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AssignBinderIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/ModuleRunOut"
+         },
+         "title": "Response Assign Binder Api V1 Reports  Report Id  Binder Put",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Assign Binder",
+    "tags": [
+     "checks"
+    ]
+   }
+  },
   "/api/v1/reports/{report_id}/cancel": {
    "post": {
     "operationId": "cancel_report_api_v1_reports__report_id__cancel_post",
@@ -5586,6 +6342,281 @@
     "summary": "Cancel Report",
     "tags": [
      "reports"
+    ]
+   }
+  },
+  "/api/v1/reports/{report_id}/checks": {
+   "get": {
+    "operationId": "list_checks_api_v1_reports__report_id__checks_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/ModuleRunOut"
+         },
+         "title": "Response List Checks Api V1 Reports  Report Id  Checks Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Checks",
+    "tags": [
+     "checks"
+    ]
+   }
+  },
+  "/api/v1/reports/{report_id}/checks/findings": {
+   "get": {
+    "operationId": "list_findings_api_v1_reports__report_id__checks_findings_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "module",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 32,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Module"
+      }
+     },
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "pattern": "^(FAIL|REVIEW)$",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     },
+     {
+      "in": "query",
+      "name": "disposition",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "pattern": "^(OPEN|CONFIRMED|DISMISSED)$",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Disposition"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 100,
+       "maximum": 1000,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "offset",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "maximum": 10000000,
+       "minimum": 0,
+       "title": "Offset",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Page_FindingOut_"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Findings",
+    "tags": [
+     "checks"
+    ]
+   }
+  },
+  "/api/v1/reports/{report_id}/checks/findings/{finding_id}": {
+   "patch": {
+    "operationId": "dispose_finding_api_v1_reports__report_id__checks_findings__finding_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "finding_id",
+      "required": true,
+      "schema": {
+       "title": "Finding Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DispositionIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/FindingOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Dispose Finding",
+    "tags": [
+     "checks"
+    ]
+   }
+  },
+  "/api/v1/reports/{report_id}/checks/{module}/run": {
+   "post": {
+    "operationId": "run_check_api_v1_reports__report_id__checks__module__run_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "module",
+      "required": true,
+      "schema": {
+       "title": "Module",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ModuleRunOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Run Check",
+    "tags": [
+     "checks"
     ]
    }
   },

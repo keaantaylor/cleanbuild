@@ -43,13 +43,13 @@ test("an analyst checks a bordereau against its binder and dismisses a finding w
   await expect(list.getByRole("button", { name: /Loss date is ambiguous/ })).toHaveCount(2);
   await expect(list.getByRole("button", { name: /Currency not permitted/ })).toHaveCount(2);
 
-  const first = list.getByRole("button", { name: /Birch Haulage|Claims · row 3/ }).first();
-  await first.click();
+  const item = list.locator("li").filter({ has: page.getByRole("button", { name: /Claims · row 3 ·/ }) });
+  await item.getByRole("button", { name: /Claims · row 3 ·/ }).click();
   await expect(page.getByText(/is before the binder incepted on 01 March 2024/)).toBeVisible();
-  const item = list.locator("li", { has: first });
   await expect(item.getByRole("button", { name: "Dismiss" })).toBeDisabled();
   await item.getByLabel(/Note/).fill("Late-notified claim agreed by the insurer");
   await item.getByRole("button", { name: "Dismiss" }).click();
   await expect(item.getByText(/Late-notified claim agreed by the insurer/)).toBeVisible();
-  await expect(item.getByText("dismissed")).toBeVisible();
+  await expect(item.getByText("dismissed", { exact: true })).toBeVisible();
+  await expect(item.getByText(/^Dismissed by /)).toBeVisible();
 });

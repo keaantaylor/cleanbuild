@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import io
 import os
+from collections.abc import Iterator
+from typing import Any
 import shutil
 import sys
 import tempfile
@@ -35,12 +37,17 @@ BACKEND = Path(__file__).resolve().parents[1]
 BORDEREAUX_ROOT = BACKEND.parents[1] / "bordereaux"
 sys.path.insert(0, str(BACKEND))
 
+try:  # Starlette's TestClient uses httpx2 when it is installed
+    from httpx2 import Response as HttpResponse  # noqa: E402
+except ImportError:  # pragma: no cover
+    from httpx import Response as HttpResponse  # type: ignore[assignment]  # noqa: E402
 import openpyxl  # noqa: E402
 import pytest  # noqa: E402
 from alembic import command  # noqa: E402
 from alembic.config import Config  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
 
 from app import models  # noqa: E402,F401
 from app.database import Base, get_engine, get_session_factory, set_tenant  # noqa: E402
@@ -81,7 +88,7 @@ def _clean_state():
 
 
 @pytest.fixture
-def db(request):
+def db(request: pytest.FixtureRequest) -> Iterator[Session]:
     """A direct DB session for assertions. On PostgreSQL, RLS hides every
     tenant row unless a tenant is set -- so when the test also uses the
     `api` fixture, the session is bound to that tenant."""
@@ -95,7 +102,7 @@ def db(request):
 class Api:
     """A signed-in browser: cookie jar + CSRF header on unsafe requests."""
 
-    def __init__(self, email: str = "owner@a.example", org: str = "Org A"):
+    def __init__(self, email: str = "owner@a.example", org: str = "Org A") -> None:
         self.client = TestClient(app)
         r = self.client.post("/api/v1/auth/signup", json={"email": email, "password": PASSWORD,
                                                           "display_name": email.split("@")[0], "organisation": org})
@@ -103,22 +110,22 @@ class Api:
         self.me = r.json()
         self.csrf = self.me["csrf_token"]
 
-    def _h(self, extra=None):
+    def _h(self, extra: dict[str, str] | None = None) -> dict[str, str]:
         return {"X-CSRF-Token": self.csrf, **(extra or {})}
 
-    def get(self, url, **kw):
+    def get(self, url: str, **kw: Any) -> HttpResponse:
         return self.client.get(url, **kw)
 
-    def post(self, url, **kw):
+    def post(self, url: str, **kw: Any) -> HttpResponse:
         return self.client.post(url, headers=self._h(kw.pop("headers", None)), **kw)
 
-    def patch(self, url, **kw):
+    def patch(self, url: str, **kw: Any) -> HttpResponse:
         return self.client.patch(url, headers=self._h(kw.pop("headers", None)), **kw)
 
-    def delete(self, url, **kw):
+    def delete(self, url: str, **kw: Any) -> HttpResponse:
         return self.client.delete(url, headers=self._h(kw.pop("headers", None)), **kw)
 
-    def upload(self, name: str, content: bytes, ctype: str = XLSX):
+    def upload(self, name: str, content: bytes, ctype: str = XLSX) -> HttpResponse:
         return self.post("/api/v1/reports/upload", files={"file": (name, content, ctype)})
 
     def confirm_all(self, report_id: str) -> None:
@@ -137,7 +144,7 @@ class Api:
         run_jobs()
         return rid
 
-    def full_run(self, name: str, content: bytes) -> tuple[str, dict]:
+    def full_run(self, name: str, content: bytes) -> tuple[str, dict[str, Any]]:
         rid = self.ingest(name, content)
         assert self.get(f"/api/v1/reports/{rid}").json()["status"] == "WAITING_FOR_REVIEW"
         self.confirm_all(rid)
@@ -153,7 +160,7 @@ def run_jobs() -> int:
     return run_pending_jobs_inline()
 
 
-def xlsx_bytes(rows: list[list], sheet: str = "Claims", extra_sheets: dict[str, list[list]] | None = None) -> bytes:
+def xlsx_bytes(rows: list[list[Any]], sheet: str = "Claims", extra_sheets: dict[str, list[list[Any]]] | None = None) -> bytes:
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = sheet
@@ -172,7 +179,7 @@ SIMPLE_HEADER = ["Claim Reference", "Insured Name", "Date of Loss", "Claim Statu
                  "Paid to Date", "Outstanding Reserve", "Total Incurred"]
 
 
-def simple_rows(n: int = 3) -> list[list]:
+def simple_rows(n: int = 3) -> list[list[Any]]:
     rows = [SIMPLE_HEADER]
     for i in range(n):
         rows.append([f"CLM-{i:04d}", f"Insured {chr(65 + i % 26)}{i}", "2024-01-15", "Open", "GBP",
@@ -181,10 +188,10 @@ def simple_rows(n: int = 3) -> list[list]:
 
 
 @pytest.fixture
-def api():
+def api() -> Api:
     return Api()
 
 
 @pytest.fixture
-def api_b():
+def api_b() -> Api:
     return Api(email="owner@b.example", org="Org B")

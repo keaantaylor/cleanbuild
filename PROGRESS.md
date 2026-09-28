@@ -82,8 +82,23 @@ Implementation: `app/settings.py` (strict: ruff full ruleset + format + mypy --s
 Harness: tests may use literal fake secrets (S105/S106 allowed under `tests/`).
 Human: production now requires `SECRET_KEY` (HUMAN_TODO).
 
+### P1.2 Roles, permissions, organisation, members, invitations (D4) — done
+Acceptance (tests in `tests/test_org_members.py`, 12):
+- [x] Roles OWNER/ADMIN/ANALYST/VIEWER/SENDER with an explicit server-side matrix; unknown/legacy roles get nothing — `test_permission_matrix_is_explicit`.
+- [x] REVIEWER → ANALYST data migration, reversible; tenants gain `org_type` + `require_2fa` — `test_reviewer_role_migrates_to_analyst` (upgrade + downgrade).
+- [x] Viewers read but cannot write; senders cannot read provider data (reports, overview, audit, members, alerts) — `test_viewer_reads_but_cannot_write`, `test_sender_cannot_read_provider_data`.
+- [x] Invite → accept (new user sets password; existing user proves theirs, keeps profile) — `test_owner_invites_analyst_who_can_work`, `test_existing_user_accepts_with_their_own_password`.
+- [x] Tokens single-use (404 on reuse), expiring (410), revocable (404) — `test_invitation_tokens_are_single_use_expiring_and_revocable`.
+- [x] Admins cannot grant/modify/remove owners (403); the last owner cannot be demoted/removed (409) — `test_admin_cannot_touch_owners_and_last_owner_is_protected`.
+- [x] Removing a member revokes their sessions immediately (401) — `test_removed_member_is_signed_out_everywhere`.
+- [x] Cross-tenant member/invitation IDs → 404 — `test_cross_tenant_member_ids_are_404`.
+- [x] INVITATION_CREATED/ACCEPTED/REVOKED, ROLE_CHANGED, SETTINGS_CHANGED, MEMBER_REMOVED audited with before/after; chain intact — `test_membership_and_settings_changes_are_audited`.
+- [x] Org settings need org:manage; invalid org type → 422 — `test_org_settings_need_org_manage`.
+
+Implementation: `app/security/permissions.py`, `app/routes/org.py` (strict), migration `0006` (invitations with PostgreSQL RLS that exposes a row only inside its tenant or to the holder of its token hash), `require(Permission)` dependency; every legacy data route now requires `data:read` (senders locked out), report deletion requires `data:delete` (owner/admin; previously any writer). `/auth/me` adds `permissions`, `tenant.org_type`, `tenant.require_2fa` (additive). OpenAPI: +9 operations (46 → 55) under `/api/v1/org` and `/api/v1/auth/invitations/accept`, snapshot updated intentionally.
+Harness: strict ruff config moved to `scripts/ruff-strict.toml` (FastAPI `Depends` whitelisted for B008); mypy strict config generated per run so legacy `app.*` modules reached through imports are not held to --strict (they have the ratchet). Legacy mypy ratchet tightened 105 → 102 (three `Tenant | None` accesses guarded).
+
 Remaining tasks (acceptance criteria written in full when each starts):
-- P1.2 Roles + memberships model: owner/admin/analyst/viewer/sender, permission matrix, REVIEWER→analyst migration (D4).
 - P1.3 Tenant-isolation suite over every endpoint (another tenant's IDs → 404), RLS on every new table.
 - P1.4 Auth: TOTP 2FA (per-org enforcement), login lockout (Redis-backed), OIDC SSO via Authlib against mock-oauth2-server.
 - P1.5 Storage: S3-compatible adapter (boto3; MinIO in tests), SSE, SHA-256 on write, no delete path; report delete → soft delete (D5).

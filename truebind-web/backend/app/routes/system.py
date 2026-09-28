@@ -14,14 +14,14 @@ from ..config import EMBEDDED_WORKER, WORKER_STALE_S
 from ..database import get_db, set_tenant
 from ..models._util import utcnow
 from ..models.jobs import Job, WorkerHeartbeat
-from ..security.auth import Context, get_context
+from ..security.auth import Context, require_reader
 from ..services import job_service
 
 router = APIRouter(prefix="/api/v1/system", tags=["system"])
 
 
 @router.get("/status")
-def processing_status(ctx: Context = Depends(get_context), db: Session = Depends(get_db)) -> dict:
+def processing_status(ctx: Context = Depends(require_reader), db: Session = Depends(get_db)) -> dict:
     set_tenant(db, ctx.tenant_id)
     counts = dict(db.query(Job.status, func.count()).filter(Job.tenant_id == ctx.tenant_id,
                                                             Job.status.in_(("QUEUED", "RUNNING")))

@@ -9,7 +9,7 @@ from ..database import get_db
 from ..models.obligations import Obligation
 from ..models.reports import ClaimRow
 from ..schemas.reports import ObligationCreateRequest, ObligationOut, ObligationUpdateRequest, Page
-from ..security.auth import Context, get_context, require_writer
+from ..security.auth import Context, require_reader, require_writer
 from ..services import audit_service
 from .deps import Paging, get_report_or_404
 
@@ -47,7 +47,7 @@ def create_obligation(report_id: str, body: ObligationCreateRequest, ctx: Contex
 @router.get("/obligations", response_model=Page[ObligationOut])
 def list_obligations(report_id: str | None = Query(default=None, max_length=36),
                      status: str | None = Query(default=None, pattern="^(OPEN|IN_PROGRESS|RESOLVED|OVERDUE)$"),
-                     paging: Paging = Depends(), ctx: Context = Depends(get_context),
+                     paging: Paging = Depends(), ctx: Context = Depends(require_reader),
                      db: Session = Depends(get_db)) -> Page[ObligationOut]:
     q = db.query(Obligation).filter(Obligation.tenant_id == ctx.tenant_id)
     if report_id:

@@ -21,7 +21,8 @@ from sqlalchemy.orm import Session
 
 from ..config import COOKIE_SECURE, SESSION_TTL_HOURS
 from ..database import get_db, set_tenant
-from ..models.identity import WRITE_ROLES, AuthSession, Membership, User
+from ..models.identity import AuthSession, Membership, User
+from .permissions import Permission, has_permission, permissions_for
 
 COOKIE_NAME = "tb_session"
 CSRF_HEADER = "X-CSRF-Token"
@@ -53,7 +54,14 @@ class Context:
 
     @property
     def can_write(self) -> bool:
-        return self.role in WRITE_ROLES
+        return has_permission(self.role, Permission.DATA_WRITE)
+
+    @property
+    def permissions(self) -> list[str]:
+        return sorted(p.value for p in permissions_for(self.role))
+
+    def has(self, permission: Permission) -> bool:
+        return has_permission(self.role, permission)
 
 
 def create_session(db: Session, response: Response, user: User, tenant_id: str, request: Request) -> AuthSession:
@@ -98,7 +106,18 @@ def get_context(request: Request, db: Session = Depends(get_db)) -> Context:
                    actor=user.email, csrf_token=s.csrf_token)
 
 
-def require_writer(ctx: Context = Depends(get_context)) -> Context:
-    if not ctx.can_write:
-        raise HTTPException(status_code=403, detail="Your role does not allow this action.")
-    return ctx
+def require(permission: Permission):
+    """Dependency factory: the signed-in member must hold `permission`."""
+
+    def _dep(ctx: Context = Depends(get_context)) -> Context:
+        if not ctx.has(permission):
+            raise HTTPException(status_code=403, detail="Your role does not allow this action.")
+        return ctx
+
+    _dep.__name__ = f"require_{permission.name.lower()}"
+    return _dep
+
+
+# Organisation data (reports, findings, audit...): OWNER/ADMIN/ANALYST/VIEWER.
+require_reader = require(Permission.DATA_READ)
+require_writer = require(Permission.DATA_WRITE)

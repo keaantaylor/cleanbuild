@@ -19,7 +19,8 @@ from ..models._util import new_uuid, utcnow
 from ..models.identity import Tenant
 from ..models.reports import Report
 from ..schemas.reports import Page, ReportOut, ReportSummaryOut
-from ..security.auth import Context, get_context, require_writer
+from ..security.auth import Context, require, require_reader, require_writer
+from ..security.permissions import Permission
 from ..security.file_guard import inspect_upload, safe_display_name
 from ..security.ratelimit import limiter
 from ..services import alert_service, audit_service, delivery_service, export_service, job_service, retention_service
@@ -95,7 +96,7 @@ def upload_report(file: UploadFile, sender: str | None = Form(default=None, max_
 
 
 @router.get("", response_model=Page[ReportOut])
-def list_reports(paging: Paging = Depends(), ctx: Context = Depends(get_context),
+def list_reports(paging: Paging = Depends(), ctx: Context = Depends(require_reader),
                  db: Session = Depends(get_db)) -> Page[ReportOut]:
     q = db.query(Report).filter(Report.tenant_id == ctx.tenant_id)
     total = q.count()
@@ -104,12 +105,12 @@ def list_reports(paging: Paging = Depends(), ctx: Context = Depends(get_context)
 
 
 @router.get("/{report_id}", response_model=ReportOut)
-def get_report(report_id: str, ctx: Context = Depends(get_context), db: Session = Depends(get_db)) -> ReportOut:
+def get_report(report_id: str, ctx: Context = Depends(require_reader), db: Session = Depends(get_db)) -> ReportOut:
     return report_out(db, get_report_or_404(db, ctx, report_id))
 
 
 @router.get("/{report_id}/summary", response_model=ReportSummaryOut)
-def get_report_summary(report_id: str, ctx: Context = Depends(get_context),
+def get_report_summary(report_id: str, ctx: Context = Depends(require_reader),
                        db: Session = Depends(get_db)) -> ReportSummaryOut:
     report = get_report_or_404(db, ctx, report_id)
     return ReportSummaryOut(report=report_out(db, report), summary=report.summary)
@@ -143,7 +144,7 @@ def retry_report(report_id: str, ctx: Context = Depends(require_writer), db: Ses
 
 
 @router.delete("/{report_id}", status_code=204)
-def delete_report(report_id: str, ctx: Context = Depends(require_writer), db: Session = Depends(get_db)) -> Response:
+def delete_report(report_id: str, ctx: Context = Depends(require(Permission.DATA_DELETE)), db: Session = Depends(get_db)) -> Response:
     report = get_report_or_404(db, ctx, report_id)
     try:
         retention_service.delete_report(db, report, "REPORT_DELETED", actor=ctx.actor, actor_user_id=ctx.user_id)
@@ -168,17 +169,17 @@ def _export(db: Session, ctx: Context, report: Report, kind: str) -> StreamingRe
 
 
 @router.get("/{report_id}/export/claims.csv")
-def export_claims(report_id: str, ctx: Context = Depends(get_context), db: Session = Depends(get_db)):
+def export_claims(report_id: str, ctx: Context = Depends(require_reader), db: Session = Depends(get_db)):
     """One line per extracted claim row with lineage (sheet + source row),
     unmapped source values and the findings raised against it."""
     return _export(db, ctx, get_report_or_404(db, ctx, report_id), "claims_csv")
 
 
 @router.get("/{report_id}/export/exceptions.csv")
-def export_exceptions(report_id: str, ctx: Context = Depends(get_context), db: Session = Depends(get_db)):
+def export_exceptions(report_id: str, ctx: Context = Depends(require_reader), db: Session = Depends(get_db)):
     return _export(db, ctx, get_report_or_404(db, ctx, report_id), "exceptions_csv")
 
 
 @router.get("/{report_id}/export/audit.csv")
-def export_audit(report_id: str, ctx: Context = Depends(get_context), db: Session = Depends(get_db)):
+def export_audit(report_id: str, ctx: Context = Depends(require_reader), db: Session = Depends(get_db)):
     return _export(db, ctx, get_report_or_404(db, ctx, report_id), "audit_csv")

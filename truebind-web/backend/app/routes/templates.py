@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.templates import Template
 from ..schemas.reports import TemplateCreateRequest, TemplateOut
-from ..security.auth import Context, get_context, require_writer
+from ..security.auth import Context, require_reader, require_writer
 from ..services import audit_service
 from ..services.pipeline_service import FIELDS_BY_CODE
 
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/v1/templates", tags=["templates"])
 
 
 @router.get("", response_model=list[TemplateOut])
-def list_templates(ctx: Context = Depends(get_context), db: Session = Depends(get_db)) -> list[TemplateOut]:
+def list_templates(ctx: Context = Depends(require_reader), db: Session = Depends(get_db)) -> list[TemplateOut]:
     rows = (db.query(Template).filter(Template.tenant_id == ctx.tenant_id)
             .order_by(Template.created_at.desc()).limit(500).all())
     return [TemplateOut.model_validate(t) for t in rows]
@@ -38,7 +38,7 @@ def create_template(body: TemplateCreateRequest, ctx: Context = Depends(require_
 
 
 @router.get("/{template_id}", response_model=TemplateOut)
-def get_template(template_id: str, ctx: Context = Depends(get_context), db: Session = Depends(get_db)) -> TemplateOut:
+def get_template(template_id: str, ctx: Context = Depends(require_reader), db: Session = Depends(get_db)) -> TemplateOut:
     t = db.query(Template).filter(Template.id == template_id, Template.tenant_id == ctx.tenant_id).first()
     if t is None:
         raise HTTPException(status_code=404, detail="Template not found.")

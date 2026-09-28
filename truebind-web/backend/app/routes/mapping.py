@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.reports import Mapping, Report, Sheet
 from ..schemas.reports import MappingConfirmRequest, MappingFieldOut, ReportOut, SheetMappingOut, SheetOut
-from ..security.auth import Context, get_context, require_writer
+from ..security.auth import Context, require_reader, require_writer
 from ..services import job_service, persistence_service
 from ..services.pipeline_service import FIELDS, FIELDS_BY_CODE, REQUIRED_CODES
 from .deps import get_report_or_404, get_sheet_or_404, report_out
@@ -40,7 +40,7 @@ def _mappings_by_sheet(db: Session, report: Report) -> dict[str, list[Mapping]]:
 
 
 @router.get("/{report_id}/sheets", response_model=list[SheetOut])
-def list_sheets(report_id: str, ctx: Context = Depends(get_context), db: Session = Depends(get_db)) -> list[SheetOut]:
+def list_sheets(report_id: str, ctx: Context = Depends(require_reader), db: Session = Depends(get_db)) -> list[SheetOut]:
     report = get_report_or_404(db, ctx, report_id)
     by_sheet = _mappings_by_sheet(db, report)
     sheets = db.query(Sheet).filter(Sheet.report_id == report.id).order_by(Sheet.sheet_index).all()
@@ -48,7 +48,7 @@ def list_sheets(report_id: str, ctx: Context = Depends(get_context), db: Session
 
 
 @router.get("/{report_id}/sheets/{sheet_id}/mapping", response_model=SheetMappingOut)
-def get_sheet_mapping(report_id: str, sheet_id: str, ctx: Context = Depends(get_context),
+def get_sheet_mapping(report_id: str, sheet_id: str, ctx: Context = Depends(require_reader),
                       db: Session = Depends(get_db)) -> SheetMappingOut:
     report = get_report_or_404(db, ctx, report_id)
     sheet = get_sheet_or_404(db, ctx, report, sheet_id)

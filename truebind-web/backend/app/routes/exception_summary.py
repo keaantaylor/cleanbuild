@@ -18,7 +18,7 @@ from ..database import get_db, get_session_factory, set_tenant
 from ..models._util import utcnow
 from ..models.exception_summary import ExceptionSummary
 from ..schemas.reports import ExceptionSummaryOut
-from ..security.auth import Context, get_context, require_writer
+from ..security.auth import Context, require_reader, require_writer
 from ..security.ratelimit import limiter
 from ..services import audit_service, exception_aggregation_service, exception_narrative_service
 from .deps import get_report_or_404
@@ -81,7 +81,7 @@ def create_exception_summary(report_id: str, background_tasks: BackgroundTasks,
 
 
 @router.get("/{report_id}/exceptions/summary", response_model=ExceptionSummaryOut)
-def get_latest_exception_summary(report_id: str, ctx: Context = Depends(get_context), db: Session = Depends(get_db)):
+def get_latest_exception_summary(report_id: str, ctx: Context = Depends(require_reader), db: Session = Depends(get_db)):
     report = get_report_or_404(db, ctx, report_id)
     summary = (db.query(ExceptionSummary).filter(ExceptionSummary.report_id == report.id)
                .order_by(ExceptionSummary.created_at.desc()).first())

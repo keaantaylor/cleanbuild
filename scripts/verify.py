@@ -137,37 +137,40 @@ def step_ruff() -> tuple[str, dict[str, object]]:
     ]
     run("ruff", [PY, "-m", "ruff", "check", "--isolated", "--select", "E4,E7,E9,F", "--line-length", "120", *legacy])
     strict = QUALITY["strict_paths"]
-    run(
-        "ruff",
-        [
-            PY,
-            "-m",
-            "ruff",
-            "check",
-            "--isolated",
-            "--target-version",
-            "py311",
-            "--line-length",
-            "120",
-            "--select",
-            ",".join(QUALITY["strict_ruff_select"]),
-            *[a for pfi in QUALITY["strict_per_file_ignores"] for a in ("--per-file-ignores", pfi)],
-            *strict,
-        ],
-    )
-    run("ruff", [PY, "-m", "ruff", "format", "--isolated", "--line-length", "120", "--check", *strict])
+    cfg = str(ROOT / "scripts" / "ruff-strict.toml")
+    run("ruff", [PY, "-m", "ruff", "check", "--config", cfg, "--force-exclude", *strict])
+    run("ruff", [PY, "-m", "ruff", "format", "--config", cfg, "--check", *strict])
     return f"legacy ruleset clean; {len(strict)} strict path(s) lint+format clean", {}
 
 
+def _strict_mypy_config() -> Path:
+    """Strict config + per-module overrides: legacy app modules reached through
+    imports are analysed for their types but not held to --strict (they have
+    their own ratchet); every strict path under the backend is."""
+    modules = []
+    for p in QUALITY["strict_paths"]:
+        rel = Path(p)
+        if rel.parts[:2] == ("truebind-web", "backend") and rel.suffix == ".py" and rel.parts[2] == "app":
+            modules.append(".".join(rel.with_suffix("").parts[2:]))
+    base = (ROOT / "scripts" / "mypy-strict.ini").read_text(encoding="utf-8")
+    extra = "\n[mypy-app.*]\nignore_errors = True\n"
+    if modules:
+        extra += f"\n[mypy-{','.join(sorted(modules))}]\nignore_errors = False\n"
+    out = ROOT / ".verify" / "mypy-strict.generated.ini"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(base + extra, encoding="utf-8")
+    return out
+
+
 def step_mypy() -> tuple[str, dict[str, object]]:
-    env = {"MYPYPATH": str(ENGINE / "src")}
+    env = {"MYPYPATH": os.pathsep.join([str(ENGINE / "src"), str(BACKEND), str(BACKEND / "tests")])}
     strict = [p for p in QUALITY["strict_paths"] if p.endswith(".py") or (ROOT / p).is_dir()]
-    run("mypy", [PY, "-m", "mypy", "--config-file", str(ROOT / "scripts" / "mypy-strict.ini"), *strict], env=env)
+    run("mypy", [PY, "-m", "mypy", "--config-file", str(_strict_mypy_config()), *strict], env=env)
     out = run(
         "mypy",
         [PY, "-m", "mypy", "--ignore-missing-imports", "app", str(ENGINE / "src" / "bordereaux")],
         cwd=BACKEND,
-        env=env,
+        env={"MYPYPATH": str(ENGINE / "src")},  # unchanged since the baseline was measured
         check=False,
     )
     m = re.search(r"Found (\d+) errors?", out)

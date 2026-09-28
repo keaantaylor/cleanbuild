@@ -54,6 +54,8 @@ class TenantOut(BaseModel):
     id: str
     name: str
     retention_days: int
+    org_type: str = "capacity_provider"
+    require_2fa: bool = False
 
 
 class MeOut(BaseModel):
@@ -61,6 +63,7 @@ class MeOut(BaseModel):
     tenant: TenantOut
     role: str
     can_write: bool
+    permissions: list[str] = []
     csrf_token: str
 
 

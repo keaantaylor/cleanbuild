@@ -22,6 +22,7 @@ from ..models.identity import AuthSession, Membership, Tenant, User
 from ..schemas.reports import LoginRequest, MeOut, SignupRequest, TenantOut, UserOut
 from ..security import passwords
 from ..security.auth import Context, _aware, clear_cookie, create_session, get_context
+from ..security.permissions import Permission, has_permission, permissions_for
 from ..security.ratelimit import client_ip, limiter
 from ..services import audit_service
 
@@ -34,9 +35,13 @@ _BAD_LOGIN = "Email or password is incorrect."
 
 def _me(db: Session, user: User, tenant_id: str, role: str, csrf: str) -> MeOut:
     t = db.get(Tenant, tenant_id)
+    if t is None:  # the session's tenant was deleted underneath it
+        raise HTTPException(status_code=401, detail="Not signed in or your session has expired.")
     return MeOut(user=UserOut(id=user.id, email=user.email, display_name=user.display_name),
-                 tenant=TenantOut(id=t.id, name=t.name, retention_days=t.retention_days),
-                 role=role, can_write=role in ("OWNER", "ADMIN", "REVIEWER"), csrf_token=csrf)
+                 tenant=TenantOut(id=t.id, name=t.name, retention_days=t.retention_days, org_type=t.org_type,
+                                  require_2fa=bool(t.require_2fa)),
+                 role=role, can_write=has_permission(role, Permission.DATA_WRITE),
+                 permissions=sorted(p.value for p in permissions_for(role)), csrf_token=csrf)
 
 
 @router.post("/signup", response_model=MeOut, status_code=201)

@@ -16,8 +16,8 @@ from .database import get_session_factory, set_tenant
 from .models._util import utcnow
 from .models.exception_summary import ExceptionSummary
 from .models.identity import Tenant
-from .routes import (alerts, audit, auth, exception_summary, findings, mapping, obligations, ops, reports, system,
-                     templates)
+from .routes import (alerts, audit, auth, exception_summary, findings, mapping, obligations, ops, org, reports,
+                     system, templates)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("truebind")
@@ -133,8 +133,9 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 
 
 for router_module in (auth, reports, mapping, findings, exception_summary, obligations, alerts, audit, templates,
-                      system, ops):
+                      system, ops, org):
     app.include_router(router_module.router)
+app.include_router(org.public_router)
 
 
 @app.get("/health")

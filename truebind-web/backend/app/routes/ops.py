@@ -25,7 +25,7 @@ from ..models.jobs import Job
 from ..models.obligations import Obligation
 from ..models.reports import Report, Sheet, ValidationResult
 from ..schemas.reports import AlertOut, AuditLogOut, JobOut, Page, UtcDatetime
-from ..security.auth import Context, get_context, require_writer
+from ..security.auth import Context, require_reader, require_writer
 from ..security.ratelimit import limiter
 from ..services import audit_service, delivery_service, job_service
 from .deps import Paging, get_report_or_404, report_out
@@ -45,7 +45,7 @@ def _age_s(dt: datetime | None) -> float | None:
 # ------------------------------------------------------------------ overview
 
 @router.get("/overview")
-def overview(ctx: Context = Depends(get_context), db: Session = Depends(get_db)) -> dict:
+def overview(ctx: Context = Depends(require_reader), db: Session = Depends(get_db)) -> dict:
     tid = ctx.tenant_id
     reports = db.query(Report).filter(Report.tenant_id == tid).order_by(Report.created_at.desc()).all()
     by_status = Counter(r.status for r in reports)
@@ -112,7 +112,7 @@ _PRIORITY = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "INFO": 3}
 
 
 @router.get("/work-queue")
-def work_queue(ctx: Context = Depends(get_context), db: Session = Depends(get_db)) -> dict:
+def work_queue(ctx: Context = Depends(require_reader), db: Session = Depends(get_db)) -> dict:
     tid = ctx.tenant_id
     items: list[dict] = []
 
@@ -193,7 +193,7 @@ class DeliveryRequest(BaseModel):
 
 
 @router.get("/deliveries", response_model=Page[DeliveryOut])
-def list_deliveries(paging: Paging = Depends(), ctx: Context = Depends(get_context),
+def list_deliveries(paging: Paging = Depends(), ctx: Context = Depends(require_reader),
                     db: Session = Depends(get_db)) -> Page[DeliveryOut]:
     q = db.query(Delivery).filter(Delivery.tenant_id == ctx.tenant_id)
     total = q.count()
@@ -218,7 +218,7 @@ def create_delivery(report_id: str, body: DeliveryRequest, ctx: Context = Depend
 # ------------------------------------------------------------------ channels
 
 @router.get("/channels")
-def channels(ctx: Context = Depends(get_context)) -> dict:
+def channels(ctx: Context = Depends(require_reader)) -> dict:
     """Inbound and outbound channels and whether each is live on this server.
     Planned connectors are listed as such -- never shown as working."""
     email_out = delivery_service.email_configured()
@@ -253,7 +253,7 @@ def channels(ctx: Context = Depends(get_context)) -> dict:
 # ------------------------------------------------------------------ processing history
 
 @router.get("/reports/{report_id}/jobs", response_model=list[JobOut])
-def report_jobs(report_id: str, ctx: Context = Depends(get_context), db: Session = Depends(get_db)) -> list[JobOut]:
+def report_jobs(report_id: str, ctx: Context = Depends(require_reader), db: Session = Depends(get_db)) -> list[JobOut]:
     report = get_report_or_404(db, ctx, report_id)
     jobs = db.query(Job).filter(Job.report_id == report.id).order_by(Job.created_at).all()
     return [JobOut.model_validate(j) for j in jobs]

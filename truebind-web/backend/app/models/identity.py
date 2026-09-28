@@ -31,6 +31,8 @@ class Tenant(Base):
     org_type: Mapped[str] = mapped_column(String(32), default="capacity_provider", server_default="capacity_provider")
     # Every member must use a second factor (TOTP) to sign in (P1.4).
     require_2fa: Mapped[bool] = mapped_column(Boolean, default=False, server_default=sa_false())
+    # Inbound e-mail address <inbound_token>@<INBOUND_EMAIL_DOMAIN> (P2); unguessable, rotatable.
+    inbound_token: Mapped[str | None] = mapped_column(String(32), unique=True, nullable=True)
     created_at: Mapped[datetime] = created_at_col()
 
 

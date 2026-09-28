@@ -16,8 +16,8 @@ from .database import get_session_factory, set_tenant
 from .models._util import utcnow
 from .models.exception_summary import ExceptionSummary
 from .models.identity import Tenant
-from .routes import (alerts, audit, auth, exception_summary, findings, mapping, mfa, obligations, ops, org, reports, sso,
-                     system, templates)
+from .routes import (alerts, audit, auth, exception_summary, findings, inbound, mapping, mfa, obligations, ops, org,
+                     reports, sso, system, templates)
 
 observability.configure_logging(LOG_LEVEL, LOG_JSON)
 logger = logging.getLogger("truebind")
@@ -142,6 +142,8 @@ for router_module in (auth, reports, mapping, findings, exception_summary, oblig
 app.include_router(org.public_router)
 app.include_router(sso.admin_router)
 app.include_router(sso.public_router)
+app.include_router(inbound.router)
+app.include_router(inbound.provider_router)
 
 
 app.include_router(observability.router)

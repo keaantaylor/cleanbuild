@@ -230,4 +230,21 @@ Acceptance (`tests/test_audit_coverage.py`, 9 on PostgreSQL, 8 + 1 PG-only skip 
 - Gate evidence — `verify --full` PASS (345 s): ruff/mypy clean (legacy 93/93); engine 90; vitest 16; migrations round-trip; backend on PostgreSQL 253 passed; golden 8; next build; e2e 2; perf realistic 35.7 s / adversarial 29.4 s (probe max 0.035 s); security clean; coverage 91.42% (baseline ratcheted 89.69 → 91.42), 94.46% of changed lines; OpenAPI 67 operations.
 - Summary: (1) P1 delivered settings, roles/invitations, isolation + RLS, TOTP/SSO, immutable S3 originals, exact money, job reliability, observability and a verified audit trail. (2) 50k rows in ~37 s with the API unaffected. (3) One engine gap closed (unbounded fuzzy duplicate check → bounded, NOT ASSESSED when over budget). (4) One audit gap closed (AI summary requests). (5) Open for humans: SECRET_KEY, Sentry DSN, S3 bucket, Redis, separate migration role (HUMAN_TODO.md).
 
+## P2 — Channels (in progress)
+
+### P2.1 E-mail intake (Postmark, SES) — done
+Acceptance (`tests/test_inbound_email.py`, 11):
+- [x] Private inbound address per organisation, created/rotated with org:manage and audited; a rotated address stops working; viewers can see but not rotate — `test_unknown_or_rotated_address_is_dropped`, `test_inbound_settings_need_the_right_role`.
+- [x] Postmark attachments become reports through the same file gate as uploads (`intake_service`, now also used by the upload route), channel "email", sender recorded, INGEST queued, audited with channel and sender — `test_postmark_attachment_becomes_a_report`.
+- [x] Provider retries create nothing new (one idempotency key per message + attachment) — `test_provider_retries_create_nothing_new`.
+- [x] Bad/missing Basic credentials 401, unconfigured 503 — `test_credentials_and_configuration`.
+- [x] Unknown address acknowledged and dropped without revealing anything — `test_unknown_or_rotated_address_is_dropped`.
+- [x] Rejected attachments audited with channel, reported back — `test_rejected_attachment_is_audited_and_reported`.
+- [x] Mail lands only in the addressed organisation — `test_mail_lands_only_in_the_addressed_organisation`.
+- [x] SES via SNS: signature verified against a trusted AWS certificate URL, allowed topic, SignatureVersion 1 (SHA1) and 2 (SHA256); tampering, wrong key, foreign certificate URL, other topic and unknown versions refused — `test_ses_signed_notification_is_ingested` (2), `test_ses_forgeries_are_refused`, `test_sns_certificate_url_must_be_aws`.
+- [x] All three new operations covered by the audit coverage walker (P1.9 guard caught them).
+
+### P2.2 SMTP outbound — done
+- [x] A delivery request sends the export through a real SMTP server; message, recipient, subject and CSV attachment arrive; delivery DELIVERED and audited — `tests/integration/test_smtp_mailpit.py` (compose Mailpit).
+
 Remaining tasks (acceptance criteria written in full when each starts):

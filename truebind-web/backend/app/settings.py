@@ -23,6 +23,22 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DEV_DB_NAME = "truebind-mvp.db"  # never data/truebind.db: a legacy DB may live there
+AZURE_EU_UK_REGIONS = frozenset(
+    {
+        "uksouth",
+        "ukwest",
+        "westeurope",
+        "northeurope",
+        "swedencentral",
+        "francecentral",
+        "germanywestcentral",
+        "switzerlandnorth",
+        "norwayeast",
+        "polandcentral",
+        "italynorth",
+        "spaincentral",
+    }
+)
 _MIN_SECRET_KEY_LEN = 32
 
 
@@ -103,6 +119,33 @@ class Settings(BaseSettings):
     smtp_starttls: bool = Field(default=True, validation_alias="SMTP_STARTTLS")
     max_email_attachment_mb: int = Field(default=10, ge=1, validation_alias="MAX_EMAIL_ATTACHMENT_MB")
 
+    # ---- AI provider (P2): EU/UK-hosted, zero retention, behind app/ai/providers.py
+    ai_provider: Literal["none", "fake", "azure_openai", "bedrock"] = Field(
+        default="none", validation_alias="AI_PROVIDER"
+    )
+    azure_openai_endpoint: str = Field(default="", validation_alias="AZURE_OPENAI_ENDPOINT")
+    azure_openai_api_key: SecretStr = Field(default=SecretStr(""), validation_alias="AZURE_OPENAI_API_KEY")
+    azure_openai_deployment: str = Field(default="", validation_alias="AZURE_OPENAI_DEPLOYMENT")
+    azure_openai_api_version: str = Field(default="2024-10-21", validation_alias="AZURE_OPENAI_API_VERSION")
+    azure_openai_region: str = Field(default="", validation_alias="AZURE_OPENAI_REGION")
+    bedrock_region: str = Field(default="eu-central-1", validation_alias="BEDROCK_REGION")
+    bedrock_model_id: str = Field(default="", validation_alias="BEDROCK_MODEL_ID")
+
+    # ---- inbound e-mail (P2)
+    inbound_email_domain: str = Field(default="", validation_alias="INBOUND_EMAIL_DOMAIN")
+    inbound_webhook_secret: SecretStr = Field(default=SecretStr(""), validation_alias="INBOUND_WEBHOOK_SECRET")
+    ses_sns_topic_arns: str = Field(default="", validation_alias="SES_SNS_TOPIC_ARNS")
+
+    # ---- outbound webhooks (P2)
+    webhook_max_attempts: int = Field(default=6, ge=1, le=20, validation_alias="WEBHOOK_MAX_ATTEMPTS")
+    webhook_allow_private_targets: bool = Field(default=False, validation_alias="WEBHOOK_ALLOW_PRIVATE_TARGETS")
+
+    # ---- FX reference rates (P2)
+    fx_auto_refresh: bool = Field(default=False, validation_alias="FX_AUTO_REFRESH")
+    ecb_rates_url: str = Field(
+        default="https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist-90d.xml", validation_alias="ECB_RATES_URL"
+    )
+
     # ---- observability
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = Field(default="INFO", validation_alias="LOG_LEVEL")
     log_json: bool | None = Field(default=None, validation_alias="LOG_JSON")
@@ -160,6 +203,16 @@ class Settings(BaseSettings):
             raise ValueError("CORS_ORIGINS='*' is not allowed: the API uses credentialed cookies")
         if self.storage_backend == "s3" and not self.s3_bucket:
             raise ValueError("S3_BUCKET is required when STORAGE_BACKEND=s3")
+        # Non-negotiable 9: AI runs in the EU/UK only.
+        if self.ai_provider == "bedrock" and not self.bedrock_region.startswith("eu-"):
+            raise ValueError("BEDROCK_REGION must be an EU region (eu-*) for AI_PROVIDER=bedrock")
+        if self.ai_provider == "azure_openai" and self.azure_openai_region.lower() not in AZURE_EU_UK_REGIONS:
+            raise ValueError(
+                "AZURE_OPENAI_REGION must be an EU/UK Azure region for AI_PROVIDER=azure_openai "
+                f"({', '.join(sorted(AZURE_EU_UK_REGIONS))})"
+            )
+        if self.ai_provider == "fake" and self.is_production:
+            raise ValueError("AI_PROVIDER=fake is for tests only")
         if self.is_production:
             problems = []
             if not self.database_url:

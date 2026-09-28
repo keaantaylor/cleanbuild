@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import os
 import tempfile
-from datetime import timedelta
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, Header, HTTPException, UploadFile
@@ -15,17 +14,16 @@ from sqlalchemy.orm import Session
 
 from ..config import MAX_UPLOAD_BYTES, STORAGE_DIR
 from ..database import get_db
-from ..models._util import new_uuid, utcnow
 from ..models.identity import Tenant
 from ..models.reports import Report
 from ..schemas.reports import Page, ReportOut, ReportSummaryOut
 from ..security.auth import Context, require, require_reader, require_writer
 from ..security.permissions import Permission
-from ..security.file_guard import inspect_upload, safe_display_name
+from ..security.file_guard import safe_display_name
 from ..security.ratelimit import limiter
-from ..services import (alert_service, audit_service, delivery_service, export_service, idempotency, job_service,
-                        retention_service)
-from ..services.storage import get_store, sha256_file
+from ..services import (audit_service, delivery_service, export_service, idempotency, intake_service,
+                        job_service, retention_service)
+from ..services.storage import sha256_file
 from .deps import Paging, get_report_or_404, latest_job, report_out
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
@@ -59,12 +57,9 @@ def upload_report(file: UploadFile, sender: str | None = Form(default=None, max_
                     raise HTTPException(status_code=413, detail=f"The file is larger than the "
                                         f"{MAX_UPLOAD_BYTES // (1024 * 1024)} MB upload limit.")
                 out.write(chunk)
-        verdict = inspect_upload(tmp, display)
+        verdict = intake_service.inspect(db, tenant_id=ctx.tenant_id, path=tmp, display_name=display, size=size,
+                                         channel="upload", actor=ctx.actor, actor_user_id=ctx.user_id)
         if not verdict.accepted:
-            audit_service.log_action(db, ctx.tenant_id, None, "UPLOAD_REJECTED", "REPORT", new_uuid(),
-                                     after={"file_name": display, "size": size, "sha256": sha256_file(tmp),
-                                            "code": verdict.code},
-                                     actor=ctx.actor, actor_user_id=ctx.user_id)
             db.commit()
             raise HTTPException(status_code=_REJECT_STATUS.get(verdict.code, 400), detail=verdict.reason)
         idem = None
@@ -75,31 +70,15 @@ def upload_report(file: UploadFile, sender: str | None = Form(default=None, max_
             if isinstance(claimed, JSONResponse):
                 return claimed
             idem = claimed
-        # Write-once, content-addressed original. Stored before the database
-        # rows: if the transaction below fails, the object is merely unused.
-        kind = verdict.kind
         tenant = db.get(Tenant, ctx.tenant_id)
-        if kind is None or tenant is None:  # an accepted verdict always names its kind
+        if verdict.kind is None or tenant is None:  # an accepted verdict always names its kind
             raise HTTPException(status_code=415, detail="Unsupported file type.")
-        stored = get_store().put_original(ctx.tenant_id, kind, tmp)
-        report = Report(tenant_id=ctx.tenant_id, created_by=ctx.user_id, file_name=display, file_size_bytes=size,
-                        file_kind=kind, status="UPLOADED", ingest_notes={"file_notes": verdict.notes},
-                        expires_at=utcnow() + timedelta(days=tenant.retention_days), updated_at=utcnow(),
-                        source_channel="upload", sender=(sender or "").strip() or None,
-                        programme=(programme or "").strip() or None)
-        db.add(report)
-        db.flush()
-        report.source_sha256 = stored.sha256
-        report.storage_key = stored.key
         try:
-            audit_service.log_action(db, ctx.tenant_id, report.id, "REPORT_UPLOADED", "REPORT", report.id,
-                                     after={"file_name": display, "size": size, "sha256": report.source_sha256,
-                                            "kind": verdict.kind, "notes": verdict.notes},
-                                     actor=ctx.actor, actor_user_id=ctx.user_id)
-            job_service.enqueue(db, report, "INGEST", actor=ctx.actor, actor_user_id=ctx.user_id)
-            alert_service.raise_alert(db, ctx.tenant_id, report.id, "INFO", alert_service.INBOUND,
-                                      f"New file received: {display}" + (f" from {report.sender}" if report.sender else "")
-                                      + f" ({size // 1024 or 1} KB, {verdict.kind}).")
+            # Write-once, content-addressed original, stored before the database
+            # rows: if the transaction fails, the object is merely unused.
+            report = intake_service.create_report(
+                db, tenant=tenant, path=tmp, verdict=verdict, display_name=display, size=size, channel="upload",
+                actor=ctx.actor, actor_user_id=ctx.user_id, sender=sender, programme=programme)
             replay = (idempotency.complete(idem, 202, report_out(db, report).model_dump(mode="json"))
                       if idem is not None else None)
             db.commit()

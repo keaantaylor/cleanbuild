@@ -39,7 +39,14 @@
     "truebind-web/backend/tests/test_jobs_reliability.py",
     "truebind-web/backend/app/observability.py",
     "truebind-web/backend/tests/test_observability.py",
-    "truebind-web/backend/tests/test_audit_coverage.py"
+    "truebind-web/backend/tests/test_audit_coverage.py",
+    "truebind-web/backend/app/models/channels.py",
+    "truebind-web/backend/migrations/versions/0013_channels.py",
+    "truebind-web/backend/app/services/intake_service.py",
+    "truebind-web/backend/app/services/inbound_email.py",
+    "truebind-web/backend/app/security/sns.py",
+    "truebind-web/backend/app/routes/inbound.py",
+    "truebind-web/backend/tests/test_inbound_email.py"
   ],
   "baseline": {
     "mypy_legacy_errors": 93,

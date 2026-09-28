@@ -15,6 +15,8 @@ Acceptance:
 
 from __future__ import annotations
 
+import base64
+import datetime as dt
 import time
 from collections.abc import Callable
 from typing import Any
@@ -26,6 +28,10 @@ from app.main import app
 from app.models.audit import AuditLogEntry
 from app.services import audit_service
 from conftest import IS_PG, PASSWORD, Api, run_jobs, simple_rows, xlsx_bytes
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
@@ -40,6 +46,22 @@ SSO = {
     "default_role": "VIEWER",
     "enabled": True,
 }
+
+
+def _self_signed(key: rsa.RSAPrivateKey) -> bytes:
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "sns.amazonaws.com")])
+    now = dt.datetime.now(dt.UTC)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(1)
+        .not_valid_before(now - dt.timedelta(days=1))
+        .not_valid_after(now + dt.timedelta(days=1))
+        .sign(key, hashes.SHA256())
+    )
+    return cert.public_bytes(serialization.Encoding.PEM)
 
 
 def _mutating_operations() -> set[tuple[str, str]]:
@@ -75,7 +97,7 @@ class Trail:
         return r
 
 
-def test_every_state_change_is_audited_and_the_chain_holds() -> None:
+def test_every_state_change_is_audited_and_the_chain_holds(monkeypatch: pytest.MonkeyPatch) -> None:
     before_signup = time.monotonic()
     owner = Api()
     tid = owner.me["tenant"]["id"]
@@ -173,6 +195,28 @@ def test_every_state_change_is_audited_and_the_chain_holds() -> None:
     csrf2 = {"X-CSRF-Token": signed_in.json()["csrf_token"]}
     trail.step("POST", "/api/v1/auth/2fa/disable", lambda: c2.post(
         "/api/v1/auth/2fa/disable", headers=csrf2, json={"code": totp.at(int(time.time()) + 30)}))  # fmt: skip
+
+    # --- inbound e-mail (P2): address rotation, Postmark and SES intake
+    from app import config
+    from app.security import sns
+    from test_inbound_email import CERT_URL, DOMAIN, SECRET, TOPIC, _postmark, _ses_message
+
+    monkeypatch.setattr(config, "INBOUND_EMAIL_DOMAIN", DOMAIN)
+    monkeypatch.setattr(config, "INBOUND_WEBHOOK_SECRET", SECRET)
+    monkeypatch.setattr(config, "SES_SNS_TOPIC_ARNS", (TOPIC,))
+    address = trail.step("POST", "/api/v1/org/inbound/rotate", lambda: owner.post("/api/v1/org/inbound/rotate")).json()[
+        "address"
+    ]
+    basic = {"Authorization": "Basic " + base64.b64encode(f"pm:{SECRET}".encode()).decode()}
+    trail.step("POST", "/api/v1/inbound/email/postmark", lambda: TestClient(app).post(
+        "/api/v1/inbound/email/postmark", headers=basic,
+        json=_postmark(address, [("m.xlsx", xlsx_bytes(simple_rows()))])))  # fmt: skip
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    pem = _self_signed(key)
+    monkeypatch.setattr(sns, "_fetch_cert", lambda url: pem)
+    assert CERT_URL
+    trail.step("POST", "/api/v1/inbound/email/ses",
+               lambda: TestClient(app).post("/api/v1/inbound/email/ses", json=_ses_message(key, address)))  # fmt: skip
 
     missing = _mutating_operations() - trail.covered
     assert not missing, f"state-changing operations without an audited scenario step: {sorted(missing)}"

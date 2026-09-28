@@ -87,3 +87,13 @@ LOG_LEVEL = _s.log_level
 LOG_JSON = bool(_s.log_json)
 SENTRY_DSN = _s.sentry_dsn.get_secret_value()  # never logged
 SENTRY_TRACES_SAMPLE_RATE = _s.sentry_traces_sample_rate
+
+# Channels and AI provider (P2).
+AI_PROVIDER = _s.ai_provider
+INBOUND_EMAIL_DOMAIN = _s.inbound_email_domain
+INBOUND_WEBHOOK_SECRET = _s.inbound_webhook_secret.get_secret_value()
+SES_SNS_TOPIC_ARNS = tuple(a.strip() for a in _s.ses_sns_topic_arns.split(",") if a.strip())
+WEBHOOK_MAX_ATTEMPTS = _s.webhook_max_attempts
+WEBHOOK_ALLOW_PRIVATE_TARGETS = _s.webhook_allow_private_targets
+FX_AUTO_REFRESH = _s.fx_auto_refresh
+ECB_RATES_URL = _s.ecb_rates_url

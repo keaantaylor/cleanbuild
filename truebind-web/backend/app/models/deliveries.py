@@ -14,7 +14,7 @@ from ..database import Base
 from ._util import created_at_col, uuid_pk
 
 DELIVERY_KINDS = ("claims_csv", "exceptions_csv", "audit_csv")
-DELIVERY_CHANNELS = ("download", "email")
+DELIVERY_CHANNELS = ("download", "email", "sftp", "webhook")
 DELIVERY_STATUSES = ("DELIVERED", "FAILED", "NOT_CONFIGURED")
 
 

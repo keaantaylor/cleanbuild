@@ -18,7 +18,11 @@
     "truebind-web/backend/app/security/mfa.py",
     "truebind-web/backend/app/routes/mfa.py",
     "truebind-web/backend/migrations/versions/0008_mfa.py",
-    "truebind-web/backend/tests/test_mfa.py"
+    "truebind-web/backend/tests/test_mfa.py",
+    "truebind-web/backend/app/security/oidc.py",
+    "truebind-web/backend/app/routes/sso.py",
+    "truebind-web/backend/migrations/versions/0009_sso.py",
+    "truebind-web/backend/tests/test_sso.py"
   ],
   "baseline": {
     "mypy_legacy_errors": 100,

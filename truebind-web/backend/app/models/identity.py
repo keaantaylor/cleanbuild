@@ -108,3 +108,36 @@ class UserMfa(Base):
     recovery_code_hashes: Mapped[list[str]] = mapped_column(JSON, default=list)
     last_used_step: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = created_at_col()
+
+
+class SsoConnection(Base):
+    """One OIDC identity provider per organisation (Entra ID, WorkOS, any
+    OIDC issuer). The client secret is encrypted (crypto purpose
+    "sso-client-secret"). Readable in-tenant, or pre-sign-in by id
+    (app.sso_connection_id) once the domain lookup resolved it."""
+
+    __tablename__ = "sso_connections"
+
+    id: Mapped[str] = uuid_pk()
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), unique=True, index=True)
+    issuer: Mapped[str] = mapped_column(String(500))
+    client_id: Mapped[str] = mapped_column(String(300))
+    client_secret_enc: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    token_auth_method: Mapped[str] = mapped_column(String(32), default="client_secret_post")
+    jit_provisioning: Mapped[bool] = mapped_column(Boolean, default=False)
+    default_role: Mapped[str] = mapped_column(String(16), default="VIEWER")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = created_at_col()
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class SsoDomain(Base):
+    """An e-mail domain routed to an organisation's IdP. Globally unique: a
+    domain belongs to one organisation. Readable in-tenant, or pre-sign-in
+    for the single domain being looked up (app.sso_domain)."""
+
+    __tablename__ = "sso_domains"
+
+    domain: Mapped[str] = mapped_column(String(253), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    connection_id: Mapped[str] = mapped_column(ForeignKey("sso_connections.id", ondelete="CASCADE"), index=True)

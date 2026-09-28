@@ -16,7 +16,7 @@ from .database import get_session_factory, set_tenant
 from .models._util import utcnow
 from .models.exception_summary import ExceptionSummary
 from .models.identity import Tenant
-from .routes import (alerts, audit, auth, exception_summary, findings, mapping, mfa, obligations, ops, org, reports,
+from .routes import (alerts, audit, auth, exception_summary, findings, mapping, mfa, obligations, ops, org, reports, sso,
                      system, templates)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -136,6 +136,8 @@ for router_module in (auth, reports, mapping, findings, exception_summary, oblig
                       system, ops, org, mfa):
     app.include_router(router_module.router)
 app.include_router(org.public_router)
+app.include_router(sso.admin_router)
+app.include_router(sso.public_router)
 
 
 @app.get("/health")

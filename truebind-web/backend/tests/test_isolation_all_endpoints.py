@@ -23,7 +23,13 @@ from sqlalchemy.orm import Session
 
 MARKER_FILE = "iso-a-marker.xlsx"
 MARKER_REF = "ISOA-REF"
-PUBLIC = {"/api/v1/auth/signup", "/api/v1/auth/login", "/api/v1/auth/invitations/accept"}
+PUBLIC = {
+    "/api/v1/auth/signup",
+    "/api/v1/auth/login",
+    "/api/v1/auth/invitations/accept",
+    "/api/v1/auth/sso/start",
+    "/api/v1/auth/sso/callback",
+}
 NO_TENANT_DATA = {"/health", "/health/ready"}
 
 # Bodies that pass validation, so the handler (and its tenant check) runs.

@@ -126,8 +126,22 @@ P1.3 test adjusted (evidence): `test_identity_rows_are_visible_only_to_their_ten
 
 Implementation: `app/security/crypto.py`, `app/security/mfa.py`, `app/routes/mfa.py` (strict); migration `0008_mfa` (`user_mfa`, `auth_sessions.auth_method`, users may see their own sessions for revocation); login returns `MeOut | MfaChallengeOut`; `/auth/me` adds `mfa {enabled, required, setup_required}`. OpenAPI: +5 operations under `/api/v1/auth/2fa`.
 
+### P1.4b OIDC single sign-on — done
+Acceptance (unit: `tests/test_sso.py`, 9; end to end against mock-oauth2-server: `tests/integration/test_sso_mock_idp.py`, 7):
+- [x] One OIDC connection per organisation (issuer, client id, write-only encrypted client secret, domains, JIT, default role ≠ OWNER); secret never returned or audited — `test_owner_configures_sso_and_secret_is_write_only`.
+- [x] A domain can be claimed by one organisation only (409); config needs org:manage — `test_domains_are_claimed_once_and_config_needs_org_manage`.
+- [x] Start resolves the IdP from the e-mail domain and redirects with state, nonce and S256 PKCE; unknown/disabled → 404 — `test_start_redirects_with_state_nonce_and_pkce`.
+- [x] ID tokens need an asymmetric signature from the issuer's JWKS, the right iss/aud/nonce, a subject and an unexpired lifetime; HS256, unsigned and foreign-key tokens are rejected — `test_valid_id_token_is_accepted`, `test_id_token_claims_are_enforced` (4), `test_id_token_signature_and_algorithm_are_enforced`.
+- [x] Full flow against a real IdP: JIT member with default role, audited LOGIN_SUCCEEDED(method=sso) + SSO_USER_PROVISIONED — `test_jit_sign_in_creates_member_with_default_role`.
+- [x] Refused: asserted e-mail outside the connection's domains, `email_verified: false`, unknown user without JIT — no session — `test_refused_sign_ins_create_no_session` (3).
+- [x] An account that exists in another organisation is never pulled in by JIT — `test_existing_account_elsewhere_is_not_captured_by_jit`.
+- [x] Missing/forged state cookie → refused — `test_callback_without_the_start_cookie_is_refused`.
+- [x] SSO sessions satisfy an organisation's 2FA requirement (MFA is the IdP's job) — `test_sso_session_satisfies_org_2fa_requirement`.
+
+Implementation: `app/security/oidc.py` (Authlib OAuth2Client for the authorize/token steps, joserfc for ID-token validation — `authlib.jose` is deprecated), `app/routes/sso.py`, migration `0009_sso` (RLS: in-tenant, or the single domain / connection being looked up before sign-in). Isolation walker: SSO start/callback are public flows. OpenAPI: +5 operations.
+
 Remaining tasks (acceptance criteria written in full when each starts):
-- P1.4b OIDC SSO via Authlib against mock-oauth2-server; P1.4c frontend: MFA sign-in step + Settings (organisation, members, security, SSO).
+- P1.4c frontend: MFA sign-in step + Settings (organisation, members, security, SSO).
 - P1.5 Storage: S3-compatible adapter (boto3; MinIO in tests), SSE, SHA-256 on write, no delete path; report delete → soft delete (D5).
 - P1.6 Money: `Numeric(18,2)` + currency, Decimal at the API boundary (D1); per-cell ambiguous-date flag (D9).
 - P1.7 Jobs: Redis wake-ups + idempotency keys + retries on the existing DB queue (D6); 50k-row workbook < 120 s without blocking the API.

@@ -13,7 +13,7 @@ Python (`truebind-web/backend/.venv`).
 | P2 Channels & integrations | **done** — gate green |
 | P3 Binder compliance | **done** — gate green |
 | P4 Leakage & overpayment | **done** — gate green |
-| P5 Sanctions screening | in progress |
+| P5 Sanctions screening | **done** — gate green |
 | P6 Scorecard | pending |
 | P7 Audit pack | pending |
 | P8 Sender pre-flight portal | pending |
@@ -343,7 +343,7 @@ Acceptance:
 - Grep review: no float money, TODO/FIXME, print() or bare except in the new code; every query is tenant-filtered. Non-negotiables: no silent passes (NOT_ASSESSED with reasons), Decimal with ISO currency, and exposure never summed across currencies.
 - Summary: (1) The leakage module finds duplicate payments, negative reserves, reserves on closed claims, payments after closure and falling paid-to-date. (2) Each finding carries an exact amount and currency. (3) Each check reports its open exposure per currency. (4) The golden suite proves 100% precision and recall, zero findings on clean data and NOT_ASSESSED when unmapped. (5) Fixture builds are now byte-deterministic.
 
-## P5 — Sanctions screening (reconstructed criteria)
+## P5 — Sanctions screening (done; reconstructed criteria)
 
 ### P5.1 Lists and screening — done
 Acceptance:
@@ -354,5 +354,10 @@ Acceptance:
 - [x] Golden (`fixtures/golden/sanctions`, list in the OFSI layout, every name invented): 5 planted potential matches (legal form, word order, alias, accents, a one-letter typo) at precision 100% and recall 100%. Names sharing only one word and an 85% near-miss are not raised; the blank name is NOT_ASSESSED. clean.xlsx gives zero findings and is fully assessed; unmapped.xlsx gives NOT_ASSESSED; no list gives NOT_ASSESSED.
 - [x] UI: Settings → Sanctions lists (load, list with SHA-256, remove). The Checks section shows the sanctions module automatically.
 - Human decisions (HUMAN_TODO): which lists apply, how often they are refreshed, and the match threshold and escalation route agreed with compliance.
+
+### P5 phase gate
+- Gate evidence — `verify --full`: ruff/mypy clean (legacy 92/92); engine 90; vitest 20; migrations round-trip to 0015; backend on PostgreSQL 369 passed; golden 4 suites / 19 passed; next build; e2e 4; perf realistic 40.2 s / adversarial 41.2 s (probe max 0.124 s); security clean (bandit and gitleaks on the new parsers included); coverage 92.18%, 94.29% of 3,885 changed lines. OpenAPI: +3 sanctions operations, accepted (95 operations).
+- Review: the XML list parser refuses DTDs and entities (tested); list uploads are size-capped (50 MB) and rate-limited; no insured name leaves the server; matches are REVIEW, never a verdict.
+- Summary: (1) Organisations load the official UK, US, EU and UN lists or their own. (2) Insured names are screened with accent, case, legal-form and word-order insensitive matching plus a 90% fuzzy threshold. (3) Every hit is a REVIEW with evidence (list, entry, reference, score). (4) The golden suite proves 100% precision and recall, including the near-miss that must not match. (5) Screening 20k × 20k runs in about a second.
 
 Remaining tasks (acceptance criteria written in full when each starts):

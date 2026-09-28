@@ -407,6 +407,27 @@
     "title": "BinderOut",
     "type": "object"
    },
+   "Body_load_list_api_v1_sanctions_lists_post": {
+    "properties": {
+     "file": {
+      "contentMediaType": "application/octet-stream",
+      "title": "File",
+      "type": "string"
+     },
+     "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "file",
+     "name"
+    ],
+    "title": "Body_load_list_api_v1_sanctions_lists_post",
+    "type": "object"
+   },
    "Body_upload_report_api_v1_reports_upload_post": {
     "properties": {
      "file": {
@@ -3291,6 +3312,55 @@
      "reasons"
     ],
     "title": "RuleOut",
+    "type": "object"
+   },
+   "SanctionsListOut": {
+    "properties": {
+     "entry_count": {
+      "title": "Entry Count",
+      "type": "integer"
+     },
+     "file_name": {
+      "title": "File Name",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "sha256": {
+      "title": "Sha256",
+      "type": "string"
+     },
+     "source": {
+      "title": "Source",
+      "type": "string"
+     },
+     "uploaded_at": {
+      "format": "date-time",
+      "title": "Uploaded At",
+      "type": "string"
+     },
+     "uploaded_by": {
+      "title": "Uploaded By",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "name",
+     "source",
+     "file_name",
+     "sha256",
+     "entry_count",
+     "uploaded_at",
+     "uploaded_by"
+    ],
+    "title": "SanctionsListOut",
     "type": "object"
    },
    "SetupOut": {
@@ -7834,6 +7904,105 @@
     "summary": "Get Report Summary",
     "tags": [
      "reports"
+    ]
+   }
+  },
+  "/api/v1/sanctions/lists": {
+   "get": {
+    "operationId": "list_lists_api_v1_sanctions_lists_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/SanctionsListOut"
+         },
+         "title": "Response List Lists Api V1 Sanctions Lists Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "List Lists",
+    "tags": [
+     "sanctions"
+    ]
+   },
+   "post": {
+    "operationId": "load_list_api_v1_sanctions_lists_post",
+    "requestBody": {
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_load_list_api_v1_sanctions_lists_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SanctionsListOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Load List",
+    "tags": [
+     "sanctions"
+    ]
+   }
+  },
+  "/api/v1/sanctions/lists/{list_id}": {
+   "delete": {
+    "operationId": "delete_list_api_v1_sanctions_lists__list_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "list_id",
+      "required": true,
+      "schema": {
+       "title": "List Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete List",
+    "tags": [
+     "sanctions"
     ]
    }
   },

@@ -406,6 +406,78 @@
     "title": "CodeIn",
     "type": "object"
    },
+   "ConversionOut": {
+    "properties": {
+     "amount": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Amount"
+     },
+     "currency": {
+      "title": "Currency",
+      "type": "string"
+     },
+     "rate": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rate"
+     },
+     "rate_date": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rate Date"
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     },
+     "source": {
+      "title": "Source",
+      "type": "string"
+     },
+     "status": {
+      "title": "Status",
+      "type": "string"
+     }
+    },
+    "required": [
+     "status",
+     "amount",
+     "currency",
+     "rate",
+     "rate_date",
+     "reason",
+     "source"
+    ],
+    "title": "ConversionOut",
+    "type": "object"
+   },
    "DeliveryOut": {
     "properties": {
      "channel": {
@@ -515,7 +587,10 @@
     "additionalProperties": false,
     "properties": {
      "channel": {
-      "const": "email",
+      "enum": [
+       "email",
+       "sftp"
+      ],
       "title": "Channel",
       "type": "string"
      },
@@ -529,17 +604,23 @@
       "type": "string"
      },
      "recipient": {
-      "maxLength": 320,
-      "minLength": 3,
-      "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
-      "title": "Recipient",
-      "type": "string"
+      "anyOf": [
+       {
+        "maxLength": 320,
+        "minLength": 3,
+        "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Recipient"
      }
     },
     "required": [
      "kind",
-     "channel",
-     "recipient"
+     "channel"
     ],
     "title": "DeliveryRequest",
     "type": "object"
@@ -628,6 +709,150 @@
      "recovery_codes"
     ],
     "title": "EnabledOut",
+    "type": "object"
+   },
+   "EndpointCreated": {
+    "properties": {
+     "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "enabled": {
+      "title": "Enabled",
+      "type": "boolean"
+     },
+     "events": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Events",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "secret": {
+      "title": "Secret",
+      "type": "string"
+     },
+     "url": {
+      "title": "Url",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "url",
+     "events",
+     "description",
+     "enabled",
+     "created_at",
+     "secret"
+    ],
+    "title": "EndpointCreated",
+    "type": "object"
+   },
+   "EndpointIn": {
+    "properties": {
+     "description": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "events": {
+      "items": {
+       "enum": [
+        "report.completed",
+        "report.failed",
+        "report.waiting_for_review"
+       ],
+       "type": "string"
+      },
+      "minItems": 1,
+      "title": "Events",
+      "type": "array"
+     },
+     "url": {
+      "maxLength": 2000,
+      "minLength": 8,
+      "title": "Url",
+      "type": "string"
+     }
+    },
+    "required": [
+     "url",
+     "events"
+    ],
+    "title": "EndpointIn",
+    "type": "object"
+   },
+   "EndpointOut": {
+    "properties": {
+     "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "enabled": {
+      "title": "Enabled",
+      "type": "boolean"
+     },
+     "events": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Events",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "url": {
+      "title": "Url",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "url",
+     "events",
+     "description",
+     "enabled",
+     "created_at"
+    ],
+    "title": "EndpointOut",
     "type": "object"
    },
    "ExceptionReviewRequest": {
@@ -975,6 +1200,54 @@
      }
     },
     "title": "HTTPValidationError",
+    "type": "object"
+   },
+   "InboundAddressOut": {
+    "properties": {
+     "address": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Address"
+     },
+     "configured": {
+      "title": "Configured",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "address",
+     "configured"
+    ],
+    "title": "InboundAddressOut",
+    "type": "object"
+   },
+   "IntakeOut": {
+    "properties": {
+     "accepted": {
+      "title": "Accepted",
+      "type": "integer"
+     },
+     "duplicates": {
+      "title": "Duplicates",
+      "type": "integer"
+     },
+     "rejected": {
+      "title": "Rejected",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "accepted",
+     "rejected",
+     "duplicates"
+    ],
+    "title": "IntakeOut",
     "type": "object"
    },
    "InvitationCreated": {
@@ -2078,6 +2351,77 @@
     "title": "Page[ReportOut]",
     "type": "object"
    },
+   "RatesOut": {
+    "properties": {
+     "base": {
+      "title": "Base",
+      "type": "string"
+     },
+     "rate_date": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rate Date"
+     },
+     "rates": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "title": "Rates",
+      "type": "object"
+     },
+     "requested": {
+      "format": "date",
+      "title": "Requested",
+      "type": "string"
+     },
+     "source": {
+      "title": "Source",
+      "type": "string"
+     }
+    },
+    "required": [
+     "requested",
+     "rate_date",
+     "base",
+     "rates",
+     "source"
+    ],
+    "title": "RatesOut",
+    "type": "object"
+   },
+   "RefreshOut": {
+    "properties": {
+     "latest_rate_date": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latest Rate Date"
+     },
+     "rows_written": {
+      "title": "Rows Written",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "rows_written",
+     "latest_rate_date"
+    ],
+    "title": "RefreshOut",
+    "type": "object"
+   },
    "ReportOut": {
     "properties": {
      "coverage_pct": {
@@ -2352,6 +2696,136 @@
      "otpauth_uri"
     ],
     "title": "SetupOut",
+    "type": "object"
+   },
+   "SftpIn": {
+    "properties": {
+     "auto_deliver": {
+      "default": false,
+      "title": "Auto Deliver",
+      "type": "boolean"
+     },
+     "enabled": {
+      "default": true,
+      "title": "Enabled",
+      "type": "boolean"
+     },
+     "host": {
+      "maxLength": 253,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9.-]+$",
+      "title": "Host",
+      "type": "string"
+     },
+     "host_key_fingerprint": {
+      "maxLength": 200,
+      "title": "Host Key Fingerprint",
+      "type": "string"
+     },
+     "password": {
+      "anyOf": [
+       {
+        "maxLength": 1000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Password"
+     },
+     "port": {
+      "default": 22,
+      "maximum": 65535.0,
+      "minimum": 1.0,
+      "title": "Port",
+      "type": "integer"
+     },
+     "private_key": {
+      "anyOf": [
+       {
+        "maxLength": 20000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Private Key"
+     },
+     "remote_dir": {
+      "default": "/",
+      "maxLength": 500,
+      "title": "Remote Dir",
+      "type": "string"
+     },
+     "username": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Username",
+      "type": "string"
+     }
+    },
+    "required": [
+     "host",
+     "username",
+     "host_key_fingerprint"
+    ],
+    "title": "SftpIn",
+    "type": "object"
+   },
+   "SftpOut": {
+    "properties": {
+     "auth": {
+      "title": "Auth",
+      "type": "string"
+     },
+     "auto_deliver": {
+      "title": "Auto Deliver",
+      "type": "boolean"
+     },
+     "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+     },
+     "enabled": {
+      "title": "Enabled",
+      "type": "boolean"
+     },
+     "host": {
+      "title": "Host",
+      "type": "string"
+     },
+     "host_key_fingerprint": {
+      "title": "Host Key Fingerprint",
+      "type": "string"
+     },
+     "port": {
+      "title": "Port",
+      "type": "integer"
+     },
+     "remote_dir": {
+      "title": "Remote Dir",
+      "type": "string"
+     },
+     "username": {
+      "title": "Username",
+      "type": "string"
+     }
+    },
+    "required": [
+     "host",
+     "port",
+     "username",
+     "auth",
+     "host_key_fingerprint",
+     "remote_dir",
+     "auto_deliver",
+     "enabled",
+     "created_at"
+    ],
+    "title": "SftpOut",
     "type": "object"
    },
    "SheetMappingOut": {
@@ -2813,6 +3287,24 @@
     "title": "TenantOut",
     "type": "object"
    },
+   "TestOut": {
+    "properties": {
+     "message": {
+      "title": "Message",
+      "type": "string"
+     },
+     "ok": {
+      "title": "Ok",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "ok",
+     "message"
+    ],
+    "title": "TestOut",
+    "type": "object"
+   },
    "UserOut": {
     "properties": {
      "display_name": {
@@ -2913,6 +3405,95 @@
      "mfa_token"
     ],
     "title": "VerifyIn",
+    "type": "object"
+   },
+   "WebhookDeliveryOut": {
+    "properties": {
+     "attempts": {
+      "title": "Attempts",
+      "type": "integer"
+     },
+     "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+     },
+     "delivered_at": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Delivered At"
+     },
+     "event_type": {
+      "title": "Event Type",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "last_error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Error"
+     },
+     "last_status_code": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Status Code"
+     },
+     "message_id": {
+      "title": "Message Id",
+      "type": "string"
+     },
+     "next_attempt_at": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Next Attempt At"
+     },
+     "status": {
+      "title": "Status",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "event_type",
+     "message_id",
+     "status",
+     "attempts",
+     "last_status_code",
+     "last_error",
+     "next_attempt_at",
+     "created_at",
+     "delivered_at"
+    ],
+    "title": "WebhookDeliveryOut",
     "type": "object"
    }
   }
@@ -3554,7 +4135,7 @@
   },
   "/api/v1/channels": {
    "get": {
-    "description": "Inbound and outbound channels and whether each is live on this server.\nPlanned connectors are listed as such -- never shown as working.",
+    "description": "Inbound and outbound channels and whether each is live for this\norganisation on this server. Nothing is shown as working unless it is\nconfigured; planned connectors are listed as planned.",
     "operationId": "channels_api_v1_channels_get",
     "responses": {
      "200": {
@@ -3630,6 +4211,185 @@
     "summary": "List Deliveries",
     "tags": [
      "operations"
+    ]
+   }
+  },
+  "/api/v1/fx/convert": {
+   "get": {
+    "operationId": "convert_api_v1_fx_convert_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "amount",
+      "required": true,
+      "schema": {
+       "maxLength": 32,
+       "title": "Amount",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "from_ccy",
+      "required": true,
+      "schema": {
+       "pattern": "^[A-Za-z]{3}$",
+       "title": "From Ccy",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "to_ccy",
+      "required": true,
+      "schema": {
+       "pattern": "^[A-Za-z]{3}$",
+       "title": "To Ccy",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "on",
+      "required": false,
+      "schema": {
+       "format": "date",
+       "title": "On",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ConversionOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Convert",
+    "tags": [
+     "fx"
+    ]
+   }
+  },
+  "/api/v1/fx/rates": {
+   "get": {
+    "operationId": "rates_api_v1_fx_rates_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "on",
+      "required": false,
+      "schema": {
+       "format": "date",
+       "title": "On",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RatesOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Rates",
+    "tags": [
+     "fx"
+    ]
+   }
+  },
+  "/api/v1/fx/refresh": {
+   "post": {
+    "operationId": "refresh_api_v1_fx_refresh_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RefreshOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Refresh",
+    "tags": [
+     "fx"
+    ]
+   }
+  },
+  "/api/v1/inbound/email/postmark": {
+   "post": {
+    "operationId": "postmark_inbound_api_v1_inbound_email_postmark_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/IntakeOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Postmark Inbound",
+    "tags": [
+     "inbound"
+    ]
+   }
+  },
+  "/api/v1/inbound/email/ses": {
+   "post": {
+    "operationId": "ses_inbound_api_v1_inbound_email_ses_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/IntakeOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Ses Inbound",
+    "tags": [
+     "inbound"
     ]
    }
   },
@@ -3831,6 +4591,48 @@
      }
     },
     "summary": "Patch Org",
+    "tags": [
+     "organisation"
+    ]
+   }
+  },
+  "/api/v1/org/inbound": {
+   "get": {
+    "operationId": "get_inbound_api_v1_org_inbound_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/InboundAddressOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Get Inbound",
+    "tags": [
+     "organisation"
+    ]
+   }
+  },
+  "/api/v1/org/inbound/rotate": {
+   "post": {
+    "operationId": "rotate_inbound_api_v1_org_inbound_rotate_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/InboundAddressOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Rotate Inbound",
     "tags": [
      "organisation"
     ]
@@ -4045,6 +4847,108 @@
     ]
    }
   },
+  "/api/v1/org/sftp": {
+   "delete": {
+    "operationId": "delete_sftp_api_v1_org_sftp_delete",
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Delete Sftp",
+    "tags": [
+     "channels"
+    ]
+   },
+   "get": {
+    "description": "The destination, or null when none is configured.",
+    "operationId": "get_sftp_api_v1_org_sftp_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "anyOf": [
+          {
+           "$ref": "#/components/schemas/SftpOut"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "title": "Response Get Sftp Api V1 Org Sftp Get"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Get Sftp",
+    "tags": [
+     "channels"
+    ]
+   },
+   "put": {
+    "operationId": "put_sftp_api_v1_org_sftp_put",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SftpIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SftpOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Put Sftp",
+    "tags": [
+     "channels"
+    ]
+   }
+  },
+  "/api/v1/org/sftp/test": {
+   "post": {
+    "operationId": "test_sftp_api_v1_org_sftp_test_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TestOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Test Sftp",
+    "tags": [
+     "channels"
+    ]
+   }
+  },
   "/api/v1/org/sso": {
    "delete": {
     "operationId": "delete_sso_api_v1_org_sso_delete",
@@ -4114,6 +5018,235 @@
     "summary": "Put Sso",
     "tags": [
      "organisation"
+    ]
+   }
+  },
+  "/api/v1/org/webhooks": {
+   "get": {
+    "operationId": "list_endpoints_api_v1_org_webhooks_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/EndpointOut"
+         },
+         "title": "Response List Endpoints Api V1 Org Webhooks Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "List Endpoints",
+    "tags": [
+     "channels"
+    ]
+   },
+   "post": {
+    "operationId": "create_endpoint_api_v1_org_webhooks_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/EndpointIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/EndpointCreated"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Endpoint",
+    "tags": [
+     "channels"
+    ]
+   }
+  },
+  "/api/v1/org/webhooks/deliveries/{delivery_id}/replay": {
+   "post": {
+    "operationId": "replay_delivery_api_v1_org_webhooks_deliveries__delivery_id__replay_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "delivery_id",
+      "required": true,
+      "schema": {
+       "title": "Delivery Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "202": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/WebhookDeliveryOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Replay Delivery",
+    "tags": [
+     "channels"
+    ]
+   }
+  },
+  "/api/v1/org/webhooks/{endpoint_id}": {
+   "delete": {
+    "operationId": "delete_endpoint_api_v1_org_webhooks__endpoint_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "endpoint_id",
+      "required": true,
+      "schema": {
+       "title": "Endpoint Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Endpoint",
+    "tags": [
+     "channels"
+    ]
+   }
+  },
+  "/api/v1/org/webhooks/{endpoint_id}/deliveries": {
+   "get": {
+    "operationId": "list_deliveries_api_v1_org_webhooks__endpoint_id__deliveries_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "endpoint_id",
+      "required": true,
+      "schema": {
+       "title": "Endpoint Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/WebhookDeliveryOut"
+         },
+         "title": "Response List Deliveries Api V1 Org Webhooks  Endpoint Id  Deliveries Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Deliveries",
+    "tags": [
+     "channels"
+    ]
+   }
+  },
+  "/api/v1/org/webhooks/{endpoint_id}/test": {
+   "post": {
+    "operationId": "test_endpoint_api_v1_org_webhooks__endpoint_id__test_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "endpoint_id",
+      "required": true,
+      "schema": {
+       "title": "Endpoint Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "202": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/WebhookDeliveryOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Test Endpoint",
+    "tags": [
+     "channels"
     ]
    }
   },

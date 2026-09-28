@@ -13,13 +13,14 @@
 from __future__ import annotations
 
 import logging
-import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 import httpx
+from defusedxml import ElementTree as SafeET
+from defusedxml.common import DefusedXmlException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -48,11 +49,11 @@ class Conversion:
 
 
 def parse_feed(xml_bytes: bytes) -> dict[date, dict[str, Decimal]]:
-    if b"<!DOCTYPE" in xml_bytes or b"<!ENTITY" in xml_bytes:
-        raise FxFeedError("unexpected DTD in the ECB feed")
     try:
-        root = ET.fromstring(xml_bytes)  # noqa: S314 -- DTDs/entities rejected above
-    except ET.ParseError as exc:
+        root = SafeET.fromstring(xml_bytes, forbid_dtd=True)
+    except DefusedXmlException as exc:
+        raise FxFeedError("unexpected DTD or entities in the ECB feed") from exc
+    except SafeET.ParseError as exc:
         raise FxFeedError("the ECB feed is not valid XML") from exc
     out: dict[date, dict[str, Decimal]] = {}
     for day in root.iter(f"{_NS}Cube"):

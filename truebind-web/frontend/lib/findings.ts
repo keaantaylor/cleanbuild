@@ -67,3 +67,13 @@ export function provisionalReason(s: Pick<ReportSummary, "score_reliable" | "not
   }
   return "The grade is provisional: at least one sheet was only partly understood.";
 }
+
+/** One wording for channel status everywhere: nothing reads "Live" unless it is. */
+export function channelStatus(status: string): { label: string; tone: "live" | "warn" | "neutral" } {
+  switch (status) {
+    case "active": return { label: "Live", tone: "live" };
+    case "not_set_up": return { label: "Needs setup", tone: "warn" };
+    case "not_configured": return { label: "Not configured on this server", tone: "neutral" };
+    default: return { label: "Planned", tone: "neutral" };
+  }
+}

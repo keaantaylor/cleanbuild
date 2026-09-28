@@ -5,8 +5,8 @@ A message is accepted only if:
 - SigningCertURL is https on an sns.<region>.amazonaws.com host and ends in
   .pem (so the certificate cannot come from anywhere else);
 - the RSA signature over the canonical string (AWS's documented field order
-  for the message Type) verifies with that certificate, SHA1 for
-  SignatureVersion 1 and SHA256 for 2;
+  for the message Type) verifies with that certificate using SHA256
+  (SignatureVersion 2 only -- version 1 uses SHA1 and is refused);
 - the TopicArn is on the configured allow-list.
 Certificates are fetched through an injectable function and cached by URL.
 """
@@ -74,14 +74,11 @@ def verify(
     cert_url = str(message.get("SigningCertURL", ""))
     if not cert_url_is_trusted(cert_url):
         raise SnsVerificationError("untrusted certificate URL")
-    version = str(message.get("SignatureVersion", ""))
-    algorithm: hashes.HashAlgorithm
-    if version == "1":
-        algorithm = hashes.SHA1()  # noqa: S303 -- mandated by SNS SignatureVersion 1
-    elif version == "2":
-        algorithm = hashes.SHA256()
-    else:
+    # SignatureVersion 2 (SHA256) only: version 1 signs with SHA1. Set the
+    # topic attribute SignatureVersion=2 (HUMAN_TODO.md).
+    if str(message.get("SignatureVersion", "")) != "2":
         raise SnsVerificationError("unsupported signature version")
+    algorithm = hashes.SHA256()
     try:
         signature = base64.b64decode(str(message.get("Signature", "")), validate=True)
         cert = x509.load_pem_x509_certificate((fetch_cert or _fetch_cert)(cert_url))

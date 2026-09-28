@@ -1,4 +1,4 @@
-import type { Alert, AuditLogEntry, Channels, ClaimRow, Delivery, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Invitation, InvitationCreated, Job, Me, MappingField, Member, MfaChallenge, MfaStatus, Obligation, OrgSettings, Overview, Report, ReportSummary, Role, Sheet, SheetMapping, SsoConfig, SsoConfigInput, SystemStatus, Template, WorkQueue } from "./types";
+import type { Alert, AuditLogEntry, Channels, ClaimRow, Delivery, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Invitation, InvitationCreated, Job, Me, MappingField, Member, MfaChallenge, MfaStatus, Obligation, OrgSettings, Overview, Report, ReportSummary, Role, Sheet, SheetMapping, SftpDestination, SftpInput, SsoConfig, SsoConfigInput, SystemStatus, Template, WebhookDelivery, WebhookEndpoint, WebhookEvent, WorkQueue } from "./types";
 
 // Default: same hostname as the page, port 8000. Using the page's own host
 // matters: a page on localhost calling an API on 127.0.0.1 is cross-site, so
@@ -164,6 +164,20 @@ export const api = {
   getSso: () => request<SsoConfig>("/org/sso"),
   saveSso: (body: SsoConfigInput) => request<SsoConfig>("/org/sso", { method: "PATCH", body: JSON.stringify(body) }),
   removeSso: () => request<void>("/org/sso", { method: "DELETE" }),
+  getInbound: () => request<{ address: string | null; configured: boolean }>("/org/inbound"),
+  rotateInbound: () => request<{ address: string | null; configured: boolean }>("/org/inbound/rotate", { method: "POST" }),
+  listWebhooks: () => request<WebhookEndpoint[]>("/org/webhooks"),
+  createWebhook: (url: string, events: WebhookEvent[]) =>
+    request<WebhookEndpoint & { secret: string }>("/org/webhooks", { method: "POST", body: JSON.stringify({ url, events }) }),
+  deleteWebhook: (id: string) => request<void>(`/org/webhooks/${id}`, { method: "DELETE" }),
+  testWebhook: (id: string) => request<WebhookDelivery>(`/org/webhooks/${id}/test`, { method: "POST" }),
+  webhookDeliveries: (id: string) => request<WebhookDelivery[]>(`/org/webhooks/${id}/deliveries`),
+  replayWebhook: (deliveryId: string) => request<WebhookDelivery>(`/org/webhooks/deliveries/${deliveryId}/replay`, { method: "POST" }),
+  getSftp: () => request<SftpDestination | null>("/org/sftp"),
+  saveSftp: (body: SftpInput) => request<SftpDestination>("/org/sftp", { method: "PUT", body: JSON.stringify(body) }),
+  removeSftp: () => request<void>("/org/sftp", { method: "DELETE" }),
+  testSftp: () => request<{ ok: boolean; message: string }>("/org/sftp/test", { method: "POST" }),
+  refreshFx: () => request<{ rows_written: number; latest_rate_date: string | null }>("/fx/refresh", { method: "POST" }),
   signup: async (body: { email: string; password: string; display_name: string; organisation: string }) => {
     const me = await request<Me>("/auth/signup", { method: "POST", body: JSON.stringify(body) });
     setCsrf(me.csrf_token);

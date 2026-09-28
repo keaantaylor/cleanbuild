@@ -23,3 +23,15 @@ describe("checks that did not run", () => {
     expect(provisionalReason(partial)).toBe("The grade is provisional: at least one sheet was only partly understood.");
   });
 });
+
+import { channelStatus } from "@/lib/findings";
+
+describe("channel status wording", () => {
+  it("never reads Live unless the channel is active", () => {
+    expect(channelStatus("active")).toEqual({ label: "Live", tone: "live" });
+    expect(channelStatus("not_set_up").label).toBe("Needs setup");
+    expect(channelStatus("not_configured").label).toBe("Not configured on this server");
+    expect(channelStatus("planned").label).toBe("Planned");
+    expect(channelStatus("anything-else").tone).not.toBe("live");
+  });
+});

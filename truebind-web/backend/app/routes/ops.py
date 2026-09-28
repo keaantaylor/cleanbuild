@@ -228,35 +228,62 @@ def create_delivery(report_id: str, body: DeliveryRequest, ctx: Context = Depend
 # ------------------------------------------------------------------ channels
 
 @router.get("/channels")
-def channels(ctx: Context = Depends(require_reader)) -> dict:
-    """Inbound and outbound channels and whether each is live on this server.
-    Planned connectors are listed as such -- never shown as working."""
+def channels(ctx: Context = Depends(require_reader), db: Session = Depends(get_db)) -> dict:
+    """Inbound and outbound channels and whether each is live for this
+    organisation on this server. Nothing is shown as working unless it is
+    configured; planned connectors are listed as planned."""
+    from ..ai import providers as ai_providers
+    from ..models.channels import FxRate, SftpDestination, WebhookEndpoint
+    from ..models.identity import Tenant
+    from ..services import inbound_email
+
+    tenant = db.get(Tenant, ctx.tenant_id)
+    email_in_server = bool(config.INBOUND_EMAIL_DOMAIN and (config.INBOUND_WEBHOOK_SECRET or config.SES_SNS_TOPIC_ARNS))
+    address = inbound_email.address_for(tenant.inbound_token if tenant else None)
+    hooks = db.query(WebhookEndpoint).filter(WebhookEndpoint.tenant_id == ctx.tenant_id,
+                                             WebhookEndpoint.enabled.is_(True)).count()
+    sftp = db.query(SftpDestination).filter(SftpDestination.tenant_id == ctx.tenant_id).first()
     email_out = delivery_service.email_configured()
+    latest_fx = db.query(func.max(FxRate.rate_date)).scalar()
+    ai = ai_providers.describe()
+
+    def status(server_ready: bool, org_ready: bool) -> str:
+        return "active" if server_ready and org_ready else ("not_set_up" if server_ready else "not_configured")
+
     return {
         "inbound": [
             {"id": "upload", "name": "Web upload", "status": "active",
              "detail": "Drag and drop .xlsx, .xlsm, .xls or .csv on the Intake page."},
             {"id": "api", "name": "API", "status": "active",
-             "detail": "POST /api/v1/reports/upload (multipart, session auth + CSRF)."},
-            {"id": "email", "name": "E-mail inbox", "status": "planned",
-             "detail": "Forward bordereaux to a dedicated address; attachments ingested automatically."},
-            {"id": "sftp", "name": "SFTP drop", "status": "planned", "detail": "Poll a partner SFTP folder on a schedule."},
-            {"id": "cloud", "name": "Cloud storage", "status": "planned",
-             "detail": "Watch a SharePoint / S3 / Google Drive folder."},
-            {"id": "schedule", "name": "Scheduled import", "status": "planned",
-             "detail": "Fetch a recurring submission at a set time."},
+             "detail": "POST /api/v1/reports/upload (session auth + CSRF, optional Idempotency-Key)."},
+            {"id": "email", "name": "E-mail inbox", "status": status(email_in_server, bool(address)),
+             "detail": (f"Forward bordereaux to {address}." if address and email_in_server else
+                        "Create your organisation's inbound address in Settings -> Channels." if email_in_server else
+                        "Set INBOUND_EMAIL_DOMAIN and a Postmark or SES connection on the server."),
+             "address": address if email_in_server else None},
+            {"id": "sftp", "name": "SFTP pickup", "status": "planned", "detail": "Poll a partner SFTP folder."},
         ],
         "outbound": [
             {"id": "download", "name": "Download", "status": "active", "detail": "Claims, exceptions and audit CSV."},
             {"id": "email", "name": "E-mail", "status": "active" if email_out else "not_configured",
              "detail": "Send outputs to a recipient." + ("" if email_out else " Set SMTP_HOST on the server to enable.")},
-            {"id": "webhook", "name": "Webhook / API push", "status": "planned",
-             "detail": "Post structured results to another system."},
-            {"id": "sftp_out", "name": "SFTP delivery", "status": "planned", "detail": "Drop outputs on a partner SFTP."},
+            {"id": "webhook", "name": "Webhooks", "status": "active" if hooks else "not_set_up",
+             "detail": (f"{hooks} signed endpoint(s) receive report events." if hooks else
+                        "Add an https endpoint to receive signed report events.")},
+            {"id": "sftp_out", "name": "SFTP delivery",
+             "status": "active" if sftp and sftp.enabled else "not_set_up",
+             "detail": (f"{sftp.username}@{sftp.host}:{sftp.remote_dir}"
+                        + (" (automatic on completion)" if sftp.auto_deliver else "")) if sftp else
+                       "Add a partner SFTP server with its pinned host key."},
         ],
+        "services": {
+            "ai": ai,
+            "fx": {"source": "ECB euro reference rates", "latest_rate_date": latest_fx.isoformat() if latest_fx else None,
+                   "auto_refresh": bool(config.FX_AUTO_REFRESH)},
+        },
         "pipeline": ["Receive", "Validate file", "Read workbook", "Map columns", "Validate data",
                      "Check duplicates", "Reconcile", "Report", "Deliver"],
-        "limits": {"max_upload_mb": config.MAX_UPLOAD_BYTES // (1024 * 1024), "ai_mapping": bool(config.ANTHROPIC_API_KEY)},
+        "limits": {"max_upload_mb": config.MAX_UPLOAD_BYTES // (1024 * 1024), "ai_mapping": bool(ai["configured"])},
     }
 
 

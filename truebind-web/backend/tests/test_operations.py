@@ -149,7 +149,27 @@ def test_email_delivery_sends_attachment_when_configured(api, monkeypatch):
 def test_channels_never_claim_planned_connectors_work(api):
     c = api.get("/api/v1/channels").json()
     status = {x["id"]: x["status"] for x in c["inbound"]}
-    assert status["upload"] == "active" and status["email"] == "planned" and status["sftp"] == "planned"
+    # E-mail intake exists since P2.1 but is not configured on this test server: never "active".
+    assert status["upload"] == "active" and status["email"] == "not_configured" and status["sftp"] == "planned"
+
+
+def test_channel_statuses_turn_active_only_when_configured(api, monkeypatch):
+    from app import config
+    from app.services import webhooks
+
+    monkeypatch.setattr(config, "INBOUND_EMAIL_DOMAIN", "in.truebind.test")
+    monkeypatch.setattr(config, "INBOUND_WEBHOOK_SECRET", "s")
+    c = api.get("/api/v1/channels").json()
+    assert {x["id"]: x["status"] for x in c["inbound"]}["email"] == "not_set_up"
+    assert {x["id"]: x["status"] for x in c["outbound"]}["webhook"] == "not_set_up"
+    assert c["services"]["ai"] == {"configured": False, "provider": None, "region": None, "model": None}
+    address = api.post("/api/v1/org/inbound/rotate").json()["address"]
+    monkeypatch.setattr(webhooks.socket, "getaddrinfo", lambda *a, **k: [(2, 1, 6, "", ("93.184.216.34", 443))])
+    api.post("/api/v1/org/webhooks", json={"url": "https://hooks.example/x", "events": ["report.completed"]})
+    c = api.get("/api/v1/channels").json()
+    email = next(x for x in c["inbound"] if x["id"] == "email")
+    assert email["status"] == "active" and email["address"] == address
+    assert {x["id"]: x["status"] for x in c["outbound"]}["webhook"] == "active"
 
 
 def test_exception_review_workflow_is_audited(api):

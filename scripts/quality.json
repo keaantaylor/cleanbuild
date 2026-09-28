@@ -57,11 +57,12 @@
     "truebind-web/backend/app/routes/fx.py",
     "truebind-web/backend/tests/test_fx.py",
     "truebind-web/backend/app/ai",
-    "truebind-web/backend/tests/test_ai_providers.py"
+    "truebind-web/backend/tests/test_ai_providers.py",
+    "truebind-web/backend/tests/test_channel_edges.py"
   ],
   "baseline": {
     "mypy_legacy_errors": 92,
-    "coverage_total_pct": 91.42
+    "coverage_total_pct": 91.65
   },
   "new_code_coverage_min_pct": 85
 }

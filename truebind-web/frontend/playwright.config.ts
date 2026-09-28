@@ -43,6 +43,10 @@ export default defineConfig({
         DATABASE_URL: process.env.E2E_DATABASE_URL ?? `sqlite:///${path.join(dataDir, "e2e.db")}`,
         TRUEBIND_DATA_DIR: path.join(dataDir, "data"),
         TRUEBIND_STORAGE_DIR: path.join(dataDir, "objects"),
+        // P2 channels, test-only values: no public DNS in the test environment.
+        INBOUND_EMAIL_DOMAIN: "in.e2e.example",
+        INBOUND_WEBHOOK_SECRET: "e2e-inbound-secret", // gitleaks:allow -- dummy value for the local e2e server
+        WEBHOOK_ALLOW_PRIVATE_TARGETS: "1",
       },
     },
     {

@@ -407,12 +407,33 @@ export interface WorkItem {
 }
 export interface WorkQueue { items: WorkItem[]; total: number }
 
-export interface Channel { id: string; name: string; status: "active" | "planned" | "not_configured"; detail: string }
+export type ChannelStatus = "active" | "not_set_up" | "not_configured" | "planned";
+export interface Channel { id: string; name: string; status: ChannelStatus; detail: string; address?: string | null }
 export interface Channels {
   inbound: Channel[];
   outbound: Channel[];
+  services?: {
+    ai: { configured: boolean; provider: string | null; region: string | null; model: string | null };
+    fx: { source: string; latest_rate_date: string | null; auto_refresh: boolean };
+  };
   pipeline: string[];
   limits: { max_upload_mb: number; ai_mapping: boolean };
+}
+
+export type WebhookEvent = "report.completed" | "report.failed" | "report.waiting_for_review";
+export interface WebhookEndpoint { id: string; url: string; events: WebhookEvent[]; description: string | null; enabled: boolean; created_at: string }
+export interface WebhookDelivery {
+  id: string; event_type: string; message_id: string; status: "PENDING" | "DELIVERED" | "FAILED" | "EXHAUSTED";
+  attempts: number; last_status_code: number | null; last_error: string | null; next_attempt_at: string | null;
+  created_at: string; delivered_at: string | null;
+}
+export interface SftpDestination {
+  host: string; port: number; username: string; auth: "password" | "private_key"; host_key_fingerprint: string;
+  remote_dir: string; auto_deliver: boolean; enabled: boolean; created_at: string;
+}
+export interface SftpInput {
+  host: string; port: number; username: string; password?: string | null; private_key?: string | null;
+  host_key_fingerprint: string; remote_dir: string; auto_deliver: boolean; enabled: boolean;
 }
 
 export interface Delivery {

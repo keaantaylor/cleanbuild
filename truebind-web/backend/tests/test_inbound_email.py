@@ -212,13 +212,12 @@ def _post_ses(msg: dict[str, str]) -> Any:
     return TestClient(__import__("app.main", fromlist=["app"]).app).post("/api/v1/inbound/email/ses", json=msg)
 
 
-@pytest.mark.parametrize("version", ["1", "2"])
 def test_ses_signed_notification_is_ingested(
-    api: Api, db: Session, monkeypatch: pytest.MonkeyPatch, signing: tuple[rsa.RSAPrivateKey, bytes], version: str
+    api: Api, db: Session, monkeypatch: pytest.MonkeyPatch, signing: tuple[rsa.RSAPrivateKey, bytes]
 ) -> None:
     key, pem = signing
     monkeypatch.setattr(sns, "_fetch_cert", lambda url: pem)
-    r = _post_ses(_ses_message(key, _address(api), version=version))
+    r = _post_ses(_ses_message(key, _address(api), version="2"))
     assert r.status_code == 200 and r.json()["accepted"] == 1, r.text
     [report] = _reports(db, api.me["tenant"]["id"])
     assert report.source_channel == "email" and report.file_name == "s.xlsx"
@@ -239,6 +238,7 @@ def test_ses_forgeries_are_refused(
         _ses_message(key, address, SigningCertURL="https://attacker.example/cert.pem"),
         _ses_message(key, address, TopicArn="arn:aws:sns:eu-west-1:999999999999:other"),
         _ses_message(key, address, SignatureVersion="3"),
+        _ses_message(key, address, version="1"),  # SHA1: refused even when correctly signed
     ):
         assert _post_ses(msg).status_code == 401
     assert _reports(db, api.me["tenant"]["id"]) == []

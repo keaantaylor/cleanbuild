@@ -247,4 +247,14 @@ Acceptance (`tests/test_inbound_email.py`, 11):
 ### P2.2 SMTP outbound — done
 - [x] A delivery request sends the export through a real SMTP server; message, recipient, subject and CSV attachment arrive; delivery DELIVERED and audited — `tests/integration/test_smtp_mailpit.py` (compose Mailpit).
 
+### P2.3 Webhooks (signed, retried, replayable) — done
+Acceptance (`tests/test_webhooks.py`, 14; `tests/integration/test_webhook_receiver.py`):
+- [x] Admin registers an https endpoint for chosen events; `whsec_` secret shown once, stored encrypted; create/delete audited; unknown events refused — `test_register_endpoint_secret_shown_once_and_audited`, `test_unknown_events_are_refused`.
+- [x] SSRF guard at creation and before every send: http, URL credentials, private/loopback/link-local targets, other schemes refused; redirects never followed — `test_unsafe_targets_are_refused` (5), `test_failures_back_off_then_give_up`.
+- [x] report.waiting_for_review / report.completed / report.failed queued for subscribers only, never sent in the request — `test_report_events_are_queued_for_subscribers_only`, `test_failed_report_emits_report_failed`.
+- [x] Standard Webhooks signing (webhook-id, webhook-timestamp, `v1,` HMAC-SHA256); receivers verify; tampered body, stale timestamp, wrong secret fail — `test_deliveries_are_signed_and_verifiable`; proven over real HTTP to the compose receiver.
+- [x] Non-2xx retried with growing backoff, EXHAUSTED after WEBHOOK_MAX_ATTEMPTS with an alert; no further automatic sends — `test_failures_back_off_then_give_up`.
+- [x] Replay keeps the message id and is audited; test ping — `test_replay_resends_with_the_same_message_id`, `test_test_ping_is_delivered`.
+- [x] Isolation: other organisations get 404 (walker ids added) — `test_webhooks_are_isolated_between_organisations`, `test_every_id_endpoint_is_404_for_another_tenant`; all six operations in the audit coverage walker.
+
 Remaining tasks (acceptance criteria written in full when each starts):

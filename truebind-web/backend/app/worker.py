@@ -32,7 +32,7 @@ from .database import get_session_factory, set_tenant
 from .observability import configure_logging
 from .models._util import utcnow
 from .models.jobs import Job, WorkerHeartbeat
-from .services import job_service, job_signal, retention_service
+from .services import job_service, job_signal, retention_service, webhooks
 
 log = logging.getLogger("truebind.worker")
 
@@ -41,6 +41,7 @@ POLL_S = 0.5
 # re-checks the database anyway: wake-ups speed things up, never gate them.
 WAKE_WAIT_S = 2.0
 REAP_EVERY_S = 10.0
+WEBHOOK_EVERY_S = 5.0
 RETENTION_EVERY_S = 3600.0
 
 
@@ -103,6 +104,7 @@ class Worker:
         self._ctx = mp.get_context("spawn")
         self._last_reap = 0.0
         self._last_retention = 0.0
+        self._last_webhooks = 0.0
         self._last_registry = 0.0
         self._started_at = utcnow()
         self._warm: tuple | None = None  # (process, parent_conn)
@@ -175,6 +177,15 @@ class Worker:
                 n = job_service.reap_expired(db)
                 if n:
                     log.warning("recovered %d job(s) from a stopped or unresponsive worker", n)
+            finally:
+                db.close()
+        if now - self._last_webhooks >= WEBHOOK_EVERY_S:
+            self._last_webhooks = now
+            db = self.factory()
+            try:
+                webhooks.dispatch_due(db)
+            except Exception:  # noqa: BLE001 -- housekeeping must not stop the worker
+                log.exception("webhook dispatch failed")
             finally:
                 db.close()
         if now - self._last_retention >= RETENTION_EVERY_S:

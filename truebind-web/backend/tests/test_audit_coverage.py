@@ -218,6 +218,21 @@ def test_every_state_change_is_audited_and_the_chain_holds(monkeypatch: pytest.M
     trail.step("POST", "/api/v1/inbound/email/ses",
                lambda: TestClient(app).post("/api/v1/inbound/email/ses", json=_ses_message(key, address)))  # fmt: skip
 
+    # --- outbound webhooks (P2.3)
+    public = [(2, 1, 6, "", ("93.184.216.34", 443))]
+    monkeypatch.setattr("app.services.webhooks.socket.getaddrinfo", lambda *a, **k: public)
+    hook_in = {"url": "https://hooks.partner.example/x", "events": ["report.completed"]}
+    ep = trail.step("POST", "/api/v1/org/webhooks", lambda: owner.post("/api/v1/org/webhooks", json=hook_in)).json()
+    d = trail.step(
+        "POST", "/api/v1/org/webhooks/{endpoint_id}/test", lambda: owner.post(f"/api/v1/org/webhooks/{ep['id']}/test")
+    ).json()
+    trail.step(
+        "POST",
+        "/api/v1/org/webhooks/deliveries/{delivery_id}/replay",
+        lambda: owner.post(f"/api/v1/org/webhooks/deliveries/{d['id']}/replay"),
+    )
+    trail.step("DELETE", "/api/v1/org/webhooks/{endpoint_id}", lambda: owner.delete(f"/api/v1/org/webhooks/{ep['id']}"))
+
     missing = _mutating_operations() - trail.covered
     assert not missing, f"state-changing operations without an audited scenario step: {sorted(missing)}"
     verdict = owner.get("/api/v1/audit/verify").json()

@@ -66,6 +66,16 @@ def _tenant_a(api: Api) -> dict[str, str]:
     tpl = api.post("/api/v1/templates", json={"name": "T", "field_mappings": {"Ref": "CR0104M"}}).json()
     inv = api.post("/api/v1/org/invitations", json={"email": "invitee@a.example", "role": "VIEWER"}).json()
     member = api.get("/api/v1/org/members").json()[0]
+    from app import config
+
+    saved, config.WEBHOOK_ALLOW_PRIVATE_TARGETS = config.WEBHOOK_ALLOW_PRIVATE_TARGETS, True  # no DNS in this suite
+    try:
+        hook = api.post(
+            "/api/v1/org/webhooks", json={"url": "https://hooks.a.example/x", "events": ["report.completed"]}
+        ).json()
+    finally:
+        config.WEBHOOK_ALLOW_PRIVATE_TARGETS = saved
+    delivery = api.post(f"/api/v1/org/webhooks/{hook['id']}/test").json()
     return {
         "report_id": rid,
         "sheet_id": sheet["id"],
@@ -76,6 +86,8 @@ def _tenant_a(api: Api) -> dict[str, str]:
         "template_id": tpl["id"],
         "invitation_id": inv["id"],
         "membership_id": member["membership_id"],
+        "endpoint_id": hook["id"],
+        "delivery_id": delivery["id"],
     }
 
 

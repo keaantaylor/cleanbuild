@@ -46,7 +46,10 @@
     "truebind-web/backend/app/services/inbound_email.py",
     "truebind-web/backend/app/security/sns.py",
     "truebind-web/backend/app/routes/inbound.py",
-    "truebind-web/backend/tests/test_inbound_email.py"
+    "truebind-web/backend/tests/test_inbound_email.py",
+    "truebind-web/backend/app/services/webhooks.py",
+    "truebind-web/backend/app/routes/webhooks.py",
+    "truebind-web/backend/tests/test_webhooks.py"
   ],
   "baseline": {
     "mypy_legacy_errors": 93,

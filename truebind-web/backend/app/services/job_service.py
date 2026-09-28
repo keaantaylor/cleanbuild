@@ -25,7 +25,7 @@ from ..database import set_tenant
 from ..models._util import utcnow
 from ..models.jobs import TERMINAL_JOB_STATUSES, Job, WorkerHeartbeat
 from ..models.reports import Report
-from . import alert_service, audit_service, job_signal, report_state
+from . import alert_service, audit_service, job_signal, report_state, webhooks
 
 log = logging.getLogger("truebind.jobs")
 
@@ -178,7 +178,28 @@ def finish(db: Session, job: Job, ok: bool, code: str | None = None, message: st
                                       f"{report.file_name}: {message or 'processing failed.'}")
         audit_service.log_action(db, job.tenant_id, job.report_id, "JOB_FAILED", "JOB", job.id,
                                  after={"code": code, "message": message})
+    _notify(db, job, report)
     db.commit()
+
+
+def _notify(db: Session, job: Job, report: Report | None) -> None:
+    """Queue webhook events (and SFTP auto-delivery) for a finished job.
+    Delivery happens later in the worker; a problem here never fails the job."""
+    if report is None:
+        return
+    if job.status == "SUCCEEDED":
+        event = "report.waiting_for_review" if job.kind == "INGEST" else "report.completed"
+    elif job.status == "FAILED":
+        event = "report.failed"
+    else:
+        return
+    try:
+        with db.begin_nested():
+            webhooks.emit(db, job.tenant_id, event, {
+                "report_id": report.id, "file_name": report.file_name, "status": report.status,
+                "error_code": job.error_code if job.status == "FAILED" else None})
+    except Exception:  # noqa: BLE001 -- notifications must never fail the job
+        log.exception("could not queue webhook event for job %s", job.id)
 
 
 def dead_worker_ids(db: Session) -> set[str]:

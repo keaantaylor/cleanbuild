@@ -2222,6 +2222,13 @@
       "title": "Coverage Statement",
       "type": "string"
      },
+     "exposure": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "title": "Exposure",
+      "type": "object"
+     },
      "finding_count": {
       "title": "Finding Count",
       "type": "integer"
@@ -2282,6 +2289,11 @@
      "state": {
       "title": "State",
       "type": "string"
+     },
+     "unpriced_findings": {
+      "default": 0,
+      "title": "Unpriced Findings",
+      "type": "integer"
      }
     },
     "required": [

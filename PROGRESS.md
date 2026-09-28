@@ -12,7 +12,7 @@ Python (`truebind-web/backend/.venv`).
 | P1 Platform foundation | **done** — gate green |
 | P2 Channels & integrations | **done** — gate green |
 | P3 Binder compliance | **done** — gate green |
-| P4 Leakage & overpayment | in progress |
+| P4 Leakage & overpayment | **done** — gate green |
 | P5 Sanctions screening | pending |
 | P6 Scorecard | pending |
 | P7 Audit pack | pending |
@@ -323,7 +323,7 @@ Acceptance (reconstructed):
 - Self-review against the non-negotiables: tri-state mapping is untouched (modules read only confirmed mappings); nothing passes silently (NOT_ASSESSED with reasons, coverage statement per module); Decimal money with ISO currency; RLS on the new tables; every state change is audited (the walker covers them); explanations and drill-down on every finding.
 - Summary: (1) A shared findings framework now carries every module. (2) Binder compliance checks period, currency, authority and aggregate, and turns ambiguous dates into REVIEW. (3) The golden fixtures prove 100% precision and recall, zero findings on the clean file and NOT_ASSESSED when unmapped. (4) People confirm or dismiss findings with an audited reason that survives re-runs. (5) The report page has a Checks section and Settings has Binders.
 
-## P4 — Leakage & overpayment (reconstructed criteria)
+## P4 — Leakage & overpayment (done; reconstructed criteria)
 
 ### P4.1 Leakage module — done
 Acceptance:
@@ -337,5 +337,10 @@ Acceptance:
 - [x] Exposure: every module run reports its open FAIL amounts per ISO currency. They are never summed across currencies. Findings with no stated currency are counted separately, not totalled. Dismissed findings leave the total — `test_exposure_is_per_currency_and_dismissals_leave_it`. The UI shows "Open exposure" on each check.
 - [x] Golden (`fixtures/golden/leakage`): dirty.xlsx has 6 planted leaks (4 FAIL and 2 REVIEW, including one with no currency), found at precision 100% and recall 100% with exact amounts, and exposure is GBP 3,700.00 plus 1 unpriced finding — `test_dirty_file_all_leaks_and_nothing_else`. clean.xlsx gives zero findings and is fully assessed. unmapped.xlsx gives NOT_ASSESSED.
 - Harness fix (evidence): openpyxl stamps the current time into `docProps/core.xml` on save, so the golden workbooks were not byte-identical between builds. `build_fixtures.py` now rewrites that timestamp and every zip entry time. Two consecutive builds give identical MD5s. The binder workbooks were re-committed with the same cell content, and their golden suite passes unchanged.
+
+### P4 phase gate
+- Gate evidence — `verify --full`: ruff/mypy clean (legacy 92/92); engine 90; vitest 20; migrations OK; backend on PostgreSQL 355 passed; golden 3 suites / 15 passed; next build; e2e 4; perf realistic 41.6 s / adversarial 40.8 s (probe max 0.125 s; budget 120 s — the rise from 35 s is the two check modules on 50k rows); security clean; coverage 92.02%, 94.08% of 3,599 changed lines. OpenAPI: a schema-level change only (`exposure`, `unpriced_findings` on module runs), accepted with `--update-openapi`.
+- Grep review: no float money, TODO/FIXME, print() or bare except in the new code; every query is tenant-filtered. Non-negotiables: no silent passes (NOT_ASSESSED with reasons), Decimal with ISO currency, and exposure never summed across currencies.
+- Summary: (1) The leakage module finds duplicate payments, negative reserves, reserves on closed claims, payments after closure and falling paid-to-date. (2) Each finding carries an exact amount and currency. (3) Each check reports its open exposure per currency. (4) The golden suite proves 100% precision and recall, zero findings on clean data and NOT_ASSESSED when unmapped. (5) Fixture builds are now byte-deterministic.
 
 Remaining tasks (acceptance criteria written in full when each starts):

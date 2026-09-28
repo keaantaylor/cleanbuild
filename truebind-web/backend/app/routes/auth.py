@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from ..config import ALLOW_SIGNUP
-from ..database import get_db, set_tenant
+from ..database import get_db, set_identity, set_tenant
 from ..models._util import utcnow
 from ..models.identity import AuthSession, Membership, Tenant, User
 from ..schemas.reports import LoginRequest, MeOut, SignupRequest, TenantOut, UserOut
@@ -82,6 +82,7 @@ def login(body: LoginRequest, request: Request, response: Response, db: Session 
     if user.locked_until is not None and _aware(user.locked_until) > now:
         passwords.verify_password(body.password, passwords.DUMMY_HASH)
         raise HTTPException(status_code=423, detail="Too many failed attempts. Try again later.")
+    set_identity(db, user_id=user.id)
     membership = db.query(Membership).filter_by(user_id=user.id).order_by(Membership.created_at).first()
     ok = passwords.verify_password(body.password, user.password_hash)
     if membership is not None:

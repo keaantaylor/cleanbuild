@@ -98,8 +98,18 @@ Acceptance (tests in `tests/test_org_members.py`, 12):
 Implementation: `app/security/permissions.py`, `app/routes/org.py` (strict), migration `0006` (invitations with PostgreSQL RLS that exposes a row only inside its tenant or to the holder of its token hash), `require(Permission)` dependency; every legacy data route now requires `data:read` (senders locked out), report deletion requires `data:delete` (owner/admin; previously any writer). `/auth/me` adds `permissions`, `tenant.org_type`, `tenant.require_2fa` (additive). OpenAPI: +9 operations (46 → 55) under `/api/v1/org` and `/api/v1/auth/invitations/accept`, snapshot updated intentionally.
 Harness: strict ruff config moved to `scripts/ruff-strict.toml` (FastAPI `Depends` whitelisted for B008); mypy strict config generated per run so legacy `app.*` modules reached through imports are not held to --strict (they have the ratchet). Legacy mypy ratchet tightened 105 → 102 (three `Tenant | None` accesses guarded).
 
+### P1.3 Tenant-isolation suite + RLS on identity tables — done
+Acceptance (tests in `tests/test_isolation_all_endpoints.py`, 5):
+- [x] Every operation with a path id (37 today, derived from the live OpenAPI document), called by another organisation's owner with tenant A's ids, returns 404, leaks no marker, and changes nothing — `test_every_id_endpoint_is_404_for_another_tenant`.
+- [x] Every tenant-data list/overview GET shows none of A's markers, ids or emails — `test_every_list_endpoint_hides_other_tenants`.
+- [x] Self-enforcing: a new endpoint with a path id or request body fails the suite until an isolation case is added (asserts inside the walker).
+- [x] Body-carried ids cannot target another tenant — `test_body_only_writes_cannot_target_another_tenant`.
+- [x] PostgreSQL: every table with `tenant_id` has RLS enabled + FORCED and a policy — `test_every_tenant_table_has_forced_rls_and_a_policy`.
+- [x] Identity rows (memberships, sessions) are visible only in-tenant, to their own user, or to the holder of the session token — `test_identity_rows_are_visible_only_to_their_tenant_user_or_token_holder`.
+
+Implementation: migration `0007_identity_rls` (memberships: tenant OR `app.user_id`; auth_sessions: tenant OR `app.session_token_hash`; writes always in-tenant); `database.set_identity()` sets those GUCs per transaction; session lookup and sign-in set them before reading. Found while building it: other tests inject probe routes (`/__boom`) into the shared app; the walker ignores `/__*`.
+
 Remaining tasks (acceptance criteria written in full when each starts):
-- P1.3 Tenant-isolation suite over every endpoint (another tenant's IDs → 404), RLS on every new table.
 - P1.4 Auth: TOTP 2FA (per-org enforcement), login lockout (Redis-backed), OIDC SSO via Authlib against mock-oauth2-server.
 - P1.5 Storage: S3-compatible adapter (boto3; MinIO in tests), SSE, SHA-256 on write, no delete path; report delete → soft delete (D5).
 - P1.6 Money: `Numeric(18,2)` + currency, Decimal at the API boundary (D1); per-cell ambiguous-date flag (D9).

@@ -11,10 +11,12 @@
     "truebind-web/backend/app/security/permissions.py",
     "truebind-web/backend/app/routes/org.py",
     "truebind-web/backend/migrations/versions/0006_roles_orgs_invitations.py",
-    "truebind-web/backend/tests/test_org_members.py"
+    "truebind-web/backend/tests/test_org_members.py",
+    "truebind-web/backend/tests/test_isolation_all_endpoints.py",
+    "truebind-web/backend/migrations/versions/0007_identity_rls.py"
   ],
   "baseline": {
-    "mypy_legacy_errors": 102,
+    "mypy_legacy_errors": 101,
     "coverage_total_pct": 89.69
   },
   "new_code_coverage_min_pct": 85

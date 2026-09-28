@@ -53,12 +53,26 @@ def set_tenant(db: Session, tenant_id: str | None, worker: bool = False) -> None
         _apply_tenant(db, db.connection())
 
 
+def set_identity(db: Session, *, user_id: str | None = None, session_token_hash: str | None = None) -> None:
+    """Bind the caller's identity for identity-table RLS (migration 0007):
+    before a tenant is known, a session row is visible only to the holder of
+    its token hash and membership rows only to their own user."""
+    if user_id is not None:
+        db.info["user_id"] = user_id
+    if session_token_hash is not None:
+        db.info["session_token_hash"] = session_token_hash
+    if db.in_transaction():
+        _apply_tenant(db, db.connection())
+
+
 def _apply_tenant(session: Session, connection) -> None:
     if connection.dialect.name != "postgresql":
         return
-    tenant_id = session.info.get("tenant_id") or ""
-    connection.execute(text("SELECT set_config('app.tenant_id', :t, true), set_config('app.worker', :w, true)"),
-                       {"t": tenant_id, "w": "on" if session.info.get("worker") else "off"})
+    connection.execute(
+        text("SELECT set_config('app.tenant_id', :t, true), set_config('app.worker', :w, true), "
+             "set_config('app.user_id', :u, true), set_config('app.session_token_hash', :s, true)"),
+        {"t": session.info.get("tenant_id") or "", "w": "on" if session.info.get("worker") else "off",
+         "u": session.info.get("user_id") or "", "s": session.info.get("session_token_hash") or ""})
 
 
 @event.listens_for(Session, "after_begin")

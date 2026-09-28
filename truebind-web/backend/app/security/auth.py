@@ -20,7 +20,7 @@ from fastapi import Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from ..config import COOKIE_SECURE, SESSION_TTL_HOURS
-from ..database import get_db, set_tenant
+from ..database import get_db, set_identity, set_tenant
 from ..models.identity import AuthSession, Membership, User
 from .permissions import Permission, has_permission, permissions_for
 
@@ -88,12 +88,17 @@ def get_context(request: Request, db: Session = Depends(get_db)) -> Context:
     token = request.cookies.get(COOKIE_NAME)
     if not token or len(token) > 200:
         raise _unauthorized()
-    s = db.query(AuthSession).filter_by(token_hash=token_hash(token)).first()
-    if s is None or s.revoked_at is not None or _aware(s.expires_at) <= _now():
+    h = token_hash(token)
+    set_identity(db, session_token_hash=h)
+    s = db.query(AuthSession).filter_by(token_hash=h).first()
+    expires_at = _aware(s.expires_at) if s is not None else None
+    if s is None or s.revoked_at is not None or expires_at is None or expires_at <= _now():
         raise _unauthorized()
     user = db.get(User, s.user_id)
     if user is None or not user.is_active:
         raise _unauthorized()
+    set_identity(db, user_id=user.id)
+    set_tenant(db, s.tenant_id)
     m = db.query(Membership).filter_by(user_id=user.id, tenant_id=s.tenant_id).first()
     if m is None:
         raise _unauthorized()

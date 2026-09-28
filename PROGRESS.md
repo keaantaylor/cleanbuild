@@ -214,5 +214,20 @@ Root cause found on the way: `migrations/env.py` called `fileConfig()` (default 
 
 Process note (the user asked for everything today): from here on each task runs `verify --fast` and is committed on green; `verify --full` runs at every phase gate and must be green before the next phase starts. PROGRESS.md records both.
 
+### P1.9 Audit coverage and tamper detection — done
+Acceptance (`tests/test_audit_coverage.py`, 9 on PostgreSQL, 8 + 1 PG-only skip on SQLite):
+- [x] Every state-changing operation in the OpenAPI document (29: POST/PATCH/DELETE) is called successfully in one scenario and each call adds an audit entry; an operation added later without an audited step fails the test; the chain verifies intact afterwards — `test_every_state_change_is_audited_and_the_chain_holds`.
+- [x] Gap found and fixed: requesting an AI exception summary wrote no audit entry (only its completion did). It now writes `AI_SUMMARY_REQUESTED`.
+- [x] PostgreSQL refuses UPDATE/DELETE on `audit_log` (append-only trigger) — `test_database_refuses_to_edit_or_delete_audit_rows`.
+- [x] With the trigger lifted by the table owner, editing actor, action, payload, timestamp or the stored hash breaks the chain at that entry; deleting an entry breaks it at the next; renumbering is caught — `test_editing_any_field_breaks_the_chain_at_that_entry` (5), `test_deleting_an_entry_breaks_the_chain`, `test_verify_detects_tampering_directly`.
+
+### P1 phase gate
+- Self-review against the non-negotiables: tri-state mapping untouched; NOT_ASSESSED used for the new bounded check (P1.7); golden unchanged; money Decimal (P1.6); isolation app-layer + RLS on every tenant table incl. `idempotency_keys` (existing forced-RLS test); audit chain + coverage + tamper tests (P1.9); originals immutable (P1.5); secrets only from env, `.env.example` current; no PII in logs/Sentry (P1.8); nothing deployed.
+- Greps: no TODO/FIXME/XXX in app or engine code; no bare `except:`; the only `print(` is the engine's interactive CLI confirmation (`bordereaux/mapping.py:confirm_mapping_cli`, intended); remaining `Float` columns are scores/percentages, not money; no secret-shaped strings except a clearly fake test fixture in the scrubber test.
+- Unscoped queries: enforced by the OpenAPI isolation walker (every endpoint, cross-tenant → 404) and forced RLS on every table with `tenant_id`.
+- API contract (intentional, additive): `GET /healthz`, `GET /readyz`; snapshot accepted with `--update-openapi`.
+- gitleaks flagged two fake values in the P1.8 scrubber test (already pushed in fce06c5). Reviewed as false positives: listed by exact fingerprint in `.gitleaksignore`, marked `gitleaks:allow` inline; history not rewritten.
+- Gate evidence — `verify --full` PASS (345 s): ruff/mypy clean (legacy 93/93); engine 90; vitest 16; migrations round-trip; backend on PostgreSQL 253 passed; golden 8; next build; e2e 2; perf realistic 35.7 s / adversarial 29.4 s (probe max 0.035 s); security clean; coverage 91.42% (baseline ratcheted 89.69 → 91.42), 94.46% of changed lines; OpenAPI 67 operations.
+- Summary: (1) P1 delivered settings, roles/invitations, isolation + RLS, TOTP/SSO, immutable S3 originals, exact money, job reliability, observability and a verified audit trail. (2) 50k rows in ~37 s with the API unaffected. (3) One engine gap closed (unbounded fuzzy duplicate check → bounded, NOT ASSESSED when over budget). (4) One audit gap closed (AI summary requests). (5) Open for humans: SECRET_KEY, Sentry DSN, S3 bucket, Redis, separate migration role (HUMAN_TODO.md).
+
 Remaining tasks (acceptance criteria written in full when each starts):
-- P1.9 Audit: every new event type chained; tamper-detection test on PostgreSQL and SQLite.

@@ -5815,14 +5815,16 @@
   },
   "/health": {
    "get": {
-    "operationId": "health_check_health_get",
+    "operationId": "healthz_health_get",
     "responses": {
      "200": {
       "content": {
        "application/json": {
         "schema": {
-         "additionalProperties": true,
-         "title": "Response Health Check Health Get",
+         "additionalProperties": {
+          "type": "string"
+         },
+         "title": "Response Healthz Health Get",
          "type": "object"
         }
        }
@@ -5830,12 +5832,16 @@
       "description": "Successful Response"
      }
     },
-    "summary": "Health Check"
+    "summary": "Healthz",
+    "tags": [
+     "health"
+    ]
    }
   },
   "/health/ready": {
    "get": {
-    "operationId": "readiness_health_ready_get",
+    "description": "Legacy probe: same checks as /readyz, original response shape.",
+    "operationId": "health_ready_health_ready_get",
     "responses": {
      "200": {
       "content": {
@@ -5846,7 +5852,54 @@
       "description": "Successful Response"
      }
     },
-    "summary": "Readiness"
+    "summary": "Health Ready",
+    "tags": [
+     "health"
+    ]
+   }
+  },
+  "/healthz": {
+   "get": {
+    "operationId": "healthz_healthz_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "string"
+         },
+         "title": "Response Healthz Healthz Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Healthz",
+    "tags": [
+     "health"
+    ]
+   }
+  },
+  "/readyz": {
+   "get": {
+    "operationId": "readyz_readyz_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Readyz",
+    "tags": [
+     "health"
+    ]
    }
   }
  }

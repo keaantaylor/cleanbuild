@@ -38,11 +38,12 @@
     "truebind-web/backend/migrations/versions/0012_idempotency_keys.py",
     "truebind-web/backend/tests/test_jobs_reliability.py",
     "truebind-web/backend/app/observability.py",
-    "truebind-web/backend/tests/test_observability.py"
+    "truebind-web/backend/tests/test_observability.py",
+    "truebind-web/backend/tests/test_audit_coverage.py"
   ],
   "baseline": {
     "mypy_legacy_errors": 93,
-    "coverage_total_pct": 89.69
+    "coverage_total_pct": 91.42
   },
   "new_code_coverage_min_pct": 85
 }

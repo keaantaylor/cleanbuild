@@ -1,0 +1,4 @@
+# Reviewed false positives (fake values in test fixtures for the PII scrubber, P1.8).
+# Only exact historical fingerprints are listed; new code uses inline gitleaks:allow.
+fce06c5a8d0d51e0ee20f47b21e3afcafb123315:truebind-web/backend/tests/test_observability.py:generic-api-key:62
+fce06c5a8d0d51e0ee20f47b21e3afcafb123315:truebind-web/backend/tests/test_observability.py:generic-api-key:137

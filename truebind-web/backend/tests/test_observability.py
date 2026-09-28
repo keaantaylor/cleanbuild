@@ -59,7 +59,7 @@ def _lines(buf: io.StringIO) -> list[dict[str, Any]]:
         ("user jane.doe@example.com signed in", "jane.doe@example.com"),
         ("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.abc.def", "eyJhbGciOiJIUzI1NiJ9"),
         ("password=hunter2 token=abc123secret", "hunter2"),
-        ("api_key: sk-live-1234567890", "sk-live-1234567890"),
+        ("api_key: sk-live-1234567890", "sk-live-1234567890"),  # gitleaks:allow -- fake fixture
         ("card 4111 1111 1111 1111 declined", "4111 1111 1111 1111"),
         ("call +44 20 7946 0958 now", "7946 0958"),
         ("IBAN IE29AIBK93115212345678 on file", "IE29AIBK93115212345678"),
@@ -134,7 +134,7 @@ def test_sentry_events_are_scrubbed_before_sending() -> None:
         },
         "user": {"email": "bob@example.com", "ip_address": "10.0.0.1", "id": "u-1"},
         "exception": {"values": [{"type": "ValueError", "value": "IBAN IE29AIBK93115212345678 bad"}]},
-        "extra": {"note": "token=abcdef123456"},
+        "extra": {"note": "token=abcdef123456"},  # gitleaks:allow -- fake fixture
     }
     out = observability.before_send(event, {})
     assert out is not None

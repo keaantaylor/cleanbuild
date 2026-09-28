@@ -74,6 +74,10 @@ def create_exception_summary(report_id: str, background_tasks: BackgroundTasks,
                                narrative_status="GENERATING" if available else "UNAVAILABLE",
                                narrative_error=None if available else "AI summaries are not configured on this server.")
     db.add(summary)
+    db.flush()
+    audit_service.log_action(db, ctx.tenant_id, report.id, "AI_SUMMARY_REQUESTED", "EXCEPTION_SUMMARY", summary.id,
+                             after={"narrative_status": summary.narrative_status}, actor=ctx.actor,
+                             actor_user_id=ctx.user_id)
     db.commit()
     if available:
         background_tasks.add_task(_generate_narrative_in_background, summary.id, ctx.tenant_id)

@@ -48,6 +48,8 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     ("patch", "/api/v1/reports/{report_id}/exceptions/{validation_result_id}"): {"review_status": "resolved"},
     ("post", "/api/v1/reports/{report_id}/obligations"): {"note": "x"},
     ("post", "/api/v1/reports/{report_id}/sheets/{sheet_id}/mapping"): {"mappings": {"CR0035M": None}},
+    ("put", "/api/v1/reports/{report_id}/binder"): {"binder_id": None},
+    ("patch", "/api/v1/reports/{report_id}/checks/findings/{finding_id}"): {"disposition": "CONFIRMED"},
 }
 
 
@@ -77,6 +79,10 @@ def _tenant_a(api: Api) -> dict[str, str]:
     finally:
         config.WEBHOOK_ALLOW_PRIVATE_TARGETS = saved
     delivery = api.post(f"/api/v1/org/webhooks/{hook['id']}/test").json()
+    binder_in = {"name": "B", "inception_date": "2025-01-01", "expiry_date": "2025-12-31", "limit_currency": "GBP"}
+    binder = api.post("/api/v1/binders", json=binder_in).json()
+    api.put(f"/api/v1/reports/{rid}/binder", json={"binder_id": binder["id"]})
+    finding = api.get(f"/api/v1/reports/{rid}/checks/findings").json()["items"][0]
     return {
         "report_id": rid,
         "sheet_id": sheet["id"],
@@ -89,6 +95,9 @@ def _tenant_a(api: Api) -> dict[str, str]:
         "membership_id": member["membership_id"],
         "endpoint_id": hook["id"],
         "delivery_id": delivery["id"],
+        "binder_id": binder["id"],
+        "finding_id": finding["id"],
+        "module": "binder",
     }
 
 

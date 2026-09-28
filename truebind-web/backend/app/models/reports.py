@@ -75,6 +75,8 @@ class Report(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     deleted_by: Mapped[str | None] = mapped_column(String(320), nullable=True)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    binder_id: Mapped[str | None] = mapped_column(  # P3: the binder this bordereau is reported under
+        ForeignKey("binders.id", ondelete="SET NULL"), nullable=True, index=True)
 
     sheets: Mapped[list["Sheet"]] = relationship(back_populates="report", cascade="all, delete-orphan")
     claim_rows: Mapped[list["ClaimRow"]] = relationship(back_populates="report", cascade="all, delete-orphan")

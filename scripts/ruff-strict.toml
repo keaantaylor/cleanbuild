@@ -8,6 +8,8 @@ select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "DTZ", "N", "A", "C4
 
 [lint.per-file-ignores]
 "**/tests/**" = ["S101", "S310", "S105", "S106"]
+# Golden suites are tests; spreadsheet cells carry naive dates by nature (Excel has no time zone).
+"fixtures/golden/**" = ["S101", "DTZ001"]
 "scripts/verify.py" = ["T201", "S603"]
 
 [lint.flake8-bugbear]

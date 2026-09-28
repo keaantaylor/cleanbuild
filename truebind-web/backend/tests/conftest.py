@@ -122,6 +122,9 @@ class Api:
     def patch(self, url: str, **kw: Any) -> HttpResponse:
         return self.client.patch(url, headers=self._h(kw.pop("headers", None)), **kw)
 
+    def put(self, url: str, **kw: Any) -> HttpResponse:
+        return self.client.put(url, headers=self._h(kw.pop("headers", None)), **kw)
+
     def delete(self, url: str, **kw: Any) -> HttpResponse:
         return self.client.delete(url, headers=self._h(kw.pop("headers", None)), **kw)
 

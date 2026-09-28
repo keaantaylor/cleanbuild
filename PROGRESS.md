@@ -9,9 +9,9 @@ Python (`truebind-web/backend/.venv`).
 | Phase | State |
 |---|---|
 | P0 Recon & harness | **done** — gate green (see evidence) |
-| P1 Platform foundation | next |
-| P2 Channels & integrations | pending |
-| P3 Binder compliance | pending |
+| P1 Platform foundation | **done** — gate green |
+| P2 Channels & integrations | **done** — gate green |
+| P3 Binder compliance | in progress |
 | P4 Leakage & overpayment | pending |
 | P5 Sanctions screening | pending |
 | P6 Scorecard | pending |
@@ -299,5 +299,22 @@ Acceptance:
 - Found and fixed at the gate. (1) paramiko 4.0.0 advisory PYSEC-2026-2858 (RSA SHA-1): upgraded to 5.0.0 and re-proved against SFTPGo. (2) bandit: SNS SignatureVersion 1 (SHA-1) removed, v2 only; the ECB XML is now parsed with defusedxml. (3) A dummy e2e secret was marked `gitleaks:allow`. (4) Coverage fell below the baseline because async route bodies are not traced (BLOCKERS B2); it was restored with genuine edge-case tests (`tests/test_channel_edges.py`, 18), not by lowering the baseline.
 - Self-review against the non-negotiables: every channel enters through one intake gate (no path skips the file checks); webhooks and SFTP never report "sent" unless they were; AI runs EU/UK only, sends headers plus masked samples, and never applies a suggestion without confirmation; FX conversion is exact Decimal with NOT_ASSESSED when a rate is missing; all new tenant tables have forced RLS; every new state change is audited (the walker covers 48 operations); secrets are encrypted and write-only; nothing is deployed.
 - Summary: (1) Files arrive by upload, API or e-mail (Postmark/SES) through one gate. (2) Outputs leave by download, SMTP, signed webhooks or pinned-key SFTP, each with honest outcomes and retries. (3) ECB rates convert exactly with stated dates. (4) AI sits behind an EU/UK-only interface with masking; the narrative left the direct Anthropic path. (5) Settings -> Channels shows and manages it all; humans still need to provide the Postmark/SES, AI and SMTP accounts (HUMAN_TODO.md).
+
+## P3 — Binder compliance (in progress)
+
+Note on criteria: the original P3–P8 acceptance criteria were lost with an earlier session's context. They are **reconstructed** from each module's name, the brief's shared rules (a Finding model; golden fixtures per module with dirty file + answer key at 100% precision and recall, a clean file with zero findings, and an unmapped variant giving NOT_ASSESSED) and standard Lloyd's delegated-authority practice. Correct any of them and the tests follow.
+
+Process note: from P3 on, each task runs `verify --fast` and is committed when green; `verify --full` runs at every phase gate (not per task), to fit the time available.
+
+### P3.1 Findings framework + binder compliance — done
+Acceptance (reconstructed):
+- [x] One shared `findings` model for every module: rule code, FAIL or REVIEW, severity, a plain-English explanation, drill-down to sheet, 1-based source row, field and source column, and an optional Decimal amount with an ISO 4217 currency. Plus a `module_runs` record per report and module: state ASSESSED / PARTIAL / NOT_ASSESSED, per-rule assessed and not-assessed counts with reasons, and the configuration used. Forced RLS on `binders`, `module_runs` and `findings` (migration 0014) — `test_every_tenant_table_has_forced_rls_and_a_policy`.
+- [x] Modules run automatically in the processing job, in the same transaction as the results. A module that crashes is recorded NOT_ASSESSED with a reason, and processing still completes — `test_a_crashing_check_is_not_assessed_and_processing_completes`.
+- [x] Binders (period, UMR, coverholder, permitted currencies, per-claim settlement authority and aggregate limit, exact decimals) are validated and cannot be deleted while in use — `test_binders_are_validated` (4), `test_binder_amounts_round_trip_as_exact_strings`, `test_a_binder_in_use_cannot_be_deleted`.
+- [x] Rules: loss date outside the inclusive period; currency not permitted; incurred above authority (ECB conversion on the loss date, NOT_ASSESSED when there is no rate); latest cumulative paid per claim above the aggregate (a lower bound when some rows cannot be converted; NOT_ASSESSED when that proves nothing). The loss-date column is read both ways when it is ambiguous (D9): when one reading is inside the period and the other is not, the finding is REVIEW, never a guess.
+- [x] Golden (`fixtures/golden/binder`, run by `verify` golden step): dirty.xlsx with 12 planted findings including 2 ambiguous-date REVIEWs and exact amounts — precision 100% and recall 100% (`test_dirty_file_all_breaches_and_nothing_else`); clean.xlsx gives zero findings and is fully assessed (`test_clean_file_has_zero_findings`); unmapped.xlsx gives NOT_ASSESSED with reasons (`test_unmapped_inputs_are_not_assessed`); a report with no binder gives NOT_ASSESSED (`test_without_a_binder_nothing_is_assessed`). The answer key is written by hand next to each planted row in `build_fixtures.py`, which is deterministic.
+- [x] Findings can be confirmed or dismissed (dismissing needs a note). The decision is audited and survives a re-run while the finding is still raised (stable fingerprint) — `test_dispositions_need_a_reason_and_survive_a_rerun`. Checks run only on processed reports and only for writers — `test_checks_need_a_processed_report_and_a_writer`. Rules a binder does not set are NOT_ASSESSED with the reason — `test_unconfigured_rules_are_not_assessed_with_reasons`, `test_blank_values_are_counted_not_passed`. '$' is never guessed as USD — `test_currencies_are_read_strictly`.
+- [x] UI: the report page has a "Checks" section. Each module shows its coverage statement, a rule table with assessed and not-assessed counts, a binder picker, and findings with an explanation, source reference, evidence and a confirm/dismiss/reopen decision. There is a Settings → Binders tab. e2e `tests/e2e/checks.spec.ts`; vitest `check modules` (3).
+- Existing tests extended (evidence), with no assertion weakened: the audit walker (`test_audit_coverage.py`) and the isolation walker (`test_isolation_all_endpoints.py`) gained steps and ids for the 7 new operations, as both walkers require. `conftest.Api` gained `put()`. `scripts/ruff-strict.toml` treats `fixtures/golden/**` like `**/tests/**` for S101 (asserts) and also ignores DTZ001 there, because spreadsheet cells hold naive dates.
 
 Remaining tasks (acceptance criteria written in full when each starts):

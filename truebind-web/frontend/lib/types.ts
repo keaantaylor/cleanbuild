@@ -31,6 +31,7 @@ export interface Report {
   file_kind?: string | null;
   sender?: string | null;
   programme?: string | null;
+  binder_id?: string | null;
   issues_found?: number | null;
 }
 
@@ -467,3 +468,24 @@ export interface ClaimRow {
   fees_paid_to_date?: number | null;
   unmapped_values?: Record<string, unknown> | null;
 }
+
+// ---------------------------------------------------------------- check modules (P3+)
+export type ModuleState = "ASSESSED" | "PARTIAL" | "NOT_ASSESSED" | "NOT_RUN";
+export interface CheckRule { code: string; label: string; assessed: number; not_assessed: number; reasons: string[] }
+export interface ModuleRun {
+  module: string; label: string; state: ModuleState; reason: string | null; rules: CheckRule[];
+  finding_count: number; open_count: number; ran_at: string | null; ran_by: string | null; coverage_statement: string;
+}
+export type Disposition = "OPEN" | "CONFIRMED" | "DISMISSED";
+export interface ModuleFinding {
+  id: string; module: string; rule_code: string; status: "FAIL" | "REVIEW"; severity: string; title: string;
+  explanation: string; sheet_name: string | null; row_number: number | null; field_code: string | null;
+  source_column: string | null; claim_row_id: string | null; claim_reference: string | null;
+  amount: string | null; currency: string | null; evidence: Record<string, unknown> | null;
+  disposition: Disposition; disposition_note: string | null; disposed_by: string | null; disposed_at: string | null;
+}
+export interface BinderInput {
+  name: string; umr: string | null; coverholder: string | null; inception_date: string; expiry_date: string;
+  currencies: string[]; limit_currency: string; claims_authority: string | null; aggregate_limit: string | null;
+}
+export interface Binder extends BinderInput { id: string; created_at: string; created_by: string }

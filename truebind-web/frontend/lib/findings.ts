@@ -77,3 +77,29 @@ export function channelStatus(status: string): { label: string; tone: "live" | "
     default: return { label: "Planned", tone: "neutral" };
   }
 }
+
+/** How a check module's run is shown. "Not assessed" is never shown as a pass. */
+export function moduleState(state: string): { label: string; tone: "good" | "warn" | "neutral" | "bad" } {
+  switch (state) {
+    case "ASSESSED": return { label: "Assessed", tone: "good" };
+    case "PARTIAL": return { label: "Partly assessed", tone: "warn" };
+    case "NOT_ASSESSED": return { label: "Not assessed", tone: "warn" };
+    default: return { label: "Not run yet", tone: "neutral" };
+  }
+}
+
+/** A decimal-string amount with its ISO currency; never parsed to a float. */
+export function decimalMoney(amount: string | null, currency: string | null): string {
+  if (amount == null) return "—";
+  const [whole, frac = "00"] = amount.replace(/^-/, "").split(".");
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const text = `${amount.startsWith("-") ? "-" : ""}${grouped}.${frac.padEnd(2, "0").slice(0, 2)}`;
+  return currency ? `${currency} ${text}` : `${text} (currency not stated)`;
+}
+
+/** Where a finding points: sheet, row and column, or the whole report. */
+export function findingWhere(f: { sheet_name: string | null; row_number: number | null; source_column: string | null }): string {
+  if (!f.sheet_name) return "Whole report";
+  return [f.sheet_name, f.row_number != null ? `row ${f.row_number}` : null, f.source_column ? `column “${f.source_column}”` : null]
+    .filter(Boolean).join(" · ");
+}

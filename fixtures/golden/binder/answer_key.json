@@ -1,0 +1,90 @@
+{
+  "module": "binder",
+  "binder": {
+    "name": "Golden Binder 2024-25",
+    "umr": "B0999GOLDEN2024",
+    "coverholder": "Golden Coverholder Ltd",
+    "inception_date": "2024-03-01",
+    "expiry_date": "2025-02-28",
+    "currencies": [
+      "EUR",
+      "GBP"
+    ],
+    "limit_currency": "GBP",
+    "claims_authority": "50000.00",
+    "aggregate_limit": "250000.00"
+  },
+  "fx_per_eur": {
+    "GBP": "0.8500",
+    "USD": "1.0800"
+  },
+  "findings": [
+    {
+      "sheet": "Claims",
+      "row": 3,
+      "rule": "BND_LOSS_OUTSIDE_PERIOD",
+      "status": "FAIL"
+    },
+    {
+      "sheet": "Claims",
+      "row": 4,
+      "rule": "BND_LOSS_OUTSIDE_PERIOD",
+      "status": "FAIL"
+    },
+    {
+      "sheet": "Claims",
+      "row": 5,
+      "rule": "BND_CURRENCY_NOT_PERMITTED",
+      "status": "FAIL"
+    },
+    {
+      "sheet": "Claims",
+      "row": 6,
+      "rule": "BND_OVER_AUTHORITY",
+      "status": "FAIL",
+      "amount": "30000.00",
+      "currency": "GBP"
+    },
+    {
+      "sheet": "Claims",
+      "row": 7,
+      "rule": "BND_OVER_AUTHORITY",
+      "status": "FAIL",
+      "amount": "9500.00",
+      "currency": "GBP"
+    },
+    {
+      "sheet": "Claims",
+      "row": 12,
+      "rule": "BND_CURRENCY_NOT_PERMITTED",
+      "status": "FAIL"
+    },
+    {
+      "sheet": "Ambiguous dates",
+      "row": 2,
+      "rule": "BND_LOSS_OUTSIDE_PERIOD",
+      "status": "REVIEW"
+    },
+    {
+      "sheet": "Ambiguous dates",
+      "row": 4,
+      "rule": "BND_LOSS_OUTSIDE_PERIOD",
+      "status": "REVIEW"
+    },
+    {
+      "sheet": "Ambiguous dates",
+      "row": 5,
+      "rule": "BND_LOSS_OUTSIDE_PERIOD",
+      "status": "FAIL"
+    },
+    {
+      "sheet": null,
+      "row": null,
+      "rule": "BND_AGGREGATE_EXCEEDED",
+      "status": "FAIL",
+      "amount": "12648.15",
+      "currency": "GBP"
+    }
+  ],
+  "not_assessed_rules_dirty": []
+}

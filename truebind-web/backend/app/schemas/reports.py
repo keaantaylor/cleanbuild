@@ -103,6 +103,7 @@ class ReportOut(BaseModel):
     source_channel: str = "upload"
     sender: str | None = None
     programme: str | None = None
+    binder_id: str | None = None
     file_size_bytes: int
     source_sha256: str | None = None
     sheet_count_total: int

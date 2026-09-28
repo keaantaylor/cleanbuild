@@ -33,7 +33,7 @@ from ..ai.mapper import ProviderAIMapper
 from ..ai.masking import masked_samples
 from ..models.jobs import Job
 from ..models.reports import Report, Sheet
-from . import job_service, persistence_service, pipeline_service, report_state
+from . import job_service, module_service, persistence_service, pipeline_service, report_state
 from .storage import IntegrityError, get_store
 
 log = logging.getLogger("truebind.jobs")
@@ -199,8 +199,11 @@ def run_process(db: Session, job: Job) -> dict:
     t = perf_counter()
     persistence_service.persist_pipeline_result(db, report, sheets, result, {s.sheet_name: s.id for s in db_sheets})
     t_persist = perf_counter() - t
+    t = perf_counter()
+    module_service.run_all(db, report)  # same transaction as the results: all or nothing
+    t_checks = perf_counter() - t
     report_state.transition(db, report, "COMPLETE", reason="processed")
-    return {"parse_s": round(t_parse, 2), "pipeline_s": round(t_pipe, 2), "persist_s": round(t_persist, 2),
+    return {"parse_s": round(t_parse, 2), "pipeline_s": round(t_pipe, 2), "persist_s": round(t_persist, 2), "checks_s": round(t_checks, 2),
             "stage_timings": {k: round(v, 2) for k, v in result.stage_timings.items()},
             "rows": int(len(result.canonical)), "peak_rss_mb": _peak_rss_mb()}
 

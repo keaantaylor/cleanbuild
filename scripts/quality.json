@@ -58,7 +58,17 @@
     "truebind-web/backend/tests/test_fx.py",
     "truebind-web/backend/app/ai",
     "truebind-web/backend/tests/test_ai_providers.py",
-    "truebind-web/backend/tests/test_channel_edges.py"
+    "truebind-web/backend/tests/test_channel_edges.py",
+    "truebind-web/backend/app/checks",
+    "truebind-web/backend/app/models/modules.py",
+    "truebind-web/backend/migrations/versions/0014_modules_binders.py",
+    "truebind-web/backend/app/services/module_service.py",
+    "truebind-web/backend/app/routes/checks.py",
+    "truebind-web/backend/tests/test_checks_binder.py",
+    "fixtures/golden/build_fixtures.py",
+    "fixtures/golden/golden_util.py",
+    "fixtures/golden/conftest.py",
+    "fixtures/golden/binder/test_binder_golden.py"
   ],
   "baseline": {
     "mypy_legacy_errors": 92,

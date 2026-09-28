@@ -16,7 +16,7 @@ from .database import get_session_factory, set_tenant
 from .models._util import utcnow
 from .models.exception_summary import ExceptionSummary
 from .models.identity import Tenant
-from .routes import (alerts, audit, auth, exception_summary, findings, fx, inbound, mapping, mfa, obligations, ops, org,
+from .routes import (alerts, audit, auth, checks, exception_summary, findings, fx, inbound, mapping, mfa, obligations, ops, org,
                      reports, sftp, sso, system, templates, webhooks)
 
 observability.configure_logging(LOG_LEVEL, LOG_JSON)
@@ -147,6 +147,7 @@ app.include_router(inbound.provider_router)
 app.include_router(webhooks.router)
 app.include_router(sftp.router)
 app.include_router(fx.router)
+app.include_router(checks.router)
 
 
 app.include_router(observability.router)

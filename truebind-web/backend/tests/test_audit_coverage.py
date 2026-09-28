@@ -254,6 +254,19 @@ def test_every_state_change_is_audited_and_the_chain_holds(monkeypatch: pytest.M
     monkeypatch.setattr(fx_service, "_fetch", lambda url: FEED)
     trail.step("POST", "/api/v1/fx/refresh", lambda: owner.post("/api/v1/fx/refresh"))
 
+    # --- binders and check modules (P3): every loss date (2024) is outside this binder -> findings
+    binder_in = {"name": "B", "inception_date": "2025-01-01", "expiry_date": "2025-12-31", "limit_currency": "GBP"}
+    binder = trail.step("POST", "/api/v1/binders", lambda: owner.post("/api/v1/binders", json=binder_in)).json()
+    trail.step("PUT", "/api/v1/reports/{report_id}/binder", lambda: owner.client.put(
+        f"/api/v1/reports/{rid}/binder", json={"binder_id": binder["id"]}, headers=csrf_a))  # fmt: skip
+    trail.step("POST", "/api/v1/reports/{report_id}/checks/{module}/run",
+               lambda: owner.post(f"/api/v1/reports/{rid}/checks/binder/run"))  # fmt: skip
+    finding = owner.get(f"/api/v1/reports/{rid}/checks/findings").json()["items"][0]
+    trail.step("PATCH", "/api/v1/reports/{report_id}/checks/findings/{finding_id}", lambda: owner.patch(
+        f"/api/v1/reports/{rid}/checks/findings/{finding['id']}", json={"disposition": "CONFIRMED"}))  # fmt: skip
+    spare = owner.post("/api/v1/binders", json={**binder_in, "name": "Spare"}).json()
+    trail.step("DELETE", "/api/v1/binders/{binder_id}", lambda: owner.delete(f"/api/v1/binders/{spare['id']}"))
+
     missing = _mutating_operations() - trail.covered
     assert not missing, f"state-changing operations without an audited scenario step: {sorted(missing)}"
     verdict = owner.get("/api/v1/audit/verify").json()

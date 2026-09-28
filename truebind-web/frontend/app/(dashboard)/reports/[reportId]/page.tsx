@@ -15,6 +15,9 @@ import { useShell } from "@/components/layout/ShellContext";
 import { ProcessingView } from "@/components/intake/ProcessingView";
 import { Recommendations } from "@/components/ops/Recommendations";
 import { ExcludedRowsPanel } from "@/components/report/ExcludedRowsPanel";
+import { ChecksPanel } from "@/components/report/ChecksPanel";
+import { useMe } from "@/components/auth/AuthGate";
+import { hasPermission } from "@/lib/auth";
 import styles from "./report.module.css";
 
 const RULE_LABEL: Record<string, string> = {
@@ -92,11 +95,12 @@ export default function ReportWorkspace({ params }: { params: Promise<{ reportId
 
 const SECTIONS = [
   ["financial", "Financial"], ["claims", "Claims"], ["quality", "Data quality"], ["exceptions", "Exceptions"],
-  ["duplicates", "Duplicates"], ["mapping", "Mapping"], ["period", "Reporting period"], ["lineage", "Lineage"],
+  ["duplicates", "Duplicates"], ["checks", "Checks"], ["mapping", "Mapping"], ["period", "Reporting period"], ["lineage", "Lineage"],
   ["history", "Processing history"], ["exports", "Exports"],
 ] as const;
 
 function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
+  const me = useMe();
   // Old deep links (?tab=sheets|history|outputs) land on the matching section.
   useEffect(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
@@ -110,6 +114,9 @@ function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
         {SECTIONS.map(([id, label]) => <a key={id} href={`#${id}`}>{label}</a>)}
       </nav>
       <OverviewTab report={report} s={s} />
+      <section><SectionHeading id="checks" eyebrow="Checks" title="Binder, leakage and sanctions checks"
+        description="Each check says what it assessed and what it could not. Findings point to the sheet, row and column; confirm or dismiss each one." />
+        <ChecksPanel report={report} canWrite={hasPermission(me?.permissions ?? [], "data:write")} /></section>
       <section><SectionHeading id="mapping" eyebrow="Mapping" title="Sheets and column mapping"
         description="How each sheet was understood. Change the mapping and reprocess at any time; every change is audited." />
         <SheetsTab reportId={report.id} s={s} /></section>

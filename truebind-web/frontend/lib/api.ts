@@ -1,4 +1,4 @@
-import type { Alert, AuditLogEntry, Channels, ClaimRow, Delivery, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Invitation, InvitationCreated, Job, Me, MappingField, Member, MfaChallenge, MfaStatus, Obligation, OrgSettings, Overview, Report, ReportSummary, Role, Sheet, SheetMapping, SftpDestination, SftpInput, SsoConfig, SsoConfigInput, SystemStatus, Template, WebhookDelivery, WebhookEndpoint, WebhookEvent, WorkQueue } from "./types";
+import type { Alert, AuditLogEntry, Binder, BinderInput, Disposition, ModuleFinding, ModuleRun, Channels, ClaimRow, Delivery, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Invitation, InvitationCreated, Job, Me, MappingField, Member, MfaChallenge, MfaStatus, Obligation, OrgSettings, Overview, Report, ReportSummary, Role, Sheet, SheetMapping, SftpDestination, SftpInput, SsoConfig, SsoConfigInput, SystemStatus, Template, WebhookDelivery, WebhookEndpoint, WebhookEvent, WorkQueue } from "./types";
 
 // Default: same hostname as the page, port 8000. Using the page's own host
 // matters: a page on localhost calling an API on 127.0.0.1 is cross-site, so
@@ -310,6 +310,20 @@ export const api = {
     if (meta.programme) form.append("programme", meta.programme);
     return request<Report>("/reports/upload", { method: "POST", body: form, timeoutMs: 300_000 });
   },
+
+  // ---- check modules and binders (P3+)
+  listChecks: (reportId: string) => request<ModuleRun[]>(`/reports/${reportId}/checks`),
+  runCheck: (reportId: string, module: string) =>
+    request<ModuleRun>(`/reports/${reportId}/checks/${encodeURIComponent(module)}/run`, { method: "POST" }),
+  listModuleFindings: (reportId: string, params: { module?: string; status?: string; disposition?: string; limit?: number; offset?: number } = {}) =>
+    request<Page<ModuleFinding>>(`/reports/${reportId}/checks/findings${qs(params)}`),
+  disposeFinding: (reportId: string, findingId: string, disposition: Disposition, note?: string) =>
+    request<ModuleFinding>(`/reports/${reportId}/checks/findings/${findingId}`, { method: "PATCH", body: JSON.stringify({ disposition, note: note || null }) }),
+  assignBinder: (reportId: string, binderId: string | null) =>
+    request<ModuleRun[]>(`/reports/${reportId}/binder`, { method: "PUT", body: JSON.stringify({ binder_id: binderId }) }),
+  listBinders: () => request<Binder[]>("/binders"),
+  createBinder: (body: BinderInput) => request<Binder>("/binders", { method: "POST", body: JSON.stringify(body) }),
+  deleteBinder: (id: string) => request<void>(`/binders/${id}`, { method: "DELETE" }),
 
   // ---- exports (plain GET links; the session cookie authenticates them)
   exportClaimsUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/claims.csv`,

@@ -55,10 +55,12 @@
     "truebind-web/backend/tests/test_sftp.py",
     "truebind-web/backend/app/services/fx_service.py",
     "truebind-web/backend/app/routes/fx.py",
-    "truebind-web/backend/tests/test_fx.py"
+    "truebind-web/backend/tests/test_fx.py",
+    "truebind-web/backend/app/ai",
+    "truebind-web/backend/tests/test_ai_providers.py"
   ],
   "baseline": {
-    "mypy_legacy_errors": 93,
+    "mypy_legacy_errors": 92,
     "coverage_total_pct": 91.42
   },
   "new_code_coverage_min_pct": 85

@@ -276,4 +276,15 @@ Acceptance (`tests/test_fx.py`, 9):
 - [x] API returns decimal strings; NaN refused; refresh org:manage only, audited, 502 on feed outage — `test_api_returns_decimal_strings`, `test_refresh_needs_org_manage_and_is_audited`. Optional scheduled refresh (`FX_AUTO_REFRESH`, every 6 h in the worker).
 - Test scope note (evidence): `/api/v1/fx/rates` and `/api/v1/fx/convert` added to the isolation walker's existing `NO_TENANT_DATA` set (with the health probes): they serve global ECB reference data with no tenant rows; `/fx/convert` also requires query parameters the walker does not supply.
 
+### P2.6 AI behind one interface (EU/UK, masked, fake for tests) — done
+Acceptance (`tests/test_ai_providers.py`, 11):
+- [x] Only EU/UK hosting can be configured: Bedrock `eu-*`, Azure OpenAI in an EU/UK region; the fake provider refuses production — `test_only_eu_uk_providers_can_be_configured` (3), `test_eu_regions_are_accepted`.
+- [x] Masked samples keep shape, never content (letters X/x, digits 9, 24-char cap) — `test_masking_keeps_shape_not_content`.
+- [x] Ingest sends only the headers the alias stage could not match plus up to three masked samples each; no cell value leaves; AI suggestions stored MAPPED_BY_AI, unconfirmed; processing refused until a person confirms — `test_ingest_sends_only_headers_and_masked_samples`.
+- [x] No provider configured: reported as not configured, headers stay UNMAPPED — `test_without_a_provider_headers_stay_unmapped`.
+- [x] Azure OpenAI adapter (deployment path, api-key, forced function, temperature 0) and Bedrock Converse adapter (eu region, forced tool) parse structured replies; provider failures become customer-safe errors — `test_azure_openai_adapter`, `test_azure_errors_are_customer_safe`, `test_bedrock_adapter`; provider/region/model shown without secrets — `test_describe_never_exposes_secrets`.
+- [x] The exception triage narrative uses the same interface (it called Anthropic directly before, outside the EU-only rule).
+
+Existing tests changed (evidence): the AI integration point moved from the engine's direct Anthropic client (`ClaudeAIMapper`, `ANTHROPIC_API_KEY`) to the provider interface, as non-negotiable 9 requires. Tests that injected fakes by patching the old client now inject at the new interface; their assertions are unchanged. `test_job_system.py::test_ai_mapping_calls_are_capped_per_report` keeps cap 2 and 20 input tokens; its no-cell-values check now looks for the cell value "Acme" in the prompt, because masked samples are now sent by design. `test_slow_ai_is_bounded_by_a_time_budget` is unchanged apart from the injection point. `test_failing_ai_degrades_to_deterministic_mapping` now also asserts that the AI stage really ran; without that it would have passed vacuously. In `test_exception_summary.py` the three narrative tests (unavailable / complete / fails safely without echoing provider text) inject a provider instead of patching `anthropic.Anthropic`. The engine's own CLI keeps its Anthropic mapper; the web app never uses it. Legacy mypy ratchet 93 → 92.
+
 Remaining tasks (acceptance criteria written in full when each starts):

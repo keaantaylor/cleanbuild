@@ -1,10 +1,7 @@
 """Turns the deterministic aggregate from exception_aggregation_service
-into a short plain-English narrative via Claude. Reuses the exact same
-client/tool-call pattern as bordereaux.mapping.ClaudeAIMapper (this
-codebase's one existing LLM integration, for the AI-assisted column-
-mapping fallback) rather than a second, inconsistent integration:
-os.environ["ANTHROPIC_API_KEY"], anthropic.Anthropic(...).messages.create
-with tool_choice forcing a single structured tool call.
+into a short plain-English narrative through the EU/UK AI provider
+interface (app/ai/providers.py) -- one structured tool call, the same
+interface the column-mapping suggestions use.
 
 SAFETY RULE (non-negotiable for this feature): the model must never
 compute, derive, recalculate, or estimate any financial figure. Every
@@ -18,12 +15,11 @@ introduce exactly the class of error the product exists to catch.
 from __future__ import annotations
 
 import json
-import os
 import re
 from dataclasses import dataclass
 
-MODEL = os.environ.get("TRUEBIND_AI_MODEL", "claude-haiku-4-5")
-MAX_TOKENS = 1536
+from ..ai import providers as ai_providers
+
 
 _TOOL_SCHEMA = {
     "name": "triage_summary",
@@ -78,11 +74,9 @@ _TOOL_SCHEMA = {
 
 
 def narrative_available() -> bool:
-    """Same "checked once, up front" convention as bordereaux.mapping.
-    ai_mapping_available() -- one source of truth for whether the AI
-    narrative can run at all, so the route and any future caller never
-    discover "no key configured" by catching an exception mid-call."""
-    return bool(os.environ.get("ANTHROPIC_API_KEY"))
+    """One source of truth for whether the AI narrative can run at all: an
+    EU/UK AI provider is configured (app/ai/providers.py, AI_PROVIDER)."""
+    return ai_providers.get_provider() is not None
 
 
 @dataclass
@@ -195,48 +189,33 @@ def _find_unverifiable_numbers(narrative: dict, aggregate: dict) -> list[float]:
     return unverifiable
 
 
-def generate_narrative(aggregate: dict) -> NarrativeResult:
-    """Never raises -- every failure mode (no key, network error, bad
-    response shape, timeout) comes back as a NarrativeResult the caller
+def generate_narrative(aggregate: dict, provider: "ai_providers.AIProvider | None" = None) -> NarrativeResult:
+    """Never raises -- every failure mode (not configured, network error,
+    bad response shape, timeout) comes back as a NarrativeResult the caller
     can persist and show, so a broken AI call can never take the
-    Exceptions page down with it (fix spec Section 1.2)."""
-    if not narrative_available():
-        return NarrativeResult(status="UNAVAILABLE", error="ANTHROPIC_API_KEY is not set")
-
+    Exceptions page down with it (fix spec Section 1.2). Only the
+    pre-computed aggregate (counts, per-currency totals, sheet names) is
+    sent -- never claim rows or cell values."""
+    provider = provider or ai_providers.get_provider()
+    if provider is None:
+        return NarrativeResult(status="UNAVAILABLE", error="AI summaries are not configured on this server.")
+    model = f"{provider.name}:{provider.model}"
     try:
-        import anthropic
-
-        client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"], timeout=30.0)
-        response = client.messages.create(
-            model=MODEL,
-            max_tokens=MAX_TOKENS,
-            tools=[_TOOL_SCHEMA],
-            tool_choice={"type": "tool", "name": "triage_summary"},
-            system=_SYSTEM,
-            messages=[{"role": "user", "content": _build_prompt(aggregate)}],
-        )
-
-        narrative = None
-        for block in response.content:
-            if block.type == "tool_use" and block.name == "triage_summary":
-                narrative = block.input
-                break
-
-        if narrative is None:
-            return NarrativeResult(status="FAILED", error="Claude did not return a triage_summary tool call")
-
-        unverifiable = _find_unverifiable_numbers(narrative, aggregate)
-        warning = None
-        if unverifiable:
-            formatted = ", ".join(f"{n:,.2f}" for n in sorted(unverifiable))
-            warning = (
-                f"The generated summary mentions figure(s) that don't trace back to the "
-                f"underlying data ({formatted}) -- treat this narrative with caution and "
-                "verify against the numbers below."
-            )
-
-        return NarrativeResult(status="COMPLETE", narrative=narrative, model=MODEL, warning=warning)
-
+        narrative, _usage = provider.structured(_SYSTEM, _build_prompt(aggregate), _TOOL_SCHEMA)
+    except ai_providers.AIProviderError as exc:
+        return NarrativeResult(status="FAILED", error=str(exc))
     except Exception as exc:  # noqa: BLE001 -- any failure degrades gracefully, never propagates
         # Class name only: provider error text can echo request details.
         return NarrativeResult(status="FAILED", error=f"The AI service call failed ({exc.__class__.__name__}).")
+    if not isinstance(narrative, dict) or "executive_summary" not in narrative:
+        return NarrativeResult(status="FAILED", error="The AI service did not return a triage summary.")
+    unverifiable = _find_unverifiable_numbers(narrative, aggregate)
+    warning = None
+    if unverifiable:
+        formatted = ", ".join(f"{n:,.2f}" for n in sorted(unverifiable))
+        warning = (
+            f"The generated summary mentions figure(s) that don't trace back to the "
+            f"underlying data ({formatted}) -- treat this narrative with caution and "
+            "verify against the numbers below."
+        )
+    return NarrativeResult(status="COMPLETE", narrative=narrative, model=model, warning=warning)

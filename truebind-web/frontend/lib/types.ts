@@ -50,12 +50,36 @@ export interface Job {
   metrics?: Record<string, unknown> | null;
 }
 
+export type Role = "OWNER" | "ADMIN" | "ANALYST" | "VIEWER" | "SENDER";
+export type OrgType = "capacity_provider" | "mga" | "tpa";
+
+export interface MfaStatus { enabled: boolean; required: boolean; setup_required: boolean }
+
 export interface Me {
   user: { id: string; email: string; display_name: string };
-  tenant: { id: string; name: string; retention_days: number };
-  role: string;
+  tenant: { id: string; name: string; retention_days: number; org_type?: OrgType; require_2fa?: boolean };
+  role: Role | string;
   can_write: boolean;
+  permissions?: string[];
+  mfa?: MfaStatus | null;
   csrf_token: string;
+}
+
+/** Returned by /auth/login instead of a session when a second factor is needed. */
+export interface MfaChallenge { mfa_required: true; mfa_token: string; methods: string[] }
+
+export interface OrgSettings { id: string; name: string; org_type: OrgType; require_2fa: boolean; retention_days: number }
+export interface Member { membership_id: string; user_id: string; email: string; display_name: string; role: Role; created_at: string }
+export interface Invitation { id: string; email: string; role: Role; created_at: string; expires_at: string }
+export interface InvitationCreated extends Invitation { accept_token: string }
+export interface SsoConfig {
+  configured: boolean; issuer: string | null; client_id: string | null; has_client_secret: boolean;
+  token_auth_method: string | null; domains: string[]; jit_provisioning: boolean; default_role: Role | null;
+  enabled: boolean; callback_url: string;
+}
+export interface SsoConfigInput {
+  issuer: string; client_id: string; client_secret?: string | null; token_auth_method: string; domains: string[];
+  jit_provisioning: boolean; default_role: Role; enabled: boolean;
 }
 
 export interface SheetMapping {

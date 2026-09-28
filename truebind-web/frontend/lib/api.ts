@@ -1,4 +1,4 @@
-import type { Alert, AuditLogEntry, Channels, ClaimRow, Delivery, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Job, Me, MappingField, Obligation, Overview, Report, ReportSummary, Sheet, SheetMapping, SystemStatus, Template, WorkQueue } from "./types";
+import type { Alert, AuditLogEntry, Channels, ClaimRow, Delivery, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Invitation, InvitationCreated, Job, Me, MappingField, Member, MfaChallenge, MfaStatus, Obligation, OrgSettings, Overview, Report, ReportSummary, Role, Sheet, SheetMapping, SsoConfig, SsoConfigInput, SystemStatus, Template, WorkQueue } from "./types";
 
 // Default: same hostname as the page, port 8000. Using the page's own host
 // matters: a page on localhost calling an API on 127.0.0.1 is cross-site, so
@@ -8,6 +8,10 @@ function defaultApiBase(): string {
   return "http://localhost:8000/api/v1";
 }
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || defaultApiBase();
+
+export function isMfaChallenge(r: Me | MfaChallenge): r is MfaChallenge {
+  return (r as MfaChallenge).mfa_required === true;
+}
 
 export class ApiError extends Error {
   status: number;
@@ -75,6 +79,12 @@ async function request<T>(path: string, init?: RequestInit & { timeoutMs?: numbe
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
   }
+  if (res.status === 403 && res.headers.get("X-TrueBind-Reason") === "mfa_setup_required" && typeof window !== "undefined"
+      && !window.location.pathname.startsWith("/settings")) {
+    // The organisation requires 2FA and this session has not set it up yet.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.href = "/settings?tab=security&required=1";
+  }
   if (!res.ok) {
     let detail = res.statusText;
     try {
@@ -116,11 +126,44 @@ async function waitForReport(reportId: string, onUpdate?: (r: Report) => void, t
 
 export const api = {
   // ---- auth
-  login: async (email: string, password: string) => {
-    const me = await request<Me>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+  /** Either a session (Me) or, when 2FA is on, a challenge to complete with verifyMfa. */
+  login: async (email: string, password: string): Promise<Me | MfaChallenge> => {
+    const res = await request<Me | MfaChallenge>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+    if (!isMfaChallenge(res)) setCsrf(res.csrf_token);
+    return res;
+  },
+  verifyMfa: async (mfaToken: string, factor: { code: string } | { recovery_code: string }) => {
+    const me = await request<Me>("/auth/2fa/verify", { method: "POST", body: JSON.stringify({ mfa_token: mfaToken, ...factor }) });
     setCsrf(me.csrf_token);
     return me;
   },
+  acceptInvitation: async (token: string, displayName: string, password: string) => {
+    const me = await request<Me>("/auth/invitations/accept", { method: "POST", body: JSON.stringify({ token, display_name: displayName, password }) });
+    setCsrf(me.csrf_token);
+    return me;
+  },
+  /** Full-page navigation: the IdP flow is a browser redirect, not a fetch. */
+  ssoStartUrl: (email: string) => `${API_BASE}/auth/sso/start?email=${encodeURIComponent(email)}`,
+  mfaStatus: () => request<MfaStatus>("/auth/2fa"),
+  mfaSetup: () => request<{ secret: string; otpauth_uri: string }>("/auth/2fa/setup", { method: "POST" }),
+  mfaEnable: (code: string) => request<{ recovery_codes: string[] }>("/auth/2fa/enable", { method: "POST", body: JSON.stringify({ code }) }),
+  mfaDisable: (code: string) => request<void>("/auth/2fa/disable", { method: "POST", body: JSON.stringify({ code }) }),
+
+  // ---- organisation
+  getOrg: () => request<OrgSettings>("/org"),
+  updateOrg: (body: Partial<Pick<OrgSettings, "name" | "org_type" | "require_2fa">>) =>
+    request<OrgSettings>("/org", { method: "PATCH", body: JSON.stringify(body) }),
+  listMembers: () => request<Member[]>("/org/members"),
+  changeRole: (membershipId: string, role: Role) =>
+    request<Member>(`/org/members/${membershipId}`, { method: "PATCH", body: JSON.stringify({ role }) }),
+  removeMember: (membershipId: string) => request<void>(`/org/members/${membershipId}`, { method: "DELETE" }),
+  listInvitations: () => request<Invitation[]>("/org/invitations"),
+  invite: (email: string, role: Role) =>
+    request<InvitationCreated>("/org/invitations", { method: "POST", body: JSON.stringify({ email, role }) }),
+  revokeInvitation: (id: string) => request<void>(`/org/invitations/${id}`, { method: "DELETE" }),
+  getSso: () => request<SsoConfig>("/org/sso"),
+  saveSso: (body: SsoConfigInput) => request<SsoConfig>("/org/sso", { method: "PATCH", body: JSON.stringify(body) }),
+  removeSso: () => request<void>("/org/sso", { method: "DELETE" }),
   signup: async (body: { email: string; password: string; display_name: string; organisation: string }) => {
     const me = await request<Me>("/auth/signup", { method: "POST", body: JSON.stringify(body) });
     setCsrf(me.csrf_token);

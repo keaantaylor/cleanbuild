@@ -140,8 +140,17 @@ Acceptance (unit: `tests/test_sso.py`, 9; end to end against mock-oauth2-server:
 
 Implementation: `app/security/oidc.py` (Authlib OAuth2Client for the authorize/token steps, joserfc for ID-token validation — `authlib.jose` is deprecated), `app/routes/sso.py`, migration `0009_sso` (RLS: in-tenant, or the single domain / connection being looked up before sign-in). Isolation walker: SSO start/callback are public flows. OpenAPI: +5 operations.
 
+### P1.4c Frontend: sign-in second step, SSO, invitations, Settings — done
+Acceptance:
+- [x] Sign-in handles the 2FA challenge (code or recovery code), shows plain-English SSO errors, and offers "Sign in with single sign-on" — e2e `members-and-2fa.spec.ts` (wrong code rejected, right code signs in); unit `auth.test.ts` (every SSO error code has a message, never the raw code).
+- [x] Invitation acceptance page `/invite?token=` — e2e: the invitee joins as ANALYST.
+- [x] Settings (Organisation · Members · Security · Single sign-on), permission-aware from `/auth/me`: invite with role help text, change roles, remove members, revoke invitations, 2FA setup with QR + manual key + one-time recovery codes, SSO configuration with the callback URL to register — e2e covers invite → accept → 2FA on → sign out → sign in with a code.
+- [x] A 403 `mfa_setup_required` anywhere sends the user to Settings → Security.
+- [x] Built from the existing design system (PageHeader, Panel, Pill, Tabs, Modal, Button, tokens only); selects use explicit `<label for>` so their accessible names are exact (found by the e2e test).
+
+Known limitation: SENDER users land in the standard dashboard, where data pages return 403. The sender portal (P8) gives them their own navigation.
+
 Remaining tasks (acceptance criteria written in full when each starts):
-- P1.4c frontend: MFA sign-in step + Settings (organisation, members, security, SSO).
 - P1.5 Storage: S3-compatible adapter (boto3; MinIO in tests), SSE, SHA-256 on write, no delete path; report delete → soft delete (D5).
 - P1.6 Money: `Numeric(18,2)` + currency, Decimal at the API boundary (D1); per-cell ambiguous-date flag (D9).
 - P1.7 Jobs: Redis wake-ups + idempotency keys + retries on the existing DB queue (D6); 50k-row workbook < 120 s without blocking the API.

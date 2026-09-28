@@ -23,5 +23,6 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   { label: "Govern", items: [
     { href: "/alerts", label: "Alerts", icon: "bell", badge: "alerts" },
     { href: "/audit", label: "Audit trail", icon: "audit" },
+    { href: "/settings", label: "Settings", icon: "settings" },
   ] },
 ];

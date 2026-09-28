@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import logging
-import traceback
-import uuid
 from contextlib import asynccontextmanager
 from datetime import timedelta
 
@@ -11,7 +9,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .config import EMBEDDED_WORKER, ENV, IS_PRODUCTION, MAX_UPLOAD_BYTES, get_cors_origins
+from . import observability
+from .config import (EMBEDDED_WORKER, ENV, IS_PRODUCTION, LOG_JSON, LOG_LEVEL, MAX_UPLOAD_BYTES, SENTRY_DSN,
+                     SENTRY_TRACES_SAMPLE_RATE, get_cors_origins)
 from .database import get_session_factory, set_tenant
 from .models._util import utcnow
 from .models.exception_summary import ExceptionSummary
@@ -19,7 +19,7 @@ from .models.identity import Tenant
 from .routes import (alerts, audit, auth, exception_summary, findings, mapping, mfa, obligations, ops, org, reports, sso,
                      system, templates)
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+observability.configure_logging(LOG_LEVEL, LOG_JSON)
 logger = logging.getLogger("truebind")
 
 
@@ -49,6 +49,8 @@ def _fail_stale_summaries() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    if observability.init_sentry(SENTRY_DSN, ENV, SENTRY_TRACES_SAMPLE_RATE):
+        logger.info("error tracking enabled (Sentry, PII scrubbed)")
     _fail_stale_summaries()
     from .config import describe_database_url
     logger.info("TrueBind API starting: env=%s database=%s embedded_worker=%s", ENV, describe_database_url(),
@@ -72,7 +74,8 @@ app = FastAPI(title="TrueBind API", version="0.2.0", lifespan=lifespan,
 _cors_origins = get_cors_origins()
 app.add_middleware(CORSMiddleware, allow_origins=_cors_origins, allow_credentials=True,
                    allow_methods=["GET", "POST", "PATCH", "DELETE"],
-                   allow_headers=["Content-Type", "X-CSRF-Token"], max_age=600)
+                   allow_headers=["Content-Type", "X-CSRF-Token", "Idempotency-Key", "X-Request-ID"],
+                   expose_headers=["X-Request-ID"], max_age=600)
 
 _SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
@@ -125,11 +128,12 @@ async def validation_handler(request: Request, exc: RequestValidationError) -> J
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Backstop: a readable, correlatable 500 with no internal detail; the
     traceback goes to the server log only."""
-    correlation_id = uuid.uuid4().hex
-    logger.error("unhandled exception [%s] on %s %s:\n%s", correlation_id, request.method, request.url.path,
-                 "".join(traceback.format_exception(exc)))
+    correlation_id = getattr(request.state, "request_id", None) or observability.new_request_id(None)
+    logger.error("unhandled exception on %s %s", request.method, request.url.path,
+                 exc_info=(type(exc), exc, exc.__traceback__), extra={"request_id": correlation_id})
     return JSONResponse(status_code=500, content={
-        "detail": "An unexpected error occurred.", "correlation_id": correlation_id}, headers=_cors_headers_for(request))
+        "detail": "An unexpected error occurred.", "correlation_id": correlation_id},
+        headers={**_cors_headers_for(request), observability.REQUEST_ID_HEADER: correlation_id})
 
 
 for router_module in (auth, reports, mapping, findings, exception_summary, obligations, alerts, audit, templates,
@@ -140,19 +144,6 @@ app.include_router(sso.admin_router)
 app.include_router(sso.public_router)
 
 
-@app.get("/health")
-def health_check() -> dict:
-    return {"status": "ok"}
-
-
-@app.get("/health/ready")
-def readiness() -> JSONResponse:
-    from sqlalchemy import text
-    db = get_session_factory()()
-    try:
-        db.execute(text("SELECT 1"))
-        return JSONResponse({"status": "ready"})
-    except Exception:  # noqa: BLE001
-        return JSONResponse(status_code=503, content={"status": "database unavailable"})
-    finally:
-        db.close()
+app.include_router(observability.router)
+# Outermost middleware: request ID + access log around everything else.
+app.middleware("http")(observability.request_context)

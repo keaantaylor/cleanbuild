@@ -36,7 +36,9 @@
     "truebind-web/backend/app/services/idempotency.py",
     "truebind-web/backend/app/models/idempotency.py",
     "truebind-web/backend/migrations/versions/0012_idempotency_keys.py",
-    "truebind-web/backend/tests/test_jobs_reliability.py"
+    "truebind-web/backend/tests/test_jobs_reliability.py",
+    "truebind-web/backend/app/observability.py",
+    "truebind-web/backend/tests/test_observability.py"
   ],
   "baseline": {
     "mypy_legacy_errors": 93,

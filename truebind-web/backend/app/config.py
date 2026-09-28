@@ -81,3 +81,9 @@ SMTP_PASSWORD = _s.smtp_password.get_secret_value() or None  # server-side only;
 SMTP_FROM = _s.smtp_from
 SMTP_STARTTLS = _s.smtp_starttls
 MAX_EMAIL_ATTACHMENT_BYTES = _s.max_email_attachment_mb * 1024 * 1024
+
+# Logging and error-tracking settings, used by the observability module.
+LOG_LEVEL = _s.log_level
+LOG_JSON = bool(_s.log_json)
+SENTRY_DSN = _s.sentry_dsn.get_secret_value()  # never logged
+SENTRY_TRACES_SAMPLE_RATE = _s.sentry_traces_sample_rate

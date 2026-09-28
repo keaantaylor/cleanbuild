@@ -27,8 +27,9 @@ import time
 import uuid
 from datetime import timedelta
 
-from .config import JOB_LEASE_S, JOB_MEMORY_MB, JOB_TIMEOUT_S, describe_database_url
+from .config import JOB_LEASE_S, JOB_MEMORY_MB, JOB_TIMEOUT_S, LOG_JSON, LOG_LEVEL, describe_database_url
 from .database import get_session_factory, set_tenant
+from .observability import configure_logging
 from .models._util import utcnow
 from .models.jobs import Job, WorkerHeartbeat
 from .services import job_service, job_signal, retention_service
@@ -61,7 +62,7 @@ def _child_entry(conn, memory_mb: int) -> None:
     process start + pandas/openpyxl/SQLAlchemy import time. Each child runs
     exactly one job and exits (isolation is unchanged)."""
     _limit_memory(memory_mb)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    configure_logging(LOG_LEVEL, LOG_JSON)
     from .database import get_session_factory as _factory  # fresh engine in this process
     from .services import job_handlers
 
@@ -358,7 +359,7 @@ def stop_embedded(timeout_s: float = 10.0) -> None:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    configure_logging(LOG_LEVEL, LOG_JSON)
     w = Worker()
     signal.signal(signal.SIGTERM, lambda *_: w.stop())
     signal.signal(signal.SIGINT, lambda *_: w.stop())

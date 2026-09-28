@@ -201,6 +201,18 @@ First `verify --full` run failed (evidence): 6 idempotency tests failed on Postg
 
 Setting default changed (evidence): `JOB_MAX_ATTEMPTS` was declared with default 3 in P1.1, but nothing read it. Jobs always ran with the model default of 2, and `test_job_system.py::test_expired_lease_is_requeued_then_failed_never_stuck` asserts 2. The setting is now wired and its default is 2, the tested behaviour; `.env.example` said 3 and now says 2. The reaper's "interrupted twice" message now states the real count. Legacy mypy ratchet 97 → 93 (an `or {}` guard in `/overview` removed four existing errors).
 
+### P1.8 Observability — done
+Acceptance (`tests/test_observability.py`, 17):
+- [x] A request ID on every request (a valid incoming `X-Request-ID` is kept, anything else replaced), echoed in the response and on every log line of that request — `test_request_id_is_echoed_and_on_every_log_line`.
+- [x] JSON log lines (ts, level, logger, message, request_id, exc_info) when `LOG_JSON` is on (default in production) — same test.
+- [x] Personal data never reaches a log line: e-mails, bearer tokens, key=value secrets, card/account/phone digit runs, IBANs masked; ordinary text untouched — `test_scrub_masks_personal_data` (7), `test_scrub_keeps_ordinary_text`, `test_log_lines_never_carry_an_email`.
+- [x] Unhandled error → 500 whose `correlation_id` is the request ID, no internal detail; traceback (scrubbed) in the log only — `test_unhandled_error_is_correlated_and_opaque`.
+- [x] Sentry only with `SENTRY_DSN`; `send_default_pii` off, cookies/headers/body dropped, user reduced to id, every string scrubbed, proven through a real SDK transport — `test_sentry_is_off_without_a_dsn`, `test_sentry_events_are_scrubbed_before_sending`, `test_sentry_sends_scrubbed_events_through_its_transport`.
+- [x] `/healthz` needs no dependencies; `/readyz` checks database + schema at Alembic head, 503 otherwise without leaking detail — `test_healthz_needs_no_dependencies`, `test_readyz_checks_database_and_migrations`, `test_readyz_is_503_when_the_database_is_down`. `/health` and `/health/ready` keep their original responses (existing probes and `test_readiness_endpoint` unchanged).
+
+Root cause found on the way: `migrations/env.py` called `fileConfig()` (default `disable_existing_loggers=True`, root WARNING) whenever migrations ran in-process, silencing the application's loggers for the rest of the process. It now configures logging only when run from the CLI, and never disables existing loggers.
+
+Process note (the user asked for everything today): from here on each task runs `verify --fast` and is committed on green; `verify --full` runs at every phase gate and must be green before the next phase starts. PROGRESS.md records both.
+
 Remaining tasks (acceptance criteria written in full when each starts):
-- P1.8 Observability: JSON logs with request IDs + PII scrubber, Sentry (env-gated, scrubbed), `/healthz` `/readyz`.
 - P1.9 Audit: every new event type chained; tamper-detection test on PostgreSQL and SQLite.

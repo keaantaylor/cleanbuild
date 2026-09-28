@@ -66,10 +66,23 @@ Evidence — `verify --full` (see verify-report.json of the commit run): all 14 
 
 ---
 
-## P1 — Platform foundation (next)
+## P1 — Platform foundation (in progress)
 
-Tasks (acceptance criteria written in full when each starts):
-- P1.1 Settings: pydantic-settings, `.env.example` complete (D8).
+### P1.1 Settings (D8) — done
+Acceptance:
+- [x] Every setting typed and env-driven; defaults equal pre-P1 values — `test_settings.py::test_defaults_match_pre_p1_behaviour`.
+- [x] Production: safe defaults (secure cookies, no sign-up, no embedded worker) — `test_production_defaults_are_safe`.
+- [x] Production refuses missing/SQLite `DATABASE_URL`, missing/short `SECRET_KEY`, `COOKIE_SECURE=false`, wildcard CORS — `test_production_rejects_unsafe_configuration` (6 cases).
+- [x] Malformed values fail loudly (pre-P1 silently fell back to defaults: deliberate behaviour change) — `test_malformed_values_fail_loudly`.
+- [x] Secrets are `SecretStr`, absent from repr/dump — `test_secrets_are_not_shown_in_repr`.
+- [x] `.env.example` documents every setting and holds no secret values — `test_env_example_documents_every_setting`.
+- [x] Legacy `app.config` constants unchanged for existing callers — full backend suite green.
+
+Implementation: `app/settings.py` (strict: ruff full ruleset + format + mypy --strict with the pydantic plugin via `scripts/mypy-strict.ini`); `app/config.py` is now a thin view. New settings for later P1 tasks are declared now so `.env.example` is complete: `SECRET_KEY`, `PUBLIC_APP_URL/API_URL`, `STORAGE_BACKEND`, `S3_*`, `REDIS_URL`, `JOB_MAX_ATTEMPTS`, `LOG_LEVEL/JSON`, `SENTRY_*`, `TOTP_ISSUER`, `LOGIN_LOCKOUT_*`.
+Harness: tests may use literal fake secrets (S105/S106 allowed under `tests/`).
+Human: production now requires `SECRET_KEY` (HUMAN_TODO).
+
+Remaining tasks (acceptance criteria written in full when each starts):
 - P1.2 Roles + memberships model: owner/admin/analyst/viewer/sender, permission matrix, REVIEWER→analyst migration (D4).
 - P1.3 Tenant-isolation suite over every endpoint (another tenant's IDs → 404), RLS on every new table.
 - P1.4 Auth: TOTP 2FA (per-org enforcement), login lockout (Redis-backed), OIDC SSO via Authlib against mock-oauth2-server.

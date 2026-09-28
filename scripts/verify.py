@@ -162,9 +162,7 @@ def step_ruff() -> tuple[str, dict[str, object]]:
 def step_mypy() -> tuple[str, dict[str, object]]:
     env = {"MYPYPATH": str(ENGINE / "src")}
     strict = [p for p in QUALITY["strict_paths"] if p.endswith(".py") or (ROOT / p).is_dir()]
-    run(
-        "mypy", [PY, "-m", "mypy", "--strict", "--ignore-missing-imports", "--explicit-package-bases", *strict], env=env
-    )
+    run("mypy", [PY, "-m", "mypy", "--config-file", str(ROOT / "scripts" / "mypy-strict.ini"), *strict], env=env)
     out = run(
         "mypy",
         [PY, "-m", "mypy", "--ignore-missing-imports", "app", str(ENGINE / "src" / "bordereaux")],

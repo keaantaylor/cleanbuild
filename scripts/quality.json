@@ -4,7 +4,10 @@
     "scripts/verify.py",
     "scripts/testenv/webhook_receiver.py",
     "truebind-web/backend/tests/integration",
-    "truebind-web/backend/tests/integration_env.py"
+    "truebind-web/backend/tests/integration_env.py",
+    "truebind-web/backend/app/settings.py",
+    "truebind-web/backend/app/config.py",
+    "truebind-web/backend/tests/test_settings.py"
   ],
   "strict_ruff_select": [
     "E",
@@ -34,6 +37,8 @@
     "**/tests/**:S101",
     "**/tests/**:S310",
     "scripts/verify.py:T201",
-    "scripts/verify.py:S603"
+    "scripts/verify.py:S603",
+    "**/tests/**:S105",
+    "**/tests/**:S106"
   ]
 }

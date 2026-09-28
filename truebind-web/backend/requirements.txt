@@ -17,3 +17,12 @@ anthropic>=0.40
 # (ingest/mapping/validation/dedupe/report/leakage/schema) instead of
 # re-implementing it -- see app/services/bordereaux_bridge.py.
 -e ../../bordereaux
+
+# Platform V1 (P1): typed settings, 2FA, SSO, object storage, Redis, error tracking.
+pydantic-settings>=2.15,<3
+cryptography>=50,<51
+pyotp>=2.10,<3
+authlib>=1.8,<2
+boto3>=1.43,<2
+redis>=8.1,<9
+sentry-sdk>=2.70,<3

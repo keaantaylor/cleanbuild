@@ -10,6 +10,7 @@ Nothing here has been done by the build agent. Kept current every phase; P10 com
 - [ ] Review/merge PR keaantaylor/cleanbuild#12 (frontend API-origin hardening).
 
 ## Accounts (needed from P1/P2 onwards — details added as each phase lands)
+- [ ] Render env: add `SECRET_KEY` (>= 32 random chars, e.g. `python -c "import secrets;print(secrets.token_urlsafe(48))"`) before deploying Platform V1 — production refuses to start without it.
 - [ ] Sentry project (DSN) — P1.
 - [ ] Object storage: Cloudflare R2 or AWS S3 (London/Dublin) bucket + access key — P1.
 - [ ] Redis (Render Key Value or Upstash, EU) — P1.

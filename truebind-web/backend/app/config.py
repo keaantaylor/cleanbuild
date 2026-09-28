@@ -1,78 +1,39 @@
-"""Environment-driven settings. No secrets in code: everything sensitive
-comes from the environment (see .env.example, which contains no values)."""
+"""Legacy settings view. The source of truth is ``app.settings.Settings``
+(typed, validated, documented in .env.example); this module keeps the
+module-level constants the pre-P1 code imports. New code should call
+``get_settings()`` instead of importing from here."""
 
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
-BACKEND_ROOT = Path(__file__).resolve().parent.parent
+from pydantic import ValidationError
 
-
-def _load_dotenv(path: Path) -> None:
-    """Minimal .env reader (KEY=VALUE, # comments). Real environment
-    variables always win. Loaded here, at import time of the single config
-    module, so the API, the worker, its child processes and Alembic all
-    resolve the SAME settings -- a second terminal can no longer end up on
-    a different database because one env var was forgotten there."""
-    if not path.is_file():
-        return
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        key, value = key.strip(), value.strip().strip('"').strip("'")
-        if key and key not in os.environ:
-            os.environ[key] = value
-
+from .settings import BACKEND_ROOT, DEFAULT_DEV_DB_NAME, Settings, get_settings, load_dotenv, resolve_database_url
 
 if os.environ.get("TRUEBIND_ENV", "development") != "production" and not os.environ.get("TRUEBIND_NO_DOTENV"):
-    _load_dotenv(BACKEND_ROOT / ".env")
+    load_dotenv()
 
-DATA_DIR = Path(os.environ.get("TRUEBIND_DATA_DIR", str(BACKEND_ROOT / "data")))
-# The development database. Deliberately NOT data/truebind.db: that name was
-# used by earlier builds and may hold a large legacy database that must never
-# be migrated or overwritten by this version.
-DEFAULT_DEV_DB_NAME = "truebind-mvp.db"
+_s = get_settings()
 
+__all__ = ["BACKEND_ROOT", "DEFAULT_DEV_DB_NAME"]
 
-def _bool(name: str, default: bool) -> bool:
-    v = os.environ.get(name)
-    return default if v is None else v.strip().lower() in ("1", "true", "yes", "on")
+DATA_DIR = _s.data_dir
+ENV = _s.env
+IS_PRODUCTION = _s.is_production
 
 
-def _int(name: str, default: int) -> int:
+def _fresh() -> Settings:
+    """Re-read the environment (tests and tools change it at runtime)."""
     try:
-        return int(os.environ.get(name, default))
-    except ValueError:
-        return default
-
-
-ENV = os.environ.get("TRUEBIND_ENV", "development")
-IS_PRODUCTION = ENV == "production"
+        return Settings()
+    except ValidationError as exc:
+        raise RuntimeError(str(exc)) from exc
 
 
 def get_database_url() -> str:
-    url = os.environ.get("DATABASE_URL")
-    if url:
-        # A relative SQLite path is resolved against the backend folder, not
-        # the current directory, so every process started from anywhere
-        # opens the same file.
-        if url.startswith("sqlite:///") and not url.startswith("sqlite:////"):
-            rel = url[len("sqlite:///"):]
-            if rel and not Path(rel).is_absolute() and not rel.startswith(":memory:"):
-                return f"sqlite:///{(BACKEND_ROOT / rel).resolve()}"
-        # Hosted Postgres (Render, Heroku, Supabase...) hands out postgres:// or
-        # postgresql:// URLs; SQLAlchemy needs the driver named explicitly.
-        for prefix in ("postgres://", "postgresql://"):
-            if url.startswith(prefix):
-                return "postgresql+psycopg://" + url[len(prefix):]
-        return url
-    if IS_PRODUCTION:
-        raise RuntimeError("DATABASE_URL must be set in production (PostgreSQL)")
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    return f"sqlite:///{DATA_DIR / DEFAULT_DEV_DB_NAME}"
+    s = _fresh()
+    return resolve_database_url(s.database_url, s.is_production, s.data_dir)
 
 
 def describe_database_url(url: str | None = None) -> str:
@@ -85,47 +46,36 @@ def describe_database_url(url: str | None = None) -> str:
 
 
 def get_cors_origins() -> list[str]:
-    raw = os.environ.get("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
-    origins = [o.strip() for o in raw.split(",") if o.strip()]
-    if "*" in origins:
-        raise RuntimeError("CORS_ORIGINS='*' is not allowed: the API uses credentialed cookies")
-    return origins
+    return _fresh().cors_origin_list
 
 
-STORAGE_DIR = Path(os.environ.get("TRUEBIND_STORAGE_DIR", str(DATA_DIR / "objects")))
-COOKIE_SECURE = _bool("COOKIE_SECURE", IS_PRODUCTION)
-SESSION_TTL_HOURS = _int("SESSION_TTL_HOURS", 12)
-ALLOW_SIGNUP = _bool("ALLOW_SIGNUP", not IS_PRODUCTION)
-MAX_UPLOAD_BYTES = _int("MAX_UPLOAD_MB", 50) * 1024 * 1024
-MAX_UNCOMPRESSED_BYTES = _int("MAX_UNCOMPRESSED_MB", 800) * 1024 * 1024
-MAX_COMPRESSION_RATIO = _int("MAX_COMPRESSION_RATIO", 150)
-MAX_SHEETS = _int("MAX_SHEETS", 200)
-MAX_ROWS = _int("MAX_ROWS", 1_000_000)
-MAX_CELLS = _int("MAX_CELLS", 60_000_000)
-JOB_TIMEOUT_S = _int("JOB_TIMEOUT_S", 1800)
-JOB_MEMORY_MB = _int("JOB_MEMORY_MB", 4096)
-JOB_LEASE_S = _int("JOB_LEASE_S", 60)
-MAX_CONCURRENT_JOBS_PER_TENANT = _int("MAX_CONCURRENT_JOBS_PER_TENANT", 3)
-AI_MAX_CALLS_PER_REPORT = _int("AI_MAX_CALLS_PER_REPORT", 50)
-# Wall-clock budget for the whole AI-mapping stage of one report. A slow or
-# unreachable provider can delay a report by at most this long; after it,
+STORAGE_DIR = _s.storage_path
+COOKIE_SECURE = bool(_s.cookie_secure)
+SESSION_TTL_HOURS = _s.session_ttl_hours
+ALLOW_SIGNUP = bool(_s.allow_signup)
+MAX_UPLOAD_BYTES = _s.max_upload_bytes
+MAX_UNCOMPRESSED_BYTES = _s.max_uncompressed_mb * 1024 * 1024
+MAX_COMPRESSION_RATIO = _s.max_compression_ratio
+MAX_SHEETS = _s.max_sheets
+MAX_ROWS = _s.max_rows
+MAX_CELLS = _s.max_cells
+JOB_TIMEOUT_S = _s.job_timeout_s
+JOB_MEMORY_MB = _s.job_memory_mb
+JOB_LEASE_S = _s.job_lease_s
+MAX_CONCURRENT_JOBS_PER_TENANT = _s.max_concurrent_jobs_per_tenant
+AI_MAX_CALLS_PER_REPORT = _s.ai_max_calls_per_report
+# Wall-clock budget for the whole AI-mapping stage of one report; after it,
 # remaining sheets use deterministic (alias) mapping only.
-AI_TIME_BUDGET_S = _int("AI_TIME_BUDGET_S", 30)
-# Development: the API process also runs the job worker loop (each job still
-# runs in its own isolated child process), so an upload can never sit queued
-# because nobody started a worker. Production: off -- run `python -m app.worker`
-# as separate, independently scaled processes.
-EMBEDDED_WORKER = _bool("TRUEBIND_EMBEDDED_WORKER", not IS_PRODUCTION)
-# A worker is considered alive if it checked in within this many seconds.
-WORKER_STALE_S = _int("WORKER_STALE_S", 20)
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")  # server-side only; never sent to clients or logged
+AI_TIME_BUDGET_S = _s.ai_time_budget_s
+EMBEDDED_WORKER = bool(_s.embedded_worker)
+WORKER_STALE_S = _s.worker_stale_s
+ANTHROPIC_API_KEY = _s.anthropic_api_key.get_secret_value() or None  # server-side only; never sent or logged
 
-# Outbound e-mail (deliveries). Unset SMTP_HOST = e-mail delivery is shown as
-# "not configured" and nothing is sent.
-SMTP_HOST = os.environ.get("SMTP_HOST") or None
-SMTP_PORT = _int("SMTP_PORT", 587)
-SMTP_USER = os.environ.get("SMTP_USER") or None
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD") or None  # server-side only; never returned or logged
-SMTP_FROM = os.environ.get("SMTP_FROM") or "truebind@localhost"
-SMTP_STARTTLS = _bool("SMTP_STARTTLS", True)
-MAX_EMAIL_ATTACHMENT_BYTES = _int("MAX_EMAIL_ATTACHMENT_MB", 10) * 1024 * 1024
+# Outbound e-mail. Unset SMTP_HOST = delivery shows "not configured".
+SMTP_HOST = _s.smtp_host or None
+SMTP_PORT = _s.smtp_port
+SMTP_USER = _s.smtp_user or None
+SMTP_PASSWORD = _s.smtp_password.get_secret_value() or None  # server-side only; never returned or logged
+SMTP_FROM = _s.smtp_from
+SMTP_STARTTLS = _s.smtp_starttls
+MAX_EMAIL_ATTACHMENT_BYTES = _s.max_email_attachment_mb * 1024 * 1024

@@ -200,6 +200,23 @@ def _notify(db: Session, job: Job, report: Report | None) -> None:
                 "error_code": job.error_code if job.status == "FAILED" else None})
     except Exception:  # noqa: BLE001 -- notifications must never fail the job
         log.exception("could not queue webhook event for job %s", job.id)
+    if event == "report.completed":
+        _auto_deliver_sftp(db, job, report)
+
+
+def _auto_deliver_sftp(db: Session, job: Job, report: Report) -> None:
+    from ..models.channels import SftpDestination
+    from . import sftp_service
+
+    dest = db.query(SftpDestination).filter(SftpDestination.tenant_id == job.tenant_id).first()
+    if dest is None or not (dest.enabled and dest.auto_deliver):
+        return
+    for kind in ("claims_csv", "exceptions_csv"):
+        try:
+            with db.begin_nested():
+                sftp_service.deliver(db, job.tenant_id, report, kind, actor="system:auto-delivery", actor_user_id=None)
+        except Exception:  # noqa: BLE001 -- delivery problems are recorded, never fail the job
+            log.exception("SFTP auto-delivery failed for report %s", report.id)
 
 
 def dead_worker_ids(db: Session) -> set[str]:

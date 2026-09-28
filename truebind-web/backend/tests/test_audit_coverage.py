@@ -233,6 +233,20 @@ def test_every_state_change_is_audited_and_the_chain_holds(monkeypatch: pytest.M
     )
     trail.step("DELETE", "/api/v1/org/webhooks/{endpoint_id}", lambda: owner.delete(f"/api/v1/org/webhooks/{ep['id']}"))
 
+    # --- SFTP destination (P2.4); the test fails to connect (nothing listening) but is still audited
+    sftp_in = {
+        "host": "127.0.0.1",
+        "port": 1,
+        "username": "u",
+        "password": "p-value",
+        "host_key_fingerprint": "SHA256:" + "A" * 43,
+        "remote_dir": "/",
+    }
+    csrf_a = {"X-CSRF-Token": owner.csrf}
+    trail.step("PUT", "/api/v1/org/sftp", lambda: owner.client.put("/api/v1/org/sftp", json=sftp_in, headers=csrf_a))
+    trail.step("POST", "/api/v1/org/sftp/test", lambda: owner.post("/api/v1/org/sftp/test"))
+    trail.step("DELETE", "/api/v1/org/sftp", lambda: owner.delete("/api/v1/org/sftp"))
+
     missing = _mutating_operations() - trail.covered
     assert not missing, f"state-changing operations without an audited scenario step: {sorted(missing)}"
     verdict = owner.get("/api/v1/audit/verify").json()

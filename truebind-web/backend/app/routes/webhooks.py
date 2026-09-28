@@ -51,7 +51,7 @@ class EndpointCreated(EndpointOut):
     secret: str
 
 
-class DeliveryOut(BaseModel):
+class WebhookDeliveryOut(BaseModel):
     id: str
     event_type: str
     message_id: str
@@ -130,8 +130,10 @@ def delete_endpoint(endpoint_id: str, ctx: Context = Depends(_org_manage), db: S
     return Response(status_code=204)
 
 
-@router.post("/{endpoint_id}/test", response_model=DeliveryOut, status_code=202)
-def test_endpoint(endpoint_id: str, ctx: Context = Depends(_org_manage), db: Session = Depends(get_db)) -> DeliveryOut:
+@router.post("/{endpoint_id}/test", response_model=WebhookDeliveryOut, status_code=202)
+def test_endpoint(
+    endpoint_id: str, ctx: Context = Depends(_org_manage), db: Session = Depends(get_db)
+) -> WebhookDeliveryOut:
     ep = _endpoint_or_404(db, ctx, endpoint_id)
     deliveries = [d for d in webhooks.emit(db, ctx.tenant_id, "ping", {"endpoint_id": ep.id}) if d.endpoint_id == ep.id]
     audit_service.log_action(
@@ -145,13 +147,13 @@ def test_endpoint(endpoint_id: str, ctx: Context = Depends(_org_manage), db: Ses
         actor_user_id=ctx.user_id,
     )
     db.commit()
-    return DeliveryOut.model_validate(deliveries[0], from_attributes=True)
+    return WebhookDeliveryOut.model_validate(deliveries[0], from_attributes=True)
 
 
-@router.get("/{endpoint_id}/deliveries", response_model=list[DeliveryOut])
+@router.get("/{endpoint_id}/deliveries", response_model=list[WebhookDeliveryOut])
 def list_deliveries(
     endpoint_id: str, ctx: Context = Depends(_org_read), db: Session = Depends(get_db)
-) -> list[DeliveryOut]:
+) -> list[WebhookDeliveryOut]:
     ep = _endpoint_or_404(db, ctx, endpoint_id)
     q = (
         select(WebhookDelivery)
@@ -159,13 +161,13 @@ def list_deliveries(
         .order_by(WebhookDelivery.created_at.desc())
         .limit(100)
     )
-    return [DeliveryOut.model_validate(d, from_attributes=True) for d in db.execute(q).scalars()]
+    return [WebhookDeliveryOut.model_validate(d, from_attributes=True) for d in db.execute(q).scalars()]
 
 
-@router.post("/deliveries/{delivery_id}/replay", response_model=DeliveryOut, status_code=202)
+@router.post("/deliveries/{delivery_id}/replay", response_model=WebhookDeliveryOut, status_code=202)
 def replay_delivery(
     delivery_id: str, ctx: Context = Depends(_org_manage), db: Session = Depends(get_db)
-) -> DeliveryOut:
+) -> WebhookDeliveryOut:
     d = db.get(WebhookDelivery, delivery_id)
     if d is None or d.tenant_id != ctx.tenant_id:
         raise HTTPException(status_code=404, detail="Not found.")
@@ -182,4 +184,4 @@ def replay_delivery(
         actor_user_id=ctx.user_id,
     )
     db.commit()
-    return DeliveryOut.model_validate(d, from_attributes=True)
+    return WebhookDeliveryOut.model_validate(d, from_attributes=True)

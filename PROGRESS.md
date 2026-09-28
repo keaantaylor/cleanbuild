@@ -257,4 +257,14 @@ Acceptance (`tests/test_webhooks.py`, 14; `tests/integration/test_webhook_receiv
 - [x] Replay keeps the message id and is audited; test ping — `test_replay_resends_with_the_same_message_id`, `test_test_ping_is_delivered`.
 - [x] Isolation: other organisations get 404 (walker ids added) — `test_webhooks_are_isolated_between_organisations`, `test_every_id_endpoint_is_404_for_another_tenant`; all six operations in the audit coverage walker.
 
+### P2.4 SFTP delivery — done
+Acceptance (`tests/test_sftp.py`, 4; `tests/integration/test_sftp_sftpgo.py`, 3 against compose SFTPGo):
+- [x] One destination per organisation; pinned SHA256 host key required; exactly one of password / private key; no ".." in the folder; host name restricted; secrets write-only and encrypted, absent from responses and audit — `test_destination_saved_without_exposing_secrets`, `test_destination_validation`.
+- [x] Viewers cannot change it; other organisations see null — `test_viewers_cannot_change_it_and_other_orgs_cannot_see_it`.
+- [x] Honest outcomes: NOT_CONFIGURED without a destination, FAILED ("Could not reach") when unreachable — `test_sftp_delivery_outcomes_are_recorded_honestly`.
+- [x] Real server: connection test passes with the right key; delivery writes the export (temp name, then renamed into place) and is DELIVERED — `test_delivery_to_a_real_server`.
+- [x] Wrong pinned key: nothing sent, FAILED "does not match" — `test_wrong_pinned_key_sends_nothing`.
+- [x] Auto-delivery on report completion (claims + exceptions CSV) — `test_auto_delivery_on_completion`.
+- [x] PUT/DELETE/test covered by the audit walker; `GET /org/sftp` returns null (200) when unset, so the isolation walker's list check applies.
+
 Remaining tasks (acceptance criteria written in full when each starts):

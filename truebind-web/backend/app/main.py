@@ -17,7 +17,7 @@ from .models._util import utcnow
 from .models.exception_summary import ExceptionSummary
 from .models.identity import Tenant
 from .routes import (alerts, audit, auth, exception_summary, findings, inbound, mapping, mfa, obligations, ops, org,
-                     reports, sso, system, templates, webhooks)
+                     reports, sftp, sso, system, templates, webhooks)
 
 observability.configure_logging(LOG_LEVEL, LOG_JSON)
 logger = logging.getLogger("truebind")
@@ -145,6 +145,7 @@ app.include_router(sso.public_router)
 app.include_router(inbound.router)
 app.include_router(inbound.provider_router)
 app.include_router(webhooks.router)
+app.include_router(sftp.router)
 
 
 app.include_router(observability.router)

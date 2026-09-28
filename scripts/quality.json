@@ -49,7 +49,10 @@
     "truebind-web/backend/tests/test_inbound_email.py",
     "truebind-web/backend/app/services/webhooks.py",
     "truebind-web/backend/app/routes/webhooks.py",
-    "truebind-web/backend/tests/test_webhooks.py"
+    "truebind-web/backend/tests/test_webhooks.py",
+    "truebind-web/backend/app/services/sftp_service.py",
+    "truebind-web/backend/app/routes/sftp.py",
+    "truebind-web/backend/tests/test_sftp.py"
   ],
   "baseline": {
     "mypy_legacy_errors": 93,

@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -27,7 +27,7 @@ from ..models.reports import Report, Sheet, ValidationResult
 from ..schemas.reports import AlertOut, AuditLogOut, JobOut, Page, UtcDatetime
 from ..security.auth import Context, require_reader, require_writer
 from ..security.ratelimit import limiter
-from ..services import audit_service, delivery_service, job_service
+from ..services import audit_service, delivery_service, job_service, sftp_service
 from .deps import Paging, get_report_or_404, report_out
 
 router = APIRouter(prefix="/api/v1", tags=["operations"])
@@ -189,8 +189,14 @@ class DeliveryOut(BaseModel):
 class DeliveryRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     kind: Literal["claims_csv", "exceptions_csv", "audit_csv"]
-    channel: Literal["email"]
-    recipient: str = Field(min_length=3, max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    channel: Literal["email", "sftp"]
+    recipient: str | None = Field(default=None, min_length=3, max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+    @model_validator(mode="after")
+    def _recipient_for_email(self):
+        if self.channel == "email" and not self.recipient:
+            raise ValueError("recipient is required for e-mail delivery")
+        return self
 
 
 @router.get("/deliveries", response_model=Page[DeliveryOut])
@@ -210,8 +216,11 @@ def create_delivery(report_id: str, body: DeliveryRequest, ctx: Context = Depend
     if report.status != "COMPLETE":
         raise HTTPException(status_code=409, detail="Outputs can be sent once the report is complete.")
     limiter.check("delivery", ctx.tenant_id, limit=30, window_s=3600)
-    d = delivery_service.send_email(db, ctx.tenant_id, report, body.kind, body.recipient.lower(), ctx.actor,
-                                    ctx.user_id)
+    if body.channel == "sftp":
+        d = sftp_service.deliver(db, ctx.tenant_id, report, body.kind, ctx.actor, ctx.user_id)
+    else:
+        d = delivery_service.send_email(db, ctx.tenant_id, report, body.kind, (body.recipient or "").lower(),
+                                        ctx.actor, ctx.user_id)
     db.commit()
     return DeliveryOut.model_validate(d)
 

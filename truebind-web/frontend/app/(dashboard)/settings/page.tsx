@@ -12,6 +12,7 @@ import { SecuritySettings } from "@/components/settings/SecuritySettings";
 import { SsoSettings } from "@/components/settings/SsoSettings";
 import { ChannelsSettings } from "@/components/settings/ChannelsSettings";
 import { BindersSettings } from "@/components/settings/BindersSettings";
+import { SanctionsSettings } from "@/components/settings/SanctionsSettings";
 import { hasPermission } from "@/lib/auth";
 
 function SettingsInner() {
@@ -28,6 +29,7 @@ function SettingsInner() {
     ...(can("org:read") && me.role !== "SENDER" ? [{ value: "sso", label: "Single sign-on" }] : []),
     ...(can("org:read") && me.role !== "SENDER" ? [{ value: "channels", label: "Channels" }] : []),
     ...(can("data:read") ? [{ value: "binders", label: "Binders" }] : []),
+    ...(can("data:read") ? [{ value: "sanctions", label: "Sanctions lists" }] : []),
   ];
   const requested = params.get("tab");
   const active = tabs.some((t) => t.value === requested) ? requested! : me.mfa?.setup_required ? "security" : tabs[0].value;
@@ -43,6 +45,7 @@ function SettingsInner() {
         {active === "sso" && <SsoSettings canManage={can("org:manage")} />}
         {active === "channels" && <ChannelsSettings canManage={can("org:manage")} />}
         {active === "binders" && <BindersSettings canManage={can("data:write")} />}
+        {active === "sanctions" && <SanctionsSettings canManage={can("data:write")} />}
       </div>
     </>
   );

@@ -98,3 +98,30 @@ class Binder(Base):
     aggregate_limit: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
     created_at: Mapped[datetime] = created_at_col()
     created_by: Mapped[str] = mapped_column(String(255))
+
+
+class SanctionsList(Base):
+    """A sanctions list an organisation loaded (P5). Entries live in sanctions_entries."""
+
+    __tablename__ = "sanctions_lists"
+
+    id: Mapped[str] = uuid_pk()
+    tenant_id: Mapped[str] = _tenant()
+    name: Mapped[str] = mapped_column(String(200))
+    source: Mapped[str] = mapped_column(String(16))  # OFSI | OFAC | EU | UN | CUSTOM
+    file_name: Mapped[str] = mapped_column(String(255))
+    sha256: Mapped[str] = mapped_column(String(64))
+    entry_count: Mapped[int] = mapped_column(Integer)
+    uploaded_at: Mapped[datetime] = created_at_col()
+    uploaded_by: Mapped[str] = mapped_column(String(255))
+
+
+class SanctionsEntry(Base):
+    __tablename__ = "sanctions_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = _tenant()
+    list_id: Mapped[str] = mapped_column(ForeignKey("sanctions_lists.id", ondelete="CASCADE"), index=True)
+    reference: Mapped[str] = mapped_column(String(64))
+    name: Mapped[str] = mapped_column(String(500))
+    kind: Mapped[str] = mapped_column(String(32))

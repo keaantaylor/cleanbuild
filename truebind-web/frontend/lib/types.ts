@@ -490,3 +490,7 @@ export interface BinderInput {
   currencies: string[]; limit_currency: string; claims_authority: string | null; aggregate_limit: string | null;
 }
 export interface Binder extends BinderInput { id: string; created_at: string; created_by: string }
+export interface SanctionsList {
+  id: string; name: string; source: "OFSI" | "OFAC" | "EU" | "UN" | "CUSTOM"; file_name: string; sha256: string;
+  entry_count: number; uploaded_at: string; uploaded_by: string;
+}

@@ -267,6 +267,14 @@ def test_every_state_change_is_audited_and_the_chain_holds(monkeypatch: pytest.M
     spare = owner.post("/api/v1/binders", json={**binder_in, "name": "Spare"}).json()
     trail.step("DELETE", "/api/v1/binders/{binder_id}", lambda: owner.delete(f"/api/v1/binders/{spare['id']}"))
 
+    # --- sanctions lists (P5)
+    from test_sanctions import OFSI
+
+    sl = trail.step("POST", "/api/v1/sanctions/lists", lambda: owner.post(
+        "/api/v1/sanctions/lists", files={"file": ("l.csv", OFSI, "text/csv")}, data={"name": "L"})).json()  # fmt: skip
+    trail.step("DELETE", "/api/v1/sanctions/lists/{list_id}",
+               lambda: owner.delete(f"/api/v1/sanctions/lists/{sl['id']}"))  # fmt: skip
+
     missing = _mutating_operations() - trail.covered
     assert not missing, f"state-changing operations without an audited scenario step: {sorted(missing)}"
     verdict = owner.get("/api/v1/audit/verify").json()

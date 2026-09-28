@@ -70,7 +70,12 @@
     "fixtures/golden/conftest.py",
     "fixtures/golden/binder/test_binder_golden.py",
     "truebind-web/backend/tests/test_checks_leakage.py",
-    "fixtures/golden/leakage/test_leakage_golden.py"
+    "fixtures/golden/leakage/test_leakage_golden.py",
+    "truebind-web/backend/app/services/sanctions_lists.py",
+    "truebind-web/backend/app/routes/sanctions.py",
+    "truebind-web/backend/migrations/versions/0015_sanctions.py",
+    "truebind-web/backend/tests/test_sanctions.py",
+    "fixtures/golden/sanctions/test_sanctions_golden.py"
   ],
   "baseline": {
     "mypy_legacy_errors": 92,

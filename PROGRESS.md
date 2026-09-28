@@ -13,7 +13,7 @@ Python (`truebind-web/backend/.venv`).
 | P2 Channels & integrations | **done** — gate green |
 | P3 Binder compliance | **done** — gate green |
 | P4 Leakage & overpayment | **done** — gate green |
-| P5 Sanctions screening | pending |
+| P5 Sanctions screening | in progress |
 | P6 Scorecard | pending |
 | P7 Audit pack | pending |
 | P8 Sender pre-flight portal | pending |
@@ -342,5 +342,17 @@ Acceptance:
 - Gate evidence — `verify --full`: ruff/mypy clean (legacy 92/92); engine 90; vitest 20; migrations OK; backend on PostgreSQL 355 passed; golden 3 suites / 15 passed; next build; e2e 4; perf realistic 41.6 s / adversarial 40.8 s (probe max 0.125 s; budget 120 s — the rise from 35 s is the two check modules on 50k rows); security clean; coverage 92.02%, 94.08% of 3,599 changed lines. OpenAPI: a schema-level change only (`exposure`, `unpriced_findings` on module runs), accepted with `--update-openapi`.
 - Grep review: no float money, TODO/FIXME, print() or bare except in the new code; every query is tenant-filtered. Non-negotiables: no silent passes (NOT_ASSESSED with reasons), Decimal with ISO currency, and exposure never summed across currencies.
 - Summary: (1) The leakage module finds duplicate payments, negative reserves, reserves on closed claims, payments after closure and falling paid-to-date. (2) Each finding carries an exact amount and currency. (3) Each check reports its open exposure per currency. (4) The golden suite proves 100% precision and recall, zero findings on clean data and NOT_ASSESSED when unmapped. (5) Fixture builds are now byte-deterministic.
+
+## P5 — Sanctions screening (reconstructed criteria)
+
+### P5.1 Lists and screening — done
+Acceptance:
+- [x] Sanctions lists are loaded by writers from the published files. The format is recognised from the content: UK OFSI consolidated CSV, US OFAC SDN CSV, EU financial sanctions CSV, UN consolidated XML (parsed with DTDs and entities refused) and a simple name CSV. Aliases become their own entries. Unreadable files are refused with a reason — `test_list_formats_are_recognised` (5), `test_unreadable_lists_are_refused` (4).
+- [x] Lists are stored per organisation (migration 0015, forced RLS) with SHA-256, source and entry count. Loading and removal are audited and scoped to the organisation — `test_lists_api_is_scoped_audited_and_writers_only`. The audit and isolation walkers were extended with the 2 new operations.
+- [x] Screening compares insured names after removing accents, case, punctuation, legal-form words and word order. An exact match is REVIEW/CRITICAL; a close match (token-sort similarity of at least 90) is REVIEW/HIGH. Each hit says it is a potential match, not a finding of fact. There is one finding per list entity and at most three per row, and the fingerprint includes the entity, so decisions carry over — `test_normalisation`, `test_matches_are_deduplicated_capped_and_thresholded`. Blank or unmapped names, or no list loaded, give NOT_ASSESSED — `test_screening_through_the_report`.
+- [x] Scale: a word index keeps 20,000 names against 20,000 entries to seconds — `test_screening_scales` (under 30 s asserted; it runs in about 1 s).
+- [x] Golden (`fixtures/golden/sanctions`, list in the OFSI layout, every name invented): 5 planted potential matches (legal form, word order, alias, accents, a one-letter typo) at precision 100% and recall 100%. Names sharing only one word and an 85% near-miss are not raised; the blank name is NOT_ASSESSED. clean.xlsx gives zero findings and is fully assessed; unmapped.xlsx gives NOT_ASSESSED; no list gives NOT_ASSESSED.
+- [x] UI: Settings → Sanctions lists (load, list with SHA-256, remove). The Checks section shows the sanctions module automatically.
+- Human decisions (HUMAN_TODO): which lists apply, how often they are refreshed, and the match threshold and escalation route agreed with compliance.
 
 Remaining tasks (acceptance criteria written in full when each starts):

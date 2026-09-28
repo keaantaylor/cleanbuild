@@ -83,6 +83,9 @@ def _tenant_a(api: Api) -> dict[str, str]:
     binder = api.post("/api/v1/binders", json=binder_in).json()
     api.put(f"/api/v1/reports/{rid}/binder", json={"binder_id": binder["id"]})
     finding = api.get(f"/api/v1/reports/{rid}/checks/findings").json()["items"][0]
+    slist = api.post(
+        "/api/v1/sanctions/lists", files={"file": ("l.csv", b"Name\nHarrow Quay\n", "text/csv")}, data={"name": "L"}
+    ).json()
     return {
         "report_id": rid,
         "sheet_id": sheet["id"],
@@ -98,6 +101,7 @@ def _tenant_a(api: Api) -> dict[str, str]:
         "binder_id": binder["id"],
         "finding_id": finding["id"],
         "module": "binder",
+        "list_id": slist["id"],
     }
 
 

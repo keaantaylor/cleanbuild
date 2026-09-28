@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from . import binder, leakage
+from . import binder, leakage, sanctions
 from .base import CheckInput, ModuleResult
 
 REGISTRY: dict[str, Callable[[CheckInput], ModuleResult]] = {
     "binder": binder.run,
     "leakage": leakage.run,
+    "sanctions": sanctions.run,
 }
 
 LABELS = {

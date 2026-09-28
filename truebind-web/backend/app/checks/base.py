@@ -106,6 +106,7 @@ class FindingDraft:
     amount: Decimal | None = None
     currency: str | None = None
     evidence: dict[str, Any] = field(default_factory=dict)
+    key: str = ""  # tells apart findings on the same cell (e.g. two sanctions entries)
 
     def fingerprint(self, module: str) -> str:
         """Stable identity across re-runs, so a person's disposition carries over."""
@@ -120,6 +121,7 @@ class FindingDraft:
                 self.claim_reference,
                 self.amount,
                 self.currency,
+                self.key,
             )
         )
         return hashlib.sha256(key.encode()).hexdigest()

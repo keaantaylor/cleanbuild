@@ -22,7 +22,8 @@ from sqlalchemy.orm import Session
 
 from ..checks import LABELS, REGISTRY
 from ..checks.base import CheckInput, ModuleResult, RowView, SheetView
-from ..models.modules import Binder, Finding, ModuleRun
+from ..checks.sanctions import Entry, Index
+from ..models.modules import Binder, Finding, ModuleRun, SanctionsEntry, SanctionsList
 from ..models.reports import ClaimRow, Mapping, Report, Sheet
 from . import audit_service, fx_service
 
@@ -98,7 +99,35 @@ def build_input(db: Session, report: Report, module: str) -> CheckInput:
         b = db.query(Binder).filter(Binder.id == report.binder_id, Binder.tenant_id == report.tenant_id).first()
         if b is not None:
             config["binder"] = binder_config(b)
-    return CheckInput(report.id, views, rows, config, {"convert": _fx(db), "db": db, "tenant_id": report.tenant_id})
+    context: dict[str, Any] = {"convert": _fx(db)}
+    if module == "sanctions":
+        lists = (
+            db.query(SanctionsList)
+            .filter(SanctionsList.tenant_id == report.tenant_id)
+            .order_by(SanctionsList.uploaded_at)
+            .all()
+        )
+        names = {x.id: x.name for x in lists}
+        config["lists"] = [
+            {
+                "id": x.id,
+                "name": x.name,
+                "source": x.source,
+                "sha256": x.sha256,
+                "entries": x.entry_count,
+                "uploaded_at": x.uploaded_at.isoformat(),
+            }
+            for x in lists
+        ]
+        entries = db.execute(
+            select(SanctionsEntry.list_id, SanctionsEntry.reference, SanctionsEntry.name, SanctionsEntry.kind).where(
+                SanctionsEntry.tenant_id == report.tenant_id
+            )
+        )
+        context["sanctions_index"] = Index(
+            [Entry(ref, name, names.get(lid, "?"), kind) for lid, ref, name, kind in entries]
+        )
+    return CheckInput(report.id, views, rows, config, context)
 
 
 def _store(

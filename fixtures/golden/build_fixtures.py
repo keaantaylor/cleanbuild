@@ -15,6 +15,7 @@ them (fixed workbook timestamps).
 
 from __future__ import annotations
 
+import csv
 import datetime as dt
 import io
 import json
@@ -260,6 +261,78 @@ def build_leakage() -> None:
     _save(folder / "unmapped.xlsx", {"Claims": unmapped})
 
 
+# ------------------------------------------------------------------ sanctions
+# A synthetic list in the UK OFSI consolidated-list CSV layout. Every name is
+# invented for this fixture.
+OFSI_HEADER = ["Name 6", "Name 1", "Name 2", "Name 3", "Name 4", "Name 5", "Title", "DOB", "Nationality",
+               "Group Type", "Alias Type", "Regime", "Group ID"]  # fmt: skip
+OFSI_ROWS = [
+    ["QUORVANE SHIPPING LTD", "", "", "", "", "", "", "", "", "Entity", "Primary name", "Fixture", "90001"],
+    ["Velkaris", "Anatol", "Brenn", "", "", "", "", "01/01/1970", "", "Individual", "Primary name", "Fixture",
+     "90002"],
+    ["Velkaris", "Tolya", "", "", "", "", "", "01/01/1970", "", "Individual", "AKA", "Fixture", "90002"],
+    ["ORSKAYA METALS AG", "", "", "", "", "", "", "", "", "Entity", "Primary name", "Fixture", "90003"],
+    ["Draxmoor Holdings", "", "", "", "", "", "", "", "", "Entity", "Primary name", "Fixture", "90004"],
+    ["Müller Zentrix GmbH", "", "", "", "", "", "", "", "", "Entity", "Primary name", "Fixture", "90005"],
+]  # fmt: skip
+EXACT, CLOSE = "SAN_EXACT_MATCH", "SAN_CLOSE_MATCH"
+SAN_DIRTY: Planted = [
+    (
+        ["SN-001", "Quorvane Shipping Limited", d(2024, 5, 1), "Open", "GBP", 100, 0, 100],
+        [{"rule": EXACT, "status": REVIEW}],
+    ),  # legal form differs only
+    (
+        ["SN-002", "Velkaris, Anatol Brenn", d(2024, 5, 2), "Open", "GBP", 100, 0, 100],
+        [{"rule": EXACT, "status": REVIEW}],
+    ),  # word order differs only
+    (
+        ["SN-003", "Orskaya Metal AG", d(2024, 5, 3), "Open", "GBP", 100, 0, 100],
+        [{"rule": CLOSE, "status": REVIEW}],
+    ),  # one letter short (96%)
+    (["SN-004", "Anatol Bakery", d(2024, 5, 4), "Open", "GBP", 100, 0, 100], []),  # shares a word only
+    (["SN-005", "Metals Recycling Ltd", d(2024, 5, 5), "Open", "GBP", 100, 0, 100], []),  # shares a word only
+    (["SN-006", "Harbour View Cafe", d(2024, 5, 6), "Open", "GBP", 100, 0, 100], []),
+    (
+        ["SN-007", "Tolya Velkaris", d(2024, 5, 7), "Open", "GBP", 100, 0, 100],
+        [{"rule": EXACT, "status": REVIEW}],
+    ),  # an alias
+    (
+        ["SN-008", "Muller Zentrix", d(2024, 5, 8), "Open", "GBP", 100, 0, 100],
+        [{"rule": EXACT, "status": REVIEW}],
+    ),  # accent and legal form differ only
+    (["SN-009", "Draxmoor Holdings Group", d(2024, 5, 9), "Open", "GBP", 100, 0, 100], []),  # 85%, below 90
+    (["SN-010", None, d(2024, 5, 10), "Open", "GBP", 100, 0, 100], []),  # blank: not assessed
+    (["SN-011", "Shipping Solutions Ltd", d(2024, 5, 11), "Open", "GBP", 100, 0, 100], []),
+]
+SAN_CLEAN_NAMES = {0: "Quayside Stores", 1: "Brennan Hardware", 2: "Oakfield Metalwork", 6: "Tollgate Motors",
+                   7: "Zenith Gardens", 9: "Northfield Dental"}  # fmt: skip
+
+
+def build_sanctions() -> None:
+    folder = HERE / "sanctions"
+    folder.mkdir(exist_ok=True)
+    buf = io.StringIO()
+    w = csv.writer(buf, lineterminator="\n")
+    w.writerow(["Last Updated", "01/01/2026"])
+    w.writerow(OFSI_HEADER)
+    w.writerows(OFSI_ROWS)
+    (folder / "list_ofsi_format.csv").write_text(buf.getvalue(), encoding="utf-8")
+    data, expected = _split(SAN_DIRTY)
+    _save(folder / "dirty.xlsx", {"Claims": data})
+    key = {"module": "sanctions", "findings": [{"sheet": "Claims", "row": r, **e} for r, e in expected],
+           "list_entries": len(OFSI_ROWS), "not_assessed_rows_dirty": 1}  # fmt: skip
+    (folder / "answer_key.json").write_text(json.dumps(key, indent=2) + "\n", encoding="utf-8")
+    clean = [HEADER]
+    for i, (values, _) in enumerate(SAN_DIRTY):
+        v = list(values)
+        v[1] = SAN_CLEAN_NAMES.get(i, v[1])
+        clean.append(v)
+    _save(folder / "clean.xlsx", {"Claims": clean})
+    unmapped = [["Claim Reference", "Col N", *HEADER[2:]], *data[1:]]
+    _save(folder / "unmapped.xlsx", {"Claims": unmapped})
+
+
 if __name__ == "__main__":
     build_binder()
     build_leakage()
+    build_sanctions()

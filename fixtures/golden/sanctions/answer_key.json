@@ -1,0 +1,37 @@
+{
+  "module": "sanctions",
+  "findings": [
+    {
+      "sheet": "Claims",
+      "row": 2,
+      "rule": "SAN_EXACT_MATCH",
+      "status": "REVIEW"
+    },
+    {
+      "sheet": "Claims",
+      "row": 3,
+      "rule": "SAN_EXACT_MATCH",
+      "status": "REVIEW"
+    },
+    {
+      "sheet": "Claims",
+      "row": 4,
+      "rule": "SAN_CLOSE_MATCH",
+      "status": "REVIEW"
+    },
+    {
+      "sheet": "Claims",
+      "row": 8,
+      "rule": "SAN_EXACT_MATCH",
+      "status": "REVIEW"
+    },
+    {
+      "sheet": "Claims",
+      "row": 9,
+      "rule": "SAN_EXACT_MATCH",
+      "status": "REVIEW"
+    }
+  ],
+  "list_entries": 6,
+  "not_assessed_rows_dirty": 1
+}

@@ -1,4 +1,4 @@
-import type { Alert, AuditLogEntry, Binder, BinderInput, Disposition, ModuleFinding, ModuleRun, Channels, ClaimRow, Delivery, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Invitation, InvitationCreated, Job, Me, MappingField, Member, MfaChallenge, MfaStatus, Obligation, OrgSettings, Overview, Report, ReportSummary, Role, Sheet, SheetMapping, SftpDestination, SftpInput, SsoConfig, SsoConfigInput, SystemStatus, Template, WebhookDelivery, WebhookEndpoint, WebhookEvent, WorkQueue } from "./types";
+import type { Alert, AuditLogEntry, Binder, SanctionsList, BinderInput, Disposition, ModuleFinding, ModuleRun, Channels, ClaimRow, Delivery, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Invitation, InvitationCreated, Job, Me, MappingField, Member, MfaChallenge, MfaStatus, Obligation, OrgSettings, Overview, Report, ReportSummary, Role, Sheet, SheetMapping, SftpDestination, SftpInput, SsoConfig, SsoConfigInput, SystemStatus, Template, WebhookDelivery, WebhookEndpoint, WebhookEvent, WorkQueue } from "./types";
 
 // Default: same hostname as the page, port 8000. Using the page's own host
 // matters: a page on localhost calling an API on 127.0.0.1 is cross-site, so
@@ -324,6 +324,14 @@ export const api = {
   listBinders: () => request<Binder[]>("/binders"),
   createBinder: (body: BinderInput) => request<Binder>("/binders", { method: "POST", body: JSON.stringify(body) }),
   deleteBinder: (id: string) => request<void>(`/binders/${id}`, { method: "DELETE" }),
+  listSanctionsLists: () => request<SanctionsList[]>("/sanctions/lists"),
+  loadSanctionsList: (name: string, file: File) => {
+    const form = new FormData();
+    form.append("name", name);
+    form.append("file", file);
+    return request<SanctionsList>("/sanctions/lists", { method: "POST", body: form, timeoutMs: 300_000 });
+  },
+  deleteSanctionsList: (id: string) => request<void>(`/sanctions/lists/${id}`, { method: "DELETE" }),
 
   // ---- exports (plain GET links; the session cookie authenticates them)
   exportClaimsUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/claims.csv`,

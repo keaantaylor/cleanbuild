@@ -86,6 +86,13 @@ function ModuleCard({ run, report, canWrite, onRan, extra }: { run: ModuleRun; r
       actions={<div className={styles.actions}><Pill tone={meta.tone}>{meta.label}</Pill>
         {canWrite && report.status === "COMPLETE" && <Button size="sm" variant="ghost" loading={busy} onClick={rerun}>Run again</Button>}</div>}>
       {extra}
+      {(Object.keys(run.exposure ?? {}).length > 0 || run.unpriced_findings > 0) && (
+        <p className={styles.exposure}>
+          <strong>Open exposure:</strong>{" "}
+          {Object.entries(run.exposure).map(([ccy, amt]) => decimalMoney(amt, ccy)).join(" · ") || "none with a stated currency"}
+          {run.unpriced_findings > 0 && ` · ${run.unpriced_findings} finding(s) without a stated currency, not totalled`}
+        </p>
+      )}
       {run.rules.length > 0 && (
         <table className={styles.rules}>
           <caption className={styles.srOnly}>{run.label}: rows assessed per rule</caption>

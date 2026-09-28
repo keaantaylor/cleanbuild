@@ -56,6 +56,8 @@ class ModuleRunOut(BaseModel):
     ran_at: datetime | None
     ran_by: str | None
     coverage_statement: str
+    exposure: dict[str, str] = Field(default_factory=dict)  # FAIL amounts per ISO currency, never summed across
+    unpriced_findings: int = 0  # FAIL findings with an amount but no stated currency
 
 
 class FindingOut(BaseModel):
@@ -185,9 +187,25 @@ def _run_out(db: Session, report: Report, module: str, run: ModuleRun | None) ->
         .scalar()
         or 0
     )
+    exposure: dict[str, Decimal] = {}
+    unpriced = 0
+    for amount, ccy in db.query(Finding.amount, Finding.currency).filter(
+        Finding.report_id == report.id,
+        Finding.tenant_id == report.tenant_id,
+        Finding.module == module,
+        Finding.status == "FAIL",
+        Finding.disposition != "DISMISSED",
+        Finding.amount.is_not(None),
+    ):
+        if ccy and amount is not None:
+            exposure[ccy] = exposure.get(ccy, Decimal(0)) + amount
+        else:
+            unpriced += 1
     return ModuleRunOut(
         module=module,
         label=label,
+        exposure={c: str(v) for c, v in sorted(exposure.items())},
+        unpriced_findings=unpriced,
         state=run.state,
         reason=run.reason,
         rules=[RuleOut(**r) for r in run.rules],

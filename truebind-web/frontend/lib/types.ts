@@ -475,6 +475,7 @@ export interface CheckRule { code: string; label: string; assessed: number; not_
 export interface ModuleRun {
   module: string; label: string; state: ModuleState; reason: string | null; rules: CheckRule[];
   finding_count: number; open_count: number; ran_at: string | null; ran_by: string | null; coverage_statement: string;
+  exposure: Record<string, string>; unpriced_findings: number;
 }
 export type Disposition = "OPEN" | "CONFIRMED" | "DISMISSED";
 export interface ModuleFinding {

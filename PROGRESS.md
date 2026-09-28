@@ -12,7 +12,7 @@ Python (`truebind-web/backend/.venv`).
 | P1 Platform foundation | **done** — gate green |
 | P2 Channels & integrations | **done** — gate green |
 | P3 Binder compliance | **done** — gate green |
-| P4 Leakage & overpayment | pending |
+| P4 Leakage & overpayment | in progress |
 | P5 Sanctions screening | pending |
 | P6 Scorecard | pending |
 | P7 Audit pack | pending |
@@ -322,5 +322,20 @@ Acceptance (reconstructed):
 - Grep review: no float money, TODO/FIXME, print() or bare except in the new code. The one `except Exception` (a crashing module is logged and recorded NOT_ASSESSED) is deliberate and tested. Every Finding/ModuleRun/Binder query filters by tenant.
 - Self-review against the non-negotiables: tri-state mapping is untouched (modules read only confirmed mappings); nothing passes silently (NOT_ASSESSED with reasons, coverage statement per module); Decimal money with ISO currency; RLS on the new tables; every state change is audited (the walker covers them); explanations and drill-down on every finding.
 - Summary: (1) A shared findings framework now carries every module. (2) Binder compliance checks period, currency, authority and aggregate, and turns ambiguous dates into REVIEW. (3) The golden fixtures prove 100% precision and recall, zero findings on the clean file and NOT_ASSESSED when unmapped. (4) People confirm or dismiss findings with an audited reason that survives re-runs. (5) The report page has a Checks section and Settings has Binders.
+
+## P4 — Leakage & overpayment (reconstructed criteria)
+
+### P4.1 Leakage module — done
+Acceptance:
+- [x] Five rules on the shared framework. Each rule needs its fields mapped, or it reports NOT_ASSESSED with the reason.
+  - LKG_DUPLICATE_PAYMENT (FAIL): the same claim, reporting period and paid-this-month amount appears twice.
+  - LKG_NEGATIVE_RESERVE (FAIL): a reserve below zero.
+  - LKG_CLOSED_WITH_RESERVE (FAIL): a closed claim still holding a reserve.
+  - LKG_PAID_AFTER_CLOSURE (REVIEW): paid to date rose after a period in which the claim was closed.
+  - LKG_PAID_DECREASED (REVIEW): cumulative paid to date went down between periods.
+- [x] Reporting periods are read in the common forms (2024-01, Jan 2024, Q1 2024, 202401, dates). An unreadable period is NOT_ASSESSED, never guessed — `test_periods_are_read_or_refused` (11). The history rules skip rows within the same period — `test_history_rules`. Blanks and unmapped inputs are counted as not assessed — `test_blank_and_unmapped_inputs_are_not_assessed`.
+- [x] Exposure: every module run reports its open FAIL amounts per ISO currency. They are never summed across currencies. Findings with no stated currency are counted separately, not totalled. Dismissed findings leave the total — `test_exposure_is_per_currency_and_dismissals_leave_it`. The UI shows "Open exposure" on each check.
+- [x] Golden (`fixtures/golden/leakage`): dirty.xlsx has 6 planted leaks (4 FAIL and 2 REVIEW, including one with no currency), found at precision 100% and recall 100% with exact amounts, and exposure is GBP 3,700.00 plus 1 unpriced finding — `test_dirty_file_all_leaks_and_nothing_else`. clean.xlsx gives zero findings and is fully assessed. unmapped.xlsx gives NOT_ASSESSED.
+- Harness fix (evidence): openpyxl stamps the current time into `docProps/core.xml` on save, so the golden workbooks were not byte-identical between builds. `build_fixtures.py` now rewrites that timestamp and every zip entry time. Two consecutive builds give identical MD5s. The binder workbooks were re-committed with the same cell content, and their golden suite passes unchanged.
 
 Remaining tasks (acceptance criteria written in full when each starts):

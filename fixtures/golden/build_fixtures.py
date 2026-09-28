@@ -16,7 +16,10 @@ them (fixed workbook timestamps).
 from __future__ import annotations
 
 import datetime as dt
+import io
 import json
+import re
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -39,8 +42,21 @@ def _save(path: Path, sheets: dict[str, list[list[Any]]]) -> None:
         for r in rows:
             ws.append(r)
     wb.properties.created = FIXED
-    wb.properties.modified = FIXED
-    wb.save(path)
+    raw = io.BytesIO()
+    wb.save(raw)  # openpyxl stamps "modified" with the current time: rewrite it, and every entry's time
+    raw.seek(0)
+    out = io.BytesIO()
+    with zipfile.ZipFile(raw) as src, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as dst:
+        for item in src.infolist():
+            body = src.read(item.filename)
+            if item.filename == "docProps/core.xml":
+                body = re.sub(rb"<dcterms:modified([^>]*)>[^<]*<", rb"<dcterms:modified\1>2026-01-01T00:00:00Z<", body)
+            dst.writestr(
+                zipfile.ZipInfo(item.filename, date_time=(2026, 1, 1, 0, 0, 0)),
+                body,
+                compress_type=zipfile.ZIP_DEFLATED,
+            )
+    path.write_bytes(out.getvalue())
 
 
 Planted = list[tuple[list[Any], list[dict[str, Any]]]]
@@ -172,5 +188,78 @@ def build_binder() -> None:
     _save(folder / "unmapped.xlsx", {"Claims": unmapped})
 
 
+# ------------------------------------------------------------------ leakage
+LEAK_HEADER = ["Claim Reference", "Insured Name", "Date of Loss", "Claim Status", "Currency", "Reporting Period",
+               "Paid This Month", "Paid to Date", "Outstanding Reserve", "Total Incurred"]  # fmt: skip
+DUP, NEG, CLOSED, AFTER, DEC = ("LKG_DUPLICATE_PAYMENT", "LKG_NEGATIVE_RESERVE", "LKG_CLOSED_WITH_RESERVE",
+                                "LKG_PAID_AFTER_CLOSURE", "LKG_PAID_DECREASED")  # fmt: skip
+
+LEAK_DIRTY: Planted = [
+    (["LK-001", "Ash Motors", d(2024, 1, 10), "Open", "GBP", "2024-01", 1000, 1000, 4000, 5000], []),
+    (["LK-001", "Ash Motors", d(2024, 1, 10), "Open", "GBP", "2024-02", 500, 1500, 3500, 5000], []),
+    (["LK-002", "Beech Care", d(2024, 1, 5), "Open", "GBP", "2024-01", 2000, 2000, 1000, 3000], []),
+    (
+        ["LK-002", "Beech Care", d(2024, 1, 5), "Open", "GBP", "2024-01", 2000, 2000, 1000, 3000],
+        [{"rule": DUP, "status": FAIL, "amount": "2000.00", "currency": "GBP"}],
+    ),  # same payment twice
+    (
+        ["LK-003", "Cork Dental", d(2024, 2, 1), "Open", "GBP", "2024-02", 0, 3000, -500, 2500],
+        [{"rule": NEG, "status": FAIL, "amount": "500.00", "currency": "GBP"}],
+    ),
+    (
+        ["LK-004", "Dock Freight", d(2024, 1, 20), "Closed", "GBP", "2024-01", 0, 8000, 1200, 9200],
+        [{"rule": CLOSED, "status": FAIL, "amount": "1200.00", "currency": "GBP"}],
+    ),
+    (["LK-005", "Elder Foods", d(2023, 11, 11), "Closed", "EUR", "2024-01", 0, 6000, 0, 6000], []),
+    (
+        ["LK-005", "Elder Foods", d(2023, 11, 11), "Closed", "EUR", "2024-02", 750, 6750, 0, 6750],
+        [{"rule": AFTER, "status": REVIEW, "amount": "750.00", "currency": "EUR"}],
+    ),
+    (["LK-006", "Fir Timber", d(2023, 12, 1), "Open", "GBP", "2024-01", 0, 4000, 1000, 5000], []),
+    (
+        ["LK-006", "Fir Timber", d(2023, 12, 1), "Open", "GBP", "2024-02", 0, 3400, 1000, 4400],
+        [{"rule": DEC, "status": REVIEW, "amount": "600.00", "currency": "GBP"}],
+    ),
+    (["LK-007", "Glen Bakery", d(2024, 2, 14), "Open", "USD", "2024-02", 100, 100, 900, 1000], []),
+    (
+        ["LK-008", "Holm Print", d(2024, 2, 15), "Open", None, "2024-02", 0, 0, -250, -250],
+        [{"rule": NEG, "status": FAIL, "amount": "250.00", "currency": None}],
+    ),  # no currency: said so
+    (["LK-009", "Ivy Hotels", d(2024, 1, 2), "Closed", "GBP", "Q1 2024", 0, 500, 0, 500], []),
+    (["LK-010", "Jet Couriers", d(2024, 3, 3), "Open", "GBP", "2024-03", 300, 300, 700, 1000], []),
+]
+LEAK_CLEAN_FIX = {  # row index in LEAK_DIRTY -> replacement values (None drops the row)
+    3: None,
+    4: ["LK-003", "Cork Dental", d(2024, 2, 1), "Open", "GBP", "2024-02", 0, 3000, 500, 3500],
+    5: ["LK-004", "Dock Freight", d(2024, 1, 20), "Closed", "GBP", "2024-01", 0, 8000, 0, 8000],
+    6: ["LK-005", "Elder Foods", d(2023, 11, 11), "Open", "EUR", "2024-01", 0, 6000, 750, 6750],
+    9: ["LK-006", "Fir Timber", d(2023, 12, 1), "Open", "GBP", "2024-02", 400, 4400, 600, 5000],
+    11: ["LK-008", "Holm Print", d(2024, 2, 15), "Open", "GBP", "2024-02", 0, 0, 250, 250],
+}
+
+
+def build_leakage() -> None:
+    folder = HERE / "leakage"
+    folder.mkdir(exist_ok=True)
+    data: list[list[Any]] = [LEAK_HEADER]
+    expected: list[dict[str, Any]] = []
+    for values, expects in LEAK_DIRTY:
+        data.append(values)
+        expected.extend({"sheet": "Claims", "row": len(data), **e} for e in expects)
+    _save(folder / "dirty.xlsx", {"Claims": data})
+    key = {"module": "leakage", "findings": expected}
+    (folder / "answer_key.json").write_text(json.dumps(key, indent=2) + "\n", encoding="utf-8")
+    clean: list[list[Any]] = [LEAK_HEADER]
+    for i, (values, _) in enumerate(LEAK_DIRTY):
+        fixed = LEAK_CLEAN_FIX.get(i, values)
+        if fixed is not None:
+            clean.append(fixed)
+    _save(folder / "clean.xlsx", {"Claims": clean})
+    unmapped = [["Claim Reference", "Insured Name", "Date of Loss", "Col S", "Currency", "Col T", "Paid This Month",
+                 "Paid to Date", "Col U", "Total Incurred"], *data[1:]]  # fmt: skip
+    _save(folder / "unmapped.xlsx", {"Claims": unmapped})
+
+
 if __name__ == "__main__":
     build_binder()
+    build_leakage()

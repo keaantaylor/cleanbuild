@@ -34,6 +34,8 @@ services:
     environment:
       MINIO_ROOT_USER: truebind-test
       MINIO_ROOT_PASSWORD: truebind-test-secret
+      # Enables SSE-S3 (server-side encryption) with a static, test-only key.
+      MINIO_KMS_SECRET_KEY: "truebind-test-key:dHJ1ZWJpbmQtdGVzdC1vbmx5LWttcy1rZXktMzJieXQ="  # gitleaks:allow (test-only)
     ports: ["59000:9000"]
     tmpfs: ["/data"]
     healthcheck:

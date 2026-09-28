@@ -31,7 +31,7 @@ from ..database import set_tenant
 from ..models.jobs import Job
 from ..models.reports import Report, Sheet
 from . import job_service, persistence_service, pipeline_service, report_state
-from .storage import store
+from .storage import IntegrityError, get_store
 
 log = logging.getLogger("truebind.jobs")
 
@@ -75,13 +75,25 @@ def _peak_rss_mb() -> float | None:
         return None
 
 
-def _load(db: Session, job: Job) -> tuple[Report, Path]:
+def _load(db: Session, job: Job) -> Report:
     report = db.get(Report, job.report_id)
     if report is None or report.tenant_id != job.tenant_id:
         raise JobFailure("report_missing", "The report no longer exists.")
-    if not report.storage_key:
+    if not report.storage_key or not report.source_sha256:
         raise JobFailure("source_missing", "The uploaded file is no longer available. Upload it again.")
-    return report, store.local_path(report.storage_key)
+    return report
+
+
+def _parse_original(report: Report):
+    """Read the immutable original, verifying its SHA-256 first."""
+    try:
+        with get_store().local_copy(report.storage_key or "", report.source_sha256 or "") as path:
+            return _parse(path, report)
+    except IntegrityError as exc:
+        raise JobFailure("source_tampered", "The stored file no longer matches the one uploaded, so it was not "
+                         "processed. Upload it again.", False) from exc
+    except FileNotFoundError as exc:
+        raise JobFailure("source_missing", "The uploaded file is no longer available. Upload it again.") from exc
 
 
 def _parse(path: Path, report: Report):
@@ -129,9 +141,9 @@ def propose_with_ai_cap(sheets) -> tuple[list[SheetMappingProposal], dict]:
 
 def run_ingest(db: Session, job: Job) -> dict:
     t0 = perf_counter()
-    report, path = _load(db, job)
+    report = _load(db, job)
     job_service.set_stage(db, job, "inspecting")
-    sheets = _parse(path, report)
+    sheets = _parse_original(report)
     t_parse = perf_counter() - t0
     usable = [s for s in sheets if not s.skipped]
     facts = dict(sheets_found=len(sheets), sheets_with_data=len(usable),
@@ -156,12 +168,12 @@ def run_ingest(db: Session, job: Job) -> dict:
 
 def run_process(db: Session, job: Job) -> dict:
     t0 = perf_counter()
-    report, path = _load(db, job)
+    report = _load(db, job)
     db_sheets = db.query(Sheet).filter_by(report_id=report.id).all()
     if any(s.status == "PENDING_CONFIRMATION" for s in db_sheets):
         raise JobFailure("mapping_not_confirmed", "Every sheet's mapping must be confirmed before processing.")
     job_service.set_stage(db, job, "parsing")
-    sheets = _parse(path, report)
+    sheets = _parse_original(report)
     t_parse = perf_counter() - t0
     job_service.set_stage(db, job, "mapping", sheets_found=len(sheets),
                           rows_detected=sum(len(s.raw) for s in sheets if not s.skipped))

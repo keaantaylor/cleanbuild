@@ -89,7 +89,11 @@ def test_path_traversal_filename_cannot_escape_storage(api):
     body = r.json()
     assert body["file_name"] == "evil.xlsx"
     files = _stored_files()
-    assert len(files) == 1 and files[0].name == "source.xlsx"
+    # P1.5: the stored name is the content's SHA-256 (was "source.xlsx"); either
+    # way no part of the uploaded file name reaches the filesystem path.
+    import hashlib
+    assert len(files) == 1 and files[0].name == hashlib.sha256(files[0].read_bytes()).hexdigest() + ".xlsx"
+    assert "evil" not in str(files[0]) and ".." not in str(files[0])
     assert STORAGE_DIR.resolve() in files[0].resolve().parents
 
 

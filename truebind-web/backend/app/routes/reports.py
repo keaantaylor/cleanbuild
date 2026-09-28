@@ -24,7 +24,7 @@ from ..security.permissions import Permission
 from ..security.file_guard import inspect_upload, safe_display_name
 from ..security.ratelimit import limiter
 from ..services import alert_service, audit_service, delivery_service, export_service, job_service, retention_service
-from ..services.storage import sha256_file, source_key, store
+from ..services.storage import get_store, sha256_file
 from .deps import Paging, get_report_or_404, latest_job, report_out
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
@@ -64,17 +64,22 @@ def upload_report(file: UploadFile, sender: str | None = Form(default=None, max_
                                      actor=ctx.actor, actor_user_id=ctx.user_id)
             db.commit()
             raise HTTPException(status_code=_REJECT_STATUS.get(verdict.code, 400), detail=verdict.reason)
+        # Write-once, content-addressed original. Stored before the database
+        # rows: if the transaction below fails, the object is merely unused.
+        kind = verdict.kind
         tenant = db.get(Tenant, ctx.tenant_id)
+        if kind is None or tenant is None:  # an accepted verdict always names its kind
+            raise HTTPException(status_code=415, detail="Unsupported file type.")
+        stored = get_store().put_original(ctx.tenant_id, kind, tmp)
         report = Report(tenant_id=ctx.tenant_id, created_by=ctx.user_id, file_name=display, file_size_bytes=size,
-                        file_kind=verdict.kind, status="UPLOADED", ingest_notes={"file_notes": verdict.notes},
+                        file_kind=kind, status="UPLOADED", ingest_notes={"file_notes": verdict.notes},
                         expires_at=utcnow() + timedelta(days=tenant.retention_days), updated_at=utcnow(),
                         source_channel="upload", sender=(sender or "").strip() or None,
                         programme=(programme or "").strip() or None)
         db.add(report)
         db.flush()
-        key = source_key(ctx.tenant_id, report.id, verdict.kind)
-        report.source_sha256 = store.put_file(key, tmp)
-        report.storage_key = key
+        report.source_sha256 = stored.sha256
+        report.storage_key = stored.key
         try:
             audit_service.log_action(db, ctx.tenant_id, report.id, "REPORT_UPLOADED", "REPORT", report.id,
                                      after={"file_name": display, "size": size, "sha256": report.source_sha256,
@@ -87,7 +92,6 @@ def upload_report(file: UploadFile, sender: str | None = Form(default=None, max_
             db.commit()
         except Exception:
             db.rollback()
-            store.delete_report(ctx.tenant_id, report.id)
             raise
         db.refresh(report)
         return report_out(db, report)

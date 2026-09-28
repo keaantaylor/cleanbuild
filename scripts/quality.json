@@ -22,10 +22,13 @@
     "truebind-web/backend/app/security/oidc.py",
     "truebind-web/backend/app/routes/sso.py",
     "truebind-web/backend/migrations/versions/0009_sso.py",
-    "truebind-web/backend/tests/test_sso.py"
+    "truebind-web/backend/tests/test_sso.py",
+    "truebind-web/backend/app/services/storage.py",
+    "truebind-web/backend/migrations/versions/0010_report_soft_delete.py",
+    "truebind-web/backend/tests/test_storage.py"
   ],
   "baseline": {
-    "mypy_legacy_errors": 100,
+    "mypy_legacy_errors": 98,
     "coverage_total_pct": 89.69
   },
   "new_code_coverage_min_pct": 85

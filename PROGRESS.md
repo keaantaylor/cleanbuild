@@ -150,8 +150,22 @@ Acceptance:
 
 Known limitation: SENDER users land in the standard dashboard, where data pages return 403. The sender portal (P8) gives them their own navigation.
 
+### P1.5 Immutable originals, S3 storage, soft delete (D5) — done
+Acceptance (unit `tests/test_storage.py`, 7; MinIO `tests/integration/test_s3_storage.py`, 3):
+- [x] Originals are write-once and content-addressed (`tenants/<t>/originals/<sha256>.<kind>`); identical bytes are idempotent; the same file uploaded twice shares one object — `test_originals_are_content_addressed_and_idempotent`, `test_same_file_uploaded_twice_shares_one_immutable_original`.
+- [x] The storage interface has no delete/overwrite/remove method on either backend — `test_storage_has_no_delete_or_overwrite_path`.
+- [x] Every read verifies SHA-256; a tampered original is refused (job fails `source_tampered`, never parsed) — `test_tampered_original_is_refused`, `test_read_verifies_the_hash`.
+- [x] Keys are validated (no traversal) — `test_keys_are_validated`.
+- [x] S3 (MinIO): SSE AES256 on every object, SHA-256 in metadata, conditional `If-None-Match: *` so a different body can never replace a key, full upload → ingest → process on S3 — `test_objects_are_encrypted_hashed_and_write_once`, `test_full_workflow_on_s3`.
+- [x] Deleting a report or its retention expiring is a soft delete: 404, gone from lists/overview/alerts/follow-ups/deliveries, invisible to a fresh session (the worker), audited — original byte-identical afterwards, also on S3 — `test_delete_is_soft_and_keeps_the_original`, `test_retention_expiry_is_soft_and_keeps_the_original`, `test_full_workflow_on_s3`.
+
+Existing tests changed (evidence — both encoded behaviour that non-negotiable #7 forbids or renamed):
+- `test_workflow.py::test_delete_removes_file_and_data_but_keeps_audit` asserted the original file was removed and derived rows deleted. Replaced by `test_delete_hides_report_keeps_original_and_audit`: original exists and is byte-identical, report hidden from queries and API, audit entry present.
+- `test_upload_security.py::test_path_traversal_filename_cannot_escape_storage` asserted the stored name was `source.xlsx`. The security property (the uploaded name never reaches the path; the file stays inside storage) is unchanged and still asserted; the name is now the content's SHA-256, which the test checks exactly.
+
+Implementation: `app/services/storage.py` (strict; `LocalObjectStore` creates 0400 files via `link()` so a key can never be replaced; `S3ObjectStore` via boto3), migration `0010_report_soft_delete`, one ORM rule in `models/reports.py` hides soft-deleted reports and the alerts/obligations/deliveries that point at them (`include_deleted` opt-in). Upload stores the original before the DB transaction, so a failed transaction leaves an unused immutable object instead of deleting one. `docs/RETENTION.md` documents that physical purge is an operator lifecycle rule. docker-compose.test.yml: MinIO gets a test-only KMS key for SSE. Legacy mypy ratchet 100 → 98.
+
 Remaining tasks (acceptance criteria written in full when each starts):
-- P1.5 Storage: S3-compatible adapter (boto3; MinIO in tests), SSE, SHA-256 on write, no delete path; report delete → soft delete (D5).
 - P1.6 Money: `Numeric(18,2)` + currency, Decimal at the API boundary (D1); per-cell ambiguous-date flag (D9).
 - P1.7 Jobs: Redis wake-ups + idempotency keys + retries on the existing DB queue (D6); 50k-row workbook < 120 s without blocking the API.
 - P1.8 Observability: JSON logs with request IDs + PII scrubber, Sentry (env-gated, scrubbed), `/healthz` `/readyz`.

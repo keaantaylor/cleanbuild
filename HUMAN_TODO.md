@@ -12,7 +12,7 @@ Nothing here has been done by the build agent. Kept current every phase; P10 com
 ## Accounts (needed from P1/P2 onwards — details added as each phase lands)
 - [ ] Render env: add `SECRET_KEY` (>= 32 random chars, e.g. `python -c "import secrets;print(secrets.token_urlsafe(48))"`) before deploying Platform V1 — production refuses to start without it.
 - [ ] Sentry project (DSN) — P1.
-- [ ] Object storage: Cloudflare R2 or AWS S3 (London/Dublin) bucket + access key — P1.
+- [ ] Object storage: AWS S3 (eu-west-2 London / eu-west-1 Dublin) or Cloudflare R2 (EU jurisdiction) bucket for originals with **versioning on**, **default encryption (SSE-S3 or KMS)**, **block public access**, optional **Object Lock (compliance mode)**, and a **lifecycle rule** expiring `tenants/*/originals/` after the agreed retention (docs/RETENTION.md). Create an access key limited to `s3:PutObject`, `s3:GetObject`, `s3:HeadObject` on that bucket (no delete permission). Then set `STORAGE_BACKEND=s3`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` (and `S3_ENDPOINT_URL` for R2) on Render.
 - [ ] Redis (Render Key Value or Upstash, EU) — P1.
 - [ ] SSO (per customer, optional): register an app in the customer's Microsoft Entra ID (or WorkOS). Redirect URI = `<PUBLIC_API_URL>/api/v1/auth/sso/callback` (shown in Settings → SSO); grant `openid email profile`; give TrueBind the issuer URL (`https://login.microsoftonline.com/<tenant-id>/v2.0`), client id and secret. Also set `PUBLIC_API_URL` and `PUBLIC_APP_URL` on Render. Domain ownership is not yet verified by DNS — only configure domains the organisation owns.
 - [ ] Postmark (inbound + outbound) and DNS for the inbound domain (MX, SPF, DKIM, DMARC) — P2.

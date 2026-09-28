@@ -32,7 +32,8 @@ from .database import get_session_factory, set_tenant
 from .observability import configure_logging
 from .models._util import utcnow
 from .models.jobs import Job, WorkerHeartbeat
-from .services import job_service, job_signal, retention_service, webhooks
+from . import config
+from .services import fx_service, job_service, job_signal, retention_service, webhooks
 
 log = logging.getLogger("truebind.worker")
 
@@ -42,6 +43,7 @@ POLL_S = 0.5
 WAKE_WAIT_S = 2.0
 REAP_EVERY_S = 10.0
 WEBHOOK_EVERY_S = 5.0
+FX_EVERY_S = 6 * 3600.0
 RETENTION_EVERY_S = 3600.0
 
 
@@ -105,6 +107,7 @@ class Worker:
         self._last_reap = 0.0
         self._last_retention = 0.0
         self._last_webhooks = 0.0
+        self._last_fx = 0.0
         self._last_registry = 0.0
         self._started_at = utcnow()
         self._warm: tuple | None = None  # (process, parent_conn)
@@ -186,6 +189,15 @@ class Worker:
                 webhooks.dispatch_due(db)
             except Exception:  # noqa: BLE001 -- housekeeping must not stop the worker
                 log.exception("webhook dispatch failed")
+            finally:
+                db.close()
+        if config.FX_AUTO_REFRESH and now - self._last_fx >= FX_EVERY_S:
+            self._last_fx = now
+            db = self.factory()
+            try:
+                fx_service.refresh(db)
+            except Exception:  # noqa: BLE001 -- housekeeping must not stop the worker
+                log.exception("ECB rate refresh failed")
             finally:
                 db.close()
         if now - self._last_retention >= RETENTION_EVERY_S:

@@ -52,7 +52,10 @@
     "truebind-web/backend/tests/test_webhooks.py",
     "truebind-web/backend/app/services/sftp_service.py",
     "truebind-web/backend/app/routes/sftp.py",
-    "truebind-web/backend/tests/test_sftp.py"
+    "truebind-web/backend/tests/test_sftp.py",
+    "truebind-web/backend/app/services/fx_service.py",
+    "truebind-web/backend/app/routes/fx.py",
+    "truebind-web/backend/tests/test_fx.py"
   ],
   "baseline": {
     "mypy_legacy_errors": 93,

@@ -267,4 +267,13 @@ Acceptance (`tests/test_sftp.py`, 4; `tests/integration/test_sftp_sftpgo.py`, 3 
 - [x] Auto-delivery on report completion (claims + exceptions CSV) — `test_auto_delivery_on_completion`.
 - [x] PUT/DELETE/test covered by the audit walker; `GET /org/sftp` returns null (200) when unset, so the isolation walker's list check applies.
 
+### P2.5 ECB FX rates — done
+Acceptance (`tests/test_fx.py`, 9):
+- [x] ECB XML feed (real format) loads into `fx_rates` idempotently; DTD/entity XML, malformed and empty feeds refused — `test_feed_loads_idempotently`, `test_hostile_or_empty_feeds_are_refused` (3).
+- [x] Exact Decimal cross rates through EUR, half up to the cent, rate date stated — `test_exact_cross_rate_conversion`.
+- [x] No fixing on the date: latest ECB day within 7 days, and says which — `test_weekend_uses_the_previous_fixing_and_says_so`.
+- [x] Beyond that, or unknown currency: NOT_ASSESSED with a reason, never a guess — `test_missing_rates_are_not_assessed`.
+- [x] API returns decimal strings; NaN refused; refresh org:manage only, audited, 502 on feed outage — `test_api_returns_decimal_strings`, `test_refresh_needs_org_manage_and_is_audited`. Optional scheduled refresh (`FX_AUTO_REFRESH`, every 6 h in the worker).
+- Test scope note (evidence): `/api/v1/fx/rates` and `/api/v1/fx/convert` added to the isolation walker's existing `NO_TENANT_DATA` set (with the health probes): they serve global ECB reference data with no tenant rows; `/fx/convert` also requires query parameters the walker does not supply.
+
 Remaining tasks (acceptance criteria written in full when each starts):

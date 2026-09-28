@@ -247,6 +247,13 @@ def test_every_state_change_is_audited_and_the_chain_holds(monkeypatch: pytest.M
     trail.step("POST", "/api/v1/org/sftp/test", lambda: owner.post("/api/v1/org/sftp/test"))
     trail.step("DELETE", "/api/v1/org/sftp", lambda: owner.delete("/api/v1/org/sftp"))
 
+    # --- ECB rates refresh (P2.5)
+    from app.services import fx_service
+    from test_fx import FEED
+
+    monkeypatch.setattr(fx_service, "_fetch", lambda url: FEED)
+    trail.step("POST", "/api/v1/fx/refresh", lambda: owner.post("/api/v1/fx/refresh"))
+
     missing = _mutating_operations() - trail.covered
     assert not missing, f"state-changing operations without an audited scenario step: {sorted(missing)}"
     verdict = owner.get("/api/v1/audit/verify").json()

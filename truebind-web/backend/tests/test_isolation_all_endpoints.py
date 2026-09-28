@@ -30,7 +30,8 @@ PUBLIC = {
     "/api/v1/auth/sso/start",
     "/api/v1/auth/sso/callback",
 }
-NO_TENANT_DATA = {"/health", "/health/ready"}
+# Global reference data (health probes, ECB FX rates): no tenant rows to leak.
+NO_TENANT_DATA = {"/health", "/health/ready", "/api/v1/fx/rates", "/api/v1/fx/convert"}
 
 # Bodies that pass validation, so the handler (and its tenant check) runs.
 BODIES: dict[tuple[str, str], dict[str, Any]] = {

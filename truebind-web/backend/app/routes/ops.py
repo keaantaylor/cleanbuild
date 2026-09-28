@@ -52,12 +52,13 @@ def overview(ctx: Context = Depends(require_reader), db: Session = Depends(get_d
     complete = [r for r in reports if r.status == "COMPLETE" and r.summary]
     totals = Counter()
     for r in complete:
-        s = r.summary
+        s = r.summary or {}
         for k in ("missing_mandatory_rows", "arithmetic_mismatches", "exact_duplicates", "probable_duplicates",
                   "development_pairs", "arithmetic_not_evaluable"):
             totals[k] += int(s.get(k) or 0)
         totals["unmapped_columns"] += sum(len(u["columns"]) for u in s.get("unmapped_source_columns") or [])
         totals["claims"] += int(s.get("total_claims") or 0)
+        totals["reports_with_checks_not_assessed"] += 1 if s.get("not_assessed_checks") else 0
     severity = dict(db.query(ValidationResult.severity, func.count())
                     .join(Report, Report.id == ValidationResult.report_id)
                     .filter(ValidationResult.tenant_id == tid, ValidationResult.status.in_(("FAIL", "REVIEW")))

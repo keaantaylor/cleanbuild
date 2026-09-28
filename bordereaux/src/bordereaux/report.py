@@ -122,6 +122,10 @@ class WorkbookCoverage:
     # Source columns the confirmed mapping did not bind to any canonical field,
     # per sheet. Their values are kept on each row (canonical "_unmapped_values").
     unmapped_source_columns: dict[str, list[str]] = field(default_factory=dict)
+    # Checks that were not run at all, with the reason: (check key, reason).
+    # Shown in the coverage line and makes the score provisional -- a check
+    # that did not run is never reported as a clean result.
+    not_assessed_checks: list[tuple[str, str]] = field(default_factory=list)
 
     @staticmethod
     def single_sheet(row_count: int, sheet_name: str = "") -> "WorkbookCoverage":
@@ -338,6 +342,7 @@ class HealthReport:
             and not self.unmapped_required_fields
             and not self.coverage.unmapped_data_sheets
             and not any(rec.requires_review for rec in self.coverage.sheet_audit)
+            and not self.coverage.not_assessed_checks
         )
 
 
@@ -435,6 +440,9 @@ def build_health_report(canonical: pd.DataFrame, validation_result: ValidationRe
     )
 
 
+CHECK_LABELS = {"probable_duplicates": "probable-duplicate check"}
+
+
 def _coverage_line(coverage: WorkbookCoverage) -> str:
     line = (f"Assessed {coverage.rows_assessed} of {coverage.rows_total} total rows "
             f"across {coverage.sheets_processed} of {coverage.sheets_total} sheets/tabs in the source file.")
@@ -454,6 +462,8 @@ def _coverage_line(coverage: WorkbookCoverage) -> str:
     if ncs_sheets:
         line += (f" {len(ncs_sheets)} sheet(s) recognised as summary/aggregate data, not a claims "
                  f"register ({', '.join(ncs_sheets)}) -- excluded from the claim set entirely.")
+    for check, reason in coverage.not_assessed_checks:
+        line += f" Not assessed: {CHECK_LABELS.get(check, check)} ({reason})."
     return line
 
 
@@ -472,6 +482,8 @@ def _reliability_caveat(health: HealthReport) -> str | None:
         reasons.append(
             f"sheet(s) retained but entirely unmapped: {', '.join(health.coverage.unmapped_data_sheets)}"
         )
+    for check, _reason in health.coverage.not_assessed_checks:
+        reasons.append(f"{CHECK_LABELS.get(check, check)} not assessed")
     return "Score not fully reliable — " + "; ".join(reasons) + ". See coverage note above."
 
 

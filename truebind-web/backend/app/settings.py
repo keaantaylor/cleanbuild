@@ -83,7 +83,7 @@ class Settings(BaseSettings):
     job_timeout_s: int = Field(default=1800, ge=10, validation_alias="JOB_TIMEOUT_S")
     job_memory_mb: int = Field(default=4096, ge=256, validation_alias="JOB_MEMORY_MB")
     job_lease_s: int = Field(default=60, ge=5, validation_alias="JOB_LEASE_S")
-    job_max_attempts: int = Field(default=3, ge=1, le=10, validation_alias="JOB_MAX_ATTEMPTS")
+    job_max_attempts: int = Field(default=2, ge=1, le=10, validation_alias="JOB_MAX_ATTEMPTS")
     max_concurrent_jobs_per_tenant: int = Field(default=3, ge=1, validation_alias="MAX_CONCURRENT_JOBS_PER_TENANT")
     embedded_worker: bool | None = Field(default=None, validation_alias="TRUEBIND_EMBEDDED_WORKER")
     worker_stale_s: int = Field(default=20, ge=5, validation_alias="WORKER_STALE_S")

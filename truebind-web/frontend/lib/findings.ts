@@ -1,3 +1,6 @@
+import type { ReportSummary } from "@/lib/types";
+import { formatNumber } from "@/lib/formatters";
+
 /** What each finding means, in plain language. "Why it matters" and "what
  * to do" describe the check; they never claim more certainty than the
  * check itself has. */
@@ -48,4 +51,19 @@ export function findingGuide(rule: string | null | undefined, status?: string): 
   }
   return GUIDES[rule ?? ""] ?? { title: (rule ?? "Finding").replace(/_/g, " "), certainty: "signal",
     why: "See the message for the evidence recorded on this row.", next: "Review the source row." };
+}
+
+/** A check that did not run shows "Not assessed", never a count of 0. */
+export function probableDuplicatesValue(s: Pick<ReportSummary, "probable_duplicates">): string {
+  return s.probable_duplicates == null ? "Not assessed" : formatNumber(s.probable_duplicates);
+}
+
+/** Why the grade is provisional, in one sentence; null when it is not. */
+export function provisionalReason(s: Pick<ReportSummary, "score_reliable" | "not_assessed_checks">): string | null {
+  if (s.score_reliable !== false) return null;
+  const checks = s.not_assessed_checks ?? [];
+  if (checks.length) {
+    return `The grade is provisional: ${checks.map((c) => `${c.label} not assessed (${c.reason})`).join("; ")}.`;
+  }
+  return "The grade is provisional: at least one sheet was only partly understood.";
 }

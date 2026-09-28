@@ -28,10 +28,18 @@
     "truebind-web/backend/tests/test_storage.py",
     "truebind-web/backend/app/models/money.py",
     "truebind-web/backend/migrations/versions/0011_money_numeric.py",
-    "truebind-web/backend/tests/test_money.py"
+    "truebind-web/backend/tests/test_money.py",
+    "scripts/perf_50k.py",
+    "bordereaux/tests/test_dedupe_budget.py",
+    "truebind-web/backend/tests/test_check_coverage.py",
+    "truebind-web/backend/app/services/job_signal.py",
+    "truebind-web/backend/app/services/idempotency.py",
+    "truebind-web/backend/app/models/idempotency.py",
+    "truebind-web/backend/migrations/versions/0012_idempotency_keys.py",
+    "truebind-web/backend/tests/test_jobs_reliability.py"
   ],
   "baseline": {
-    "mypy_legacy_errors": 97,
+    "mypy_legacy_errors": 93,
     "coverage_total_pct": 89.69
   },
   "new_code_coverage_min_pct": 85

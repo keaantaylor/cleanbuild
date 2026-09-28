@@ -4200,6 +4200,24 @@
   "/api/v1/reports/upload": {
    "post": {
     "operationId": "upload_report_api_v1_reports_upload_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "Idempotency-Key",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Idempotency-Key"
+      }
+     }
+    ],
     "requestBody": {
      "content": {
       "multipart/form-data": {
@@ -5356,6 +5374,22 @@
       "schema": {
        "title": "Report Id",
        "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "Idempotency-Key",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Idempotency-Key"
       }
      }
     ],

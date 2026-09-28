@@ -18,7 +18,9 @@ near-duplicate (fix spec D7). Normalizing first fixes it.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
 from rapidfuzz import fuzz
 
@@ -33,6 +35,13 @@ ADJACENT_DAYS = 3
 # compared at all -- recall matters more here than block size, since a
 # missed duplicate is a worse failure than a slightly bigger block.
 BLOCK_KEY_LENGTH = 2
+# Work budget for the probable-duplicate check: row pairs that share a name
+# block and a loss-date window, i.e. pairs the fuzzy comparison would visit.
+# Realistic bordereaux stay far below it (tens of thousands of pairs for 50k
+# rows); a file where every name shares a prefix and every loss date falls
+# in one month can need ~10^8. Above the budget the check is not run and is
+# reported as NOT ASSESSED in coverage -- never as "no probable duplicates".
+MAX_PROBABLE_CANDIDATE_PAIRS = 2_000_000
 
 _LEGAL_SUFFIXES = {
     "ltd": "ltd", "limited": "ltd",
@@ -124,14 +133,34 @@ def row_periods(df: pd.DataFrame) -> pd.Series:
     return from_col.where(from_col.notna(), from_sheet)
 
 
+@dataclass(frozen=True)
+class ProbableCheck:
+    """Whether the probable-duplicate check ran, and why not if it did not."""
+    assessed: bool
+    candidate_pairs: int
+    reason: str | None = None
+
+
 def find_duplicates(df: pd.DataFrame) -> pd.DataFrame:
     """True duplicates only (exact resubmissions, period-unknown repeats for
     review, probable near-duplicates). Claim DEVELOPMENT -- the same claim
     reported again with a later period or moved amounts -- is never a
-    duplicate; see find_developments()."""
+    duplicate; see find_developments(). Callers that report coverage use
+    find_duplicates_assessed() to learn whether the probable check ran."""
+    return find_duplicates_assessed(df)[0]
+
+
+def find_duplicates_assessed(df: pd.DataFrame) -> tuple[pd.DataFrame, ProbableCheck]:
     records: list[dict] = [r for r in _reference_repeats(df) if r["match_type"] != "development"]
-    records.extend(_probable_duplicates(df))
-    return pd.DataFrame(records, columns=DUPLICATE_COLUMNS)
+    pairs = probable_candidate_pairs(df)
+    if pairs > MAX_PROBABLE_CANDIDATE_PAIRS:
+        check = ProbableCheck(False, pairs, (
+            f"{pairs:,} candidate row pairs (similar insured names with loss dates within {ADJACENT_DAYS} days) "
+            f"exceed the limit of {MAX_PROBABLE_CANDIDATE_PAIRS:,}; exact duplicates were still checked"))
+    else:
+        records.extend(_probable_duplicates(df))
+        check = ProbableCheck(True, pairs)
+    return pd.DataFrame(records, columns=DUPLICATE_COLUMNS), check
 
 
 def find_developments(df: pd.DataFrame) -> pd.DataFrame:
@@ -235,17 +264,42 @@ def _reference_repeats(df: pd.DataFrame) -> list[dict]:
     return records
 
 
-def _probable_duplicates(df: pd.DataFrame) -> list[dict]:
+def _probable_blocks(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     sub = df[df[schema.INSURED_NAME_CODE].notna() & df[schema.LOSS_DATE_CODE].notna()]
     if sub.empty:
-        return []
-
+        return sub, {}
     block_keys = sub[schema.INSURED_NAME_CODE].astype(str).map(_block_key)
+    return sub, sub.groupby(block_keys, sort=False).groups
+
+
+def probable_candidate_pairs(df: pd.DataFrame) -> int:
+    """How many row pairs _compare_block would visit: pairs in the same name
+    block whose loss dates are within ADJACENT_DAYS whole days of each other
+    ((later - earlier).days <= ADJACENT_DAYS, i.e. less than ADJACENT_DAYS+1
+    days apart). Vectorised per block, so it is cheap even when the answer
+    is huge."""
+    sub, groups = _probable_blocks(df)
+    window = np.int64((ADJACENT_DAYS + 1) * 86_400 * 10**9)
+    total = 0
+    for block_index in groups.values():
+        if len(block_index) < 2:
+            continue
+        loss = pd.DatetimeIndex(sub.loc[block_index, schema.LOSS_DATE_CODE]).as_unit("ns")
+        ns = np.sort(loss.astype("int64").to_numpy())
+        ends = np.searchsorted(ns, ns + window, side="left")
+        total += int((ends - np.arange(len(ns)) - 1).sum())
+    return total
+
+
+def _probable_duplicates(df: pd.DataFrame) -> list[dict]:
+    sub, groups = _probable_blocks(df)
+    if sub.empty:
+        return []
     have_policy = schema.POLICY_REF_CODE in sub.columns
 
     records: list[dict] = []
     seen_pairs: set[tuple] = set()
-    for _, block_index in sub.groupby(block_keys, sort=False).groups.items():
+    for block_index in groups.values():
         if len(block_index) < 2:
             continue
         block = sub.loc[block_index]
@@ -285,6 +339,7 @@ def _compare_block(block: pd.DataFrame, seen_pairs: set[tuple], have_policy: boo
               else [None] * len(block))
 
     norm_names = [normalize_name(str(n)) for n in names]
+    norm_policies = [_normalize_policy_ref(str(p)) if pd.notna(p) else None for p in policy_refs]
     name_counts_by_sheet: dict[tuple, int] = {}
     for n, s in zip(norm_names, sheets):
         key = (n, s)
@@ -292,6 +347,7 @@ def _compare_block(block: pd.DataFrame, seen_pairs: set[tuple], have_policy: boo
 
     order = sorted(range(len(idx)), key=lambda k: dates[k])
     records = []
+    scores: dict[tuple[str, str], float] = {}  # repeat clients recur: score each name pair once
 
     for oi in range(len(order)):
         i = order[oi]
@@ -303,16 +359,16 @@ def _compare_block(block: pd.DataFrame, seen_pairs: set[tuple], have_policy: boo
                 continue  # same claim, already covered by exact-duplicate check
 
             same_sheet = sheets[i] is not None and sheets[i] == sheets[j]
-            policy_i, policy_j = policy_refs[i], policy_refs[j]
-            both_policies_known = pd.notna(policy_i) and pd.notna(policy_j)
-            policies_match = both_policies_known and (
-                _normalize_policy_ref(str(policy_i)) == _normalize_policy_ref(str(policy_j))
-            )
+            both_policies_known = norm_policies[i] is not None and norm_policies[j] is not None
+            policies_match = both_policies_known and norm_policies[i] == norm_policies[j]
             is_repeat_client = name_counts_by_sheet.get((norm_names[i], sheets[i]), 0) > HIGH_FREQUENCY_REPEAT_THRESHOLD
             if same_sheet and both_policies_known and not policies_match and is_repeat_client:
                 continue  # a name repeated often enough to read as a genuine repeat client, with a different known policy each time -- ordinary business, not a duplicate
 
-            score = fuzz.WRatio(norm_names[i], norm_names[j], score_cutoff=NAME_SIMILARITY_THRESHOLD)
+            name_pair = (norm_names[i], norm_names[j])
+            score = scores.get(name_pair)
+            if score is None:
+                score = scores[name_pair] = fuzz.WRatio(*name_pair, score_cutoff=NAME_SIMILARITY_THRESHOLD)
             if not score:
                 continue
             pair_key = tuple(sorted((idx[i], idx[j])))

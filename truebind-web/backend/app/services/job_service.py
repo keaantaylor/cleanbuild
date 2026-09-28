@@ -20,12 +20,12 @@ from datetime import timedelta
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from ..config import JOB_LEASE_S, MAX_CONCURRENT_JOBS_PER_TENANT, WORKER_STALE_S
+from ..config import JOB_LEASE_S, JOB_MAX_ATTEMPTS, MAX_CONCURRENT_JOBS_PER_TENANT, WORKER_STALE_S
 from ..database import set_tenant
 from ..models._util import utcnow
 from ..models.jobs import TERMINAL_JOB_STATUSES, Job, WorkerHeartbeat
 from ..models.reports import Report
-from . import alert_service, audit_service, report_state
+from . import alert_service, audit_service, job_signal, report_state
 
 log = logging.getLogger("truebind.jobs")
 
@@ -44,9 +44,11 @@ def active_job(db: Session, report_id: str) -> Job | None:
 def enqueue(db: Session, report: Report, kind: str, actor: str, actor_user_id: str | None) -> Job:
     if active_job(db, report.id) is not None:
         raise JobConflict("this report already has a job queued or running")
-    job = Job(tenant_id=report.tenant_id, report_id=report.id, kind=kind, status="QUEUED")
+    job = Job(tenant_id=report.tenant_id, report_id=report.id, kind=kind, status="QUEUED",
+              max_attempts=JOB_MAX_ATTEMPTS)
     db.add(job)
     db.flush()
+    job_signal.notify(db)  # wakes an idle worker once this transaction commits
     report_state.transition(db, report, "QUEUED", actor=actor, actor_user_id=actor_user_id, reason=f"{kind} job")
     report.processing_error = None
     report.error_code = None
@@ -160,6 +162,8 @@ def finish(db: Session, job: Job, ok: bool, code: str | None = None, message: st
         # retryable errors (e.g. a database blip) back off briefly.
         delay = 0 if code == "worker_lost" else 15 * job.attempts
         job.run_after = utcnow() + timedelta(seconds=delay)
+        if delay == 0:
+            job_signal.notify(db)
         job.error_code, job.error_message, job.error_detail = code, message, (detail or "")[:4000]
         if report is not None:
             report_state.transition(db, report, "QUEUED", reason=f"retry after {code}")
@@ -214,7 +218,7 @@ def reap_expired(db: Session) -> int:
         finish(db, job, ok=False, code="worker_lost",
                message=("Processing was interrupted because the processing service stopped. It has been "
                         "queued again automatically." if again else
-                        "Processing was interrupted twice because the processing service stopped. "
+                        f"Processing was interrupted {job.attempts} times because the processing service stopped. "
                         "Use Try again once the service is running."),
                detail=f"lease expired at {job.lease_expires_at}; owner {job.lease_owner}", retryable=True)
     return len(ids)

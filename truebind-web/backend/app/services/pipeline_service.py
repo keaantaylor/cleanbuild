@@ -30,6 +30,13 @@ REQUIRED_CODES = schema.REQUIRED_CODES
 # already-processed report can never drift from the mapping-state
 # machine that actually produced its data.
 classify_sheet_status = report_mod.classify_sheet_status
+CHECK_LABELS = report_mod.CHECK_LABELS
+
+
+def coverage_statement(coverage: "report_mod.WorkbookCoverage") -> str:
+    """The engine's one-paragraph coverage statement (rows/sheets assessed,
+    exclusions, unmapped sheets, checks not assessed)."""
+    return report_mod._coverage_line(coverage)
 
 
 def load_workbook(path: str | Path, source_stem: str | None = None, limits=None) -> list[SheetData]:

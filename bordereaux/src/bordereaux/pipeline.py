@@ -293,7 +293,7 @@ def run_workbook_pipeline(
 
     _stage("checking_duplicates", row_findings=int(len(validation_result.exceptions)),
            arithmetic_mismatches=int(validation_result.arithmetic_mismatch_count))
-    duplicates = dedupe.find_duplicates(canonical)
+    duplicates, probable_check = dedupe.find_duplicates_assessed(canonical)
     developments = dedupe.find_developments(canonical)
     stage_timings["dedupe"], _t = perf_counter() - _t, perf_counter()
     _stage("building_report", duplicate_pairs=int(len(duplicates)) if duplicates is not None else 0)
@@ -323,6 +323,7 @@ def run_workbook_pipeline(
         sheet_transforms=sheet_transforms,
         sheet_notes=sheet_notes,
         unmapped_source_columns=unmapped_source_columns,
+        not_assessed_checks=[] if probable_check.assessed else [("probable_duplicates", probable_check.reason or "")],
     )
     coverage.reconciliation = _build_reconciliation(sheets, sheet_audit, canonical, duplicates, validation_result)
 

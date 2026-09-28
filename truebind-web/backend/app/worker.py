@@ -31,11 +31,14 @@ from .config import JOB_LEASE_S, JOB_MEMORY_MB, JOB_TIMEOUT_S, describe_database
 from .database import get_session_factory, set_tenant
 from .models._util import utcnow
 from .models.jobs import Job, WorkerHeartbeat
-from .services import job_service, retention_service
+from .services import job_service, job_signal, retention_service
 
 log = logging.getLogger("truebind.worker")
 
 POLL_S = 0.5
+# With Redis (REDIS_URL) an idle worker blocks this long for a wake-up, then
+# re-checks the database anyway: wake-ups speed things up, never gate them.
+WAKE_WAIT_S = 2.0
 REAP_EVERY_S = 10.0
 RETENTION_EVERY_S = 3600.0
 
@@ -295,7 +298,7 @@ class Worker:
                 try:
                     self.check_in()
                     self.housekeeping()
-                    if not self.run_one():
+                    if not self.run_one() and not job_signal.wait(WAKE_WAIT_S):
                         self._stop.wait(POLL_S)
                 except Exception:  # noqa: BLE001 -- e.g. DB briefly unavailable: back off, keep going
                     log.exception("worker loop error; backing off")

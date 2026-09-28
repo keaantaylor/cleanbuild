@@ -239,7 +239,10 @@ export interface ReportSummary {
   arithmetic_mismatches: number;
   arithmetic_not_evaluable: number;
   exact_duplicates: number;
-  probable_duplicates: number;
+  /** null when the probable-duplicate check was not run (see not_assessed_checks). */
+  probable_duplicates: number | null;
+  not_assessed_checks?: { check: string; label: string; reason: string }[];
+  coverage_statement?: string;
   field_completeness: FieldCompleteness[];
   missing_mandatory_by_sheet?: Record<string, number>;
   totals_by_currency?: { currency: string; rows: number; paid_to_date: number; reserve: number; incurred: number; fees_paid_to_date?: number; fees_rows?: number; paid_rows?: number; reserve_rows?: number; incurred_rows?: number }[];
@@ -381,7 +384,7 @@ export interface Overview {
     open_by_severity: Record<string, number>;
     missing_mandatory_rows?: number; arithmetic_mismatches?: number; exact_duplicates?: number;
     probable_duplicates?: number; development_pairs?: number; arithmetic_not_evaluable?: number;
-    unmapped_columns?: number; claims?: number;
+    unmapped_columns?: number; claims?: number; reports_with_checks_not_assessed?: number;
   };
   trend: { date: string; reports: number; rows: number }[];
   processing: { worker_available: boolean; workers_alive: number; jobs_24h: number; failed_24h: number; median_job_s: number | null };

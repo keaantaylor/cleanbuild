@@ -249,7 +249,7 @@ def step_services_up() -> tuple[str, dict[str, object]]:
             time.sleep(2)
     if pending:
         raise StepFailedError(f"services not ready: {sorted(pending)}")
-    for db in ("truebind_test", "truebind_migrations", "truebind_e2e"):
+    for db in ("truebind_test", "truebind_migrations", "truebind_e2e", "truebind_perf"):
         run("services", [*COMPOSE, *PG_ADMIN, f"DROP DATABASE IF EXISTS {db} WITH (FORCE)"])
         run("services", [*COMPOSE, *PG_ADMIN, f"CREATE DATABASE {db} OWNER truebind_app"])
     return "8 services healthy; test databases recreated empty", {}
@@ -312,6 +312,34 @@ def step_e2e() -> tuple[str, dict[str, object]]:
     out = run("e2e", [_exe("npx"), "playwright", "test"], cwd=FRONTEND, env=env, timeout=1800)
     m = re.search(r"(\d+) passed", out)
     return (f"{m.group(1)} passed (Postgres)" if m else "passed"), {"passed": int(m.group(1)) if m else 0}
+
+
+def step_perf() -> tuple[str, dict[str, object]]:
+    """50,000-row workbook end to end (API + worker, Postgres) in < 120 s with
+    the API answering health probes in < 1 s throughout; realistic shape, then
+    an adversarial one that must finish by declaring a check not assessed.
+    The realistic run uses Redis job wake-ups; the adversarial one polls."""
+    runs: dict[str, dict[str, object]] = {}
+    for shape, redis_url in (("realistic", "redis://127.0.0.1:56379/2"), ("adversarial", "")):
+        out = run(
+            f"perf-{shape}",
+            [
+                PY,
+                str(ROOT / "scripts" / "perf_50k.py"),
+                "--shape",
+                shape,
+                "--database-url",
+                PG_APP.format(db="truebind_perf"),
+                "--redis-url",
+                redis_url,
+            ],
+            cwd=ROOT,
+            timeout=900,
+        )
+        line = next((ln for ln in reversed(out.splitlines()) if ln.startswith("{")), "")
+        runs[shape] = json.loads(line) if line else {}
+    brief = "; ".join(f"{k} {v.get('total_s')}s, probe max {v.get('probe_max_s')}s" for k, v in runs.items())
+    return f"50k rows: {brief}", dict(runs)
 
 
 def _gitleaks() -> str:
@@ -479,6 +507,7 @@ def main() -> int:
             ("golden", step_golden),
             ("next-build", step_next_build),
             ("e2e", step_e2e),
+            ("perf", step_perf),
             ("security", step_security),
             ("coverage", step_coverage),
             ("openapi", lambda: step_openapi(args.update_openapi)),

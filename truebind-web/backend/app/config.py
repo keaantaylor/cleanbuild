@@ -62,6 +62,8 @@ MAX_CELLS = _s.max_cells
 JOB_TIMEOUT_S = _s.job_timeout_s
 JOB_MEMORY_MB = _s.job_memory_mb
 JOB_LEASE_S = _s.job_lease_s
+JOB_MAX_ATTEMPTS = _s.job_max_attempts
+REDIS_URL = _s.redis_url  # optional: job wake-ups (app/services/job_signal.py)
 MAX_CONCURRENT_JOBS_PER_TENANT = _s.max_concurrent_jobs_per_tenant
 AI_MAX_CALLS_PER_REPORT = _s.ai_max_calls_per_report
 # Wall-clock budget for the whole AI-mapping stage of one report; after it,

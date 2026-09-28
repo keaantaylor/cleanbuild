@@ -9,8 +9,8 @@ import tempfile
 from datetime import timedelta
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
-from fastapi.responses import Response, StreamingResponse
+from fastapi import APIRouter, Depends, Form, Header, HTTPException, UploadFile
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from sqlalchemy.orm import Session
 
 from ..config import MAX_UPLOAD_BYTES, STORAGE_DIR
@@ -23,7 +23,8 @@ from ..security.auth import Context, require, require_reader, require_writer
 from ..security.permissions import Permission
 from ..security.file_guard import inspect_upload, safe_display_name
 from ..security.ratelimit import limiter
-from ..services import alert_service, audit_service, delivery_service, export_service, job_service, retention_service
+from ..services import (alert_service, audit_service, delivery_service, export_service, idempotency, job_service,
+                        retention_service)
 from ..services.storage import get_store, sha256_file
 from .deps import Paging, get_report_or_404, latest_job, report_out
 
@@ -42,7 +43,9 @@ def _incoming_dir() -> Path:
 @router.post("/upload", response_model=ReportOut, status_code=202)
 def upload_report(file: UploadFile, sender: str | None = Form(default=None, max_length=200),
                   programme: str | None = Form(default=None, max_length=200),
-                  ctx: Context = Depends(require_writer), db: Session = Depends(get_db)) -> ReportOut:
+                  idempotency_key: str | None = Header(default=None, alias=idempotency.HEADER),
+                  ctx: Context = Depends(require_writer), db: Session = Depends(get_db)) -> ReportOut | JSONResponse:
+    key = idempotency.validate_key(idempotency_key)
     limiter.check("upload", ctx.user_id, limit=60, window_s=3600)
     display = safe_display_name(file.filename)
     fd, tmp_name = tempfile.mkstemp(dir=_incoming_dir(), prefix="up-")
@@ -64,6 +67,14 @@ def upload_report(file: UploadFile, sender: str | None = Form(default=None, max_
                                      actor=ctx.actor, actor_user_id=ctx.user_id)
             db.commit()
             raise HTTPException(status_code=_REJECT_STATUS.get(verdict.code, 400), detail=verdict.reason)
+        idem = None
+        if key is not None:
+            claimed = idempotency.claim(
+                db, tenant_id=ctx.tenant_id, user_id=ctx.user_id, scope="reports.upload", key=key,
+                request_fingerprint=idempotency.fingerprint(sha256_file(tmp), display, sender or "", programme or ""))
+            if isinstance(claimed, JSONResponse):
+                return claimed
+            idem = claimed
         # Write-once, content-addressed original. Stored before the database
         # rows: if the transaction below fails, the object is merely unused.
         kind = verdict.kind
@@ -89,10 +100,14 @@ def upload_report(file: UploadFile, sender: str | None = Form(default=None, max_
             alert_service.raise_alert(db, ctx.tenant_id, report.id, "INFO", alert_service.INBOUND,
                                       f"New file received: {display}" + (f" from {report.sender}" if report.sender else "")
                                       + f" ({size // 1024 or 1} KB, {verdict.kind}).")
+            replay = (idempotency.complete(idem, 202, report_out(db, report).model_dump(mode="json"))
+                      if idem is not None else None)
             db.commit()
         except Exception:
             db.rollback()
             raise
+        if replay is not None:
+            return replay
         db.refresh(report)
         return report_out(db, report)
     finally:

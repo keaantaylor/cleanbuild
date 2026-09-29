@@ -15,6 +15,7 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     { href: "/reports", label: "Reports", icon: "reports" },
     { href: "/exceptions", label: "Exceptions", icon: "exceptions" },
     { href: "/duplicates", label: "Duplicates", icon: "duplicates" },
+    { href: "/scorecard", label: "Scorecard", icon: "activity" },
   ] },
   { label: "Deliver", items: [
     { href: "/exports", label: "Exports", icon: "exports" },
@@ -23,5 +24,6 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   { label: "Govern", items: [
     { href: "/alerts", label: "Alerts", icon: "bell", badge: "alerts" },
     { href: "/audit", label: "Audit trail", icon: "audit" },
+    { href: "/settings", label: "Settings", icon: "settings" },
   ] },
 ];

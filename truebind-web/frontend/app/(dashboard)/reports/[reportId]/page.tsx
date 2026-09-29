@@ -9,11 +9,15 @@ import { formatBytes, formatDateTime, formatDuration, formatMoney, formatNumber,
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { BarList, Breadcrumbs, EmptyState, ErrorState, HealthRing, KeyValue, MetricCard, Panel, PageHeader, Pill, SectionHeading, StatusPill, Timeline, ds } from "@/components/ds";
 import { describeAudit } from "@/lib/audit";
+import { probableDuplicatesValue, provisionalReason } from "@/lib/findings";
 import { PageSkeleton } from "@/components/layout/ShellSkeleton";
 import { useShell } from "@/components/layout/ShellContext";
 import { ProcessingView } from "@/components/intake/ProcessingView";
 import { Recommendations } from "@/components/ops/Recommendations";
 import { ExcludedRowsPanel } from "@/components/report/ExcludedRowsPanel";
+import { ChecksPanel } from "@/components/report/ChecksPanel";
+import { useMe } from "@/components/auth/AuthGate";
+import { hasPermission } from "@/lib/auth";
 import styles from "./report.module.css";
 
 const RULE_LABEL: Record<string, string> = {
@@ -64,6 +68,7 @@ export default function ReportWorkspace({ params }: { params: Promise<{ reportId
         {complete && <ButtonLink href={`/exceptions?reportId=${reportId}`} variant="secondary">Exceptions</ButtonLink>}
         {complete && <ButtonLink href={`/duplicates?reportId=${reportId}`} variant="secondary">Duplicates</ButtonLink>}
         {complete && <Button variant="primary" onClick={() => window.open(api.exportClaimsUrl(reportId), "_blank")}>Export claims</Button>}
+        {complete && <Button variant="secondary" onClick={() => window.open(api.auditPackUrl(reportId), "_blank")}>Download audit pack</Button>}
       </>} />
   );
 
@@ -91,11 +96,12 @@ export default function ReportWorkspace({ params }: { params: Promise<{ reportId
 
 const SECTIONS = [
   ["financial", "Financial"], ["claims", "Claims"], ["quality", "Data quality"], ["exceptions", "Exceptions"],
-  ["duplicates", "Duplicates"], ["mapping", "Mapping"], ["period", "Reporting period"], ["lineage", "Lineage"],
+  ["duplicates", "Duplicates"], ["checks", "Checks"], ["mapping", "Mapping"], ["period", "Reporting period"], ["lineage", "Lineage"],
   ["history", "Processing history"], ["exports", "Exports"],
 ] as const;
 
 function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
+  const me = useMe();
   // Old deep links (?tab=sheets|history|outputs) land on the matching section.
   useEffect(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
@@ -109,6 +115,9 @@ function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
         {SECTIONS.map(([id, label]) => <a key={id} href={`#${id}`}>{label}</a>)}
       </nav>
       <OverviewTab report={report} s={s} />
+      <section><SectionHeading id="checks" eyebrow="Checks" title="Binder, leakage and sanctions checks"
+        description="Each check says what it assessed and what it could not. Findings point to the sheet, row and column; confirm or dismiss each one." />
+        <ChecksPanel report={report} canWrite={hasPermission(me?.permissions ?? [], "data:write")} /></section>
       <section><SectionHeading id="mapping" eyebrow="Mapping" title="Sheets and column mapping"
         description="How each sheet was understood. Change the mapping and reprocess at any time; every change is audited." />
         <SheetsTab reportId={report.id} s={s} /></section>
@@ -141,7 +150,8 @@ function HealthHero({ report, s }: { report: Report; s: ReportSummary }) {
           {s.exact_duplicates > 0 && <Pill tone="warn">{formatNumber(s.exact_duplicates)} exact resubmission(s)</Pill>}
           {(s.development_pairs ?? 0) > 0 && <Pill tone="info">{formatNumber(s.development_pairs)} development (not duplicates)</Pill>}
         </div>
-        {s.score_reliable === false && <p className={styles.caveat}>The grade is provisional: at least one sheet was only partly understood.</p>}
+        {provisionalReason(s) && <p className={styles.caveat}>{provisionalReason(s)}</p>}
+        {s.coverage_statement && <p className={styles.caveat}>{s.coverage_statement}</p>}
       </div>
     </section>
   );
@@ -267,8 +277,9 @@ function OverviewTab({ report, s }: { report: Report; s: ReportSummary }) {
         <div className={`${ds.grid} ${ds.cols3}`}>
           <MetricCard icon="duplicates" label="Exact resubmissions" value={formatNumber(s.exact_duplicates)} tone={s.exact_duplicates ? "warn" : "good"}
             caption="Same reference, period and amounts" href={`/duplicates?reportId=${report.id}`} />
-          <MetricCard icon="search" label="Probable duplicates" value={formatNumber(s.probable_duplicates)} tone={s.probable_duplicates ? "warn" : "good"}
-            caption="Close match — needs a decision" href={`/duplicates?reportId=${report.id}`} />
+          <MetricCard icon="search" label="Probable duplicates" value={probableDuplicatesValue(s)}
+            tone={s.probable_duplicates == null ? "neutral" : s.probable_duplicates ? "warn" : "good"}
+            caption={s.probable_duplicates == null ? "Check not run for this file — see coverage" : "Close match — needs a decision"} href={`/duplicates?reportId=${report.id}`} />
           <MetricCard icon="activity" label="Development" value={formatNumber(s.development_pairs ?? 0)} tone="neutral"
             caption="Same claim, later period, moved amounts — not a duplicate" />
         </div>

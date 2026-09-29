@@ -4,14 +4,16 @@ evidence) -- the API never re-reads the workbook."""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models.reports import Mapping, Report, Sheet
 from ..schemas.reports import MappingConfirmRequest, MappingFieldOut, ReportOut, SheetMappingOut, SheetOut
-from ..security.auth import Context, get_context, require_writer
-from ..services import job_service, persistence_service
+from ..security.auth import Context, require_reader, require_writer
+from ..models.identity import Tenant
+from ..services import billing_service, idempotency, job_service, persistence_service
 from ..services.pipeline_service import FIELDS, FIELDS_BY_CODE, REQUIRED_CODES
 from .deps import get_report_or_404, get_sheet_or_404, report_out
 
@@ -40,7 +42,7 @@ def _mappings_by_sheet(db: Session, report: Report) -> dict[str, list[Mapping]]:
 
 
 @router.get("/{report_id}/sheets", response_model=list[SheetOut])
-def list_sheets(report_id: str, ctx: Context = Depends(get_context), db: Session = Depends(get_db)) -> list[SheetOut]:
+def list_sheets(report_id: str, ctx: Context = Depends(require_reader), db: Session = Depends(get_db)) -> list[SheetOut]:
     report = get_report_or_404(db, ctx, report_id)
     by_sheet = _mappings_by_sheet(db, report)
     sheets = db.query(Sheet).filter(Sheet.report_id == report.id).order_by(Sheet.sheet_index).all()
@@ -48,7 +50,7 @@ def list_sheets(report_id: str, ctx: Context = Depends(get_context), db: Session
 
 
 @router.get("/{report_id}/sheets/{sheet_id}/mapping", response_model=SheetMappingOut)
-def get_sheet_mapping(report_id: str, sheet_id: str, ctx: Context = Depends(get_context),
+def get_sheet_mapping(report_id: str, sheet_id: str, ctx: Context = Depends(require_reader),
                       db: Session = Depends(get_db)) -> SheetMappingOut:
     report = get_report_or_404(db, ctx, report_id)
     sheet = get_sheet_or_404(db, ctx, report, sheet_id)
@@ -96,8 +98,17 @@ def confirm_sheet_mapping(report_id: str, sheet_id: str, body: MappingConfirmReq
 
 
 @router.post("/{report_id}/process", response_model=ReportOut, status_code=202)
-def process_report(report_id: str, ctx: Context = Depends(require_writer), db: Session = Depends(get_db)) -> ReportOut:
+def process_report(report_id: str, idempotency_key: str | None = Header(default=None, alias=idempotency.HEADER),
+                   ctx: Context = Depends(require_writer), db: Session = Depends(get_db)) -> ReportOut | JSONResponse:
+    key = idempotency.validate_key(idempotency_key)
     report = get_report_or_404(db, ctx, report_id)
+    idem = None
+    if key is not None:
+        claimed = idempotency.claim(db, tenant_id=ctx.tenant_id, user_id=ctx.user_id, scope="reports.process",
+                                    key=key, request_fingerprint=idempotency.fingerprint(report.id))
+        if isinstance(claimed, JSONResponse):
+            return claimed
+        idem = claimed
     if report.status not in EDITABLE_STATUSES:
         raise HTTPException(status_code=409, detail=f"A report in status {report.status} cannot be processed.")
     sheets = db.query(Sheet).filter(Sheet.report_id == report.id).all()
@@ -106,10 +117,19 @@ def process_report(report_id: str, ctx: Context = Depends(require_writer), db: S
     pending = [s.sheet_name for s in sheets if s.status == "PENDING_CONFIRMATION"]
     if pending:
         raise HTTPException(status_code=409, detail=f"{len(pending)} sheet(s) still need their mapping confirmed.")
+    tenant = db.get(Tenant, ctx.tenant_id)
+    if tenant is not None:
+        try:
+            billing_service.require_rows(db, tenant, sum(s.row_count or 0 for s in sheets if s.status == "CONFIRMED"))
+        except billing_service.QuotaError as exc:
+            raise HTTPException(status_code=402, detail=str(exc)) from exc
     try:
         job_service.enqueue(db, report, "PROCESS", actor=ctx.actor, actor_user_id=ctx.user_id)
     except job_service.JobConflict as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    replay = idempotency.complete(idem, 202, report_out(db, report).model_dump(mode="json")) if idem else None
     db.commit()
+    if replay is not None:
+        return replay
     db.refresh(report)
     return report_out(db, report)

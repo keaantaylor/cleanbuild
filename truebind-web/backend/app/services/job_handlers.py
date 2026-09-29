@@ -28,10 +28,13 @@ from bordereaux.pipeline import SheetMappingProposal
 
 from ..config import AI_MAX_CALLS_PER_REPORT, AI_TIME_BUDGET_S, MAX_CELLS, MAX_ROWS, MAX_SHEETS
 from ..database import set_tenant
+from ..ai import providers as ai_providers
+from ..ai.mapper import ProviderAIMapper
+from ..ai.masking import masked_samples
 from ..models.jobs import Job
 from ..models.reports import Report, Sheet
-from . import job_service, persistence_service, pipeline_service, report_state
-from .storage import store
+from . import job_service, module_service, persistence_service, pipeline_service, report_state
+from .storage import IntegrityError, get_store
 
 log = logging.getLogger("truebind.jobs")
 
@@ -75,13 +78,25 @@ def _peak_rss_mb() -> float | None:
         return None
 
 
-def _load(db: Session, job: Job) -> tuple[Report, Path]:
+def _load(db: Session, job: Job) -> Report:
     report = db.get(Report, job.report_id)
     if report is None or report.tenant_id != job.tenant_id:
         raise JobFailure("report_missing", "The report no longer exists.")
-    if not report.storage_key:
+    if not report.storage_key or not report.source_sha256:
         raise JobFailure("source_missing", "The uploaded file is no longer available. Upload it again.")
-    return report, store.local_path(report.storage_key)
+    return report
+
+
+def _parse_original(report: Report):
+    """Read the immutable original, verifying its SHA-256 first."""
+    try:
+        with get_store().local_copy(report.storage_key or "", report.source_sha256 or "") as path:
+            return _parse(path, report)
+    except IntegrityError as exc:
+        raise JobFailure("source_tampered", "The stored file no longer matches the one uploaded, so it was not "
+                         "processed. Upload it again.", False) from exc
+    except FileNotFoundError as exc:
+        raise JobFailure("source_missing", "The uploaded file is no longer available. Upload it again.") from exc
 
 
 def _parse(path: Path, report: Report):
@@ -99,7 +114,8 @@ def propose_with_ai_cap(sheets) -> tuple[list[SheetMappingProposal], dict]:
     """Alias stage for every sheet; the AI stage only while the per-report
     call budget lasts (AI_MAX_CALLS_PER_REPORT). One mapper instance, so the
     model/timeouts are fixed for the whole report."""
-    mapper = mapping_mod.ClaudeAIMapper() if mapping_mod.ai_mapping_available() else None
+    provider = ai_providers.get_provider()
+    mapper = ProviderAIMapper(provider) if provider is not None else None
     calls, tokens_in, tokens_out, capped, model = 0, 0, 0, False, None
     cap_reason = None
     started = perf_counter()
@@ -111,8 +127,12 @@ def propose_with_ai_cap(sheets) -> tuple[list[SheetMappingProposal], dict]:
         if not budget_left and mapper is not None:
             capped = True
             cap_reason = cap_reason or ("call limit" if calls >= AI_MAX_CALLS_PER_REPORT else "time budget")
+        if mapper is not None:
+            mapper.samples = {str(c): masked_samples(s.raw[c].head(50).tolist()) for c in s.raw.columns}
         m = mapping_mod.build_mapping(list(s.raw.columns), ai_mapper=mapper if budget_left else None,
                                       use_ai=budget_left and mapper is not None)
+        if m.ai_unavailable_reason and mapper is None:
+            m.ai_unavailable_reason = "AI-assisted mapping is not configured on this server (AI_PROVIDER=none)."
         if m.ai_attempted:
             calls += 1
             model = m.ai_model or model
@@ -123,15 +143,18 @@ def propose_with_ai_cap(sheets) -> tuple[list[SheetMappingProposal], dict]:
     meta = {"ai_available": mapper is not None, "ai_calls": calls, "ai_model": model, "ai_capped": capped,
             "ai_cap_reason": cap_reason, "ai_seconds": round(perf_counter() - started, 2),
             "ai_input_tokens": tokens_in, "ai_output_tokens": tokens_out,
-            "ai_data_sent": "column header text only (no cell values)" if calls else "none"}
+            "ai_provider": provider.name if provider else None,
+            "ai_region": provider.region if provider else None,
+            "ai_data_sent": ("column headers and up to 3 masked sample shapes per column (no cell values)"
+                             if calls else "none")}
     return proposals, meta
 
 
 def run_ingest(db: Session, job: Job) -> dict:
     t0 = perf_counter()
-    report, path = _load(db, job)
+    report = _load(db, job)
     job_service.set_stage(db, job, "inspecting")
-    sheets = _parse(path, report)
+    sheets = _parse_original(report)
     t_parse = perf_counter() - t0
     usable = [s for s in sheets if not s.skipped]
     facts = dict(sheets_found=len(sheets), sheets_with_data=len(usable),
@@ -156,12 +179,12 @@ def run_ingest(db: Session, job: Job) -> dict:
 
 def run_process(db: Session, job: Job) -> dict:
     t0 = perf_counter()
-    report, path = _load(db, job)
+    report = _load(db, job)
     db_sheets = db.query(Sheet).filter_by(report_id=report.id).all()
     if any(s.status == "PENDING_CONFIRMATION" for s in db_sheets):
         raise JobFailure("mapping_not_confirmed", "Every sheet's mapping must be confirmed before processing.")
     job_service.set_stage(db, job, "parsing")
-    sheets = _parse(path, report)
+    sheets = _parse_original(report)
     t_parse = perf_counter() - t0
     job_service.set_stage(db, job, "mapping", sheets_found=len(sheets),
                           rows_detected=sum(len(s.raw) for s in sheets if not s.skipped))
@@ -176,8 +199,11 @@ def run_process(db: Session, job: Job) -> dict:
     t = perf_counter()
     persistence_service.persist_pipeline_result(db, report, sheets, result, {s.sheet_name: s.id for s in db_sheets})
     t_persist = perf_counter() - t
+    t = perf_counter()
+    module_service.run_all(db, report)  # same transaction as the results: all or nothing
+    t_checks = perf_counter() - t
     report_state.transition(db, report, "COMPLETE", reason="processed")
-    return {"parse_s": round(t_parse, 2), "pipeline_s": round(t_pipe, 2), "persist_s": round(t_persist, 2),
+    return {"parse_s": round(t_parse, 2), "pipeline_s": round(t_pipe, 2), "persist_s": round(t_persist, 2), "checks_s": round(t_checks, 2),
             "stage_timings": {k: round(v, 2) for k, v in result.stage_timings.items()},
             "rows": int(len(result.canonical)), "peak_rss_mb": _peak_rss_mb()}
 

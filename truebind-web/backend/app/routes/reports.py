@@ -4,26 +4,28 @@ only enqueues jobs for app/worker.py."""
 
 from __future__ import annotations
 
+import hashlib
 import os
 import tempfile
-from datetime import timedelta
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
-from fastapi.responses import Response, StreamingResponse
+from fastapi import APIRouter, Depends, Form, Header, HTTPException, UploadFile
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from sqlalchemy.orm import Session
 
 from ..config import MAX_UPLOAD_BYTES, STORAGE_DIR
 from ..database import get_db
-from ..models._util import new_uuid, utcnow
+from ..models._util import utcnow
 from ..models.identity import Tenant
 from ..models.reports import Report
 from ..schemas.reports import Page, ReportOut, ReportSummaryOut
-from ..security.auth import Context, get_context, require_writer
-from ..security.file_guard import inspect_upload, safe_display_name
+from ..security.auth import Context, require, require_reader, require_writer
+from ..security.permissions import Permission
+from ..security.file_guard import safe_display_name
 from ..security.ratelimit import limiter
-from ..services import alert_service, audit_service, delivery_service, export_service, job_service, retention_service
-from ..services.storage import sha256_file, source_key, store
+from ..services import (audit_pack_service, audit_service, delivery_service, export_service, idempotency, intake_service,
+                        job_service, retention_service)
+from ..services.storage import sha256_file
 from .deps import Paging, get_report_or_404, latest_job, report_out
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
@@ -41,7 +43,9 @@ def _incoming_dir() -> Path:
 @router.post("/upload", response_model=ReportOut, status_code=202)
 def upload_report(file: UploadFile, sender: str | None = Form(default=None, max_length=200),
                   programme: str | None = Form(default=None, max_length=200),
-                  ctx: Context = Depends(require_writer), db: Session = Depends(get_db)) -> ReportOut:
+                  idempotency_key: str | None = Header(default=None, alias=idempotency.HEADER),
+                  ctx: Context = Depends(require_writer), db: Session = Depends(get_db)) -> ReportOut | JSONResponse:
+    key = idempotency.validate_key(idempotency_key)
     limiter.check("upload", ctx.user_id, limit=60, window_s=3600)
     display = safe_display_name(file.filename)
     fd, tmp_name = tempfile.mkstemp(dir=_incoming_dir(), prefix="up-")
@@ -55,39 +59,36 @@ def upload_report(file: UploadFile, sender: str | None = Form(default=None, max_
                     raise HTTPException(status_code=413, detail=f"The file is larger than the "
                                         f"{MAX_UPLOAD_BYTES // (1024 * 1024)} MB upload limit.")
                 out.write(chunk)
-        verdict = inspect_upload(tmp, display)
+        verdict = intake_service.inspect(db, tenant_id=ctx.tenant_id, path=tmp, display_name=display, size=size,
+                                         channel="upload", actor=ctx.actor, actor_user_id=ctx.user_id)
         if not verdict.accepted:
-            audit_service.log_action(db, ctx.tenant_id, None, "UPLOAD_REJECTED", "REPORT", new_uuid(),
-                                     after={"file_name": display, "size": size, "sha256": sha256_file(tmp),
-                                            "code": verdict.code},
-                                     actor=ctx.actor, actor_user_id=ctx.user_id)
             db.commit()
             raise HTTPException(status_code=_REJECT_STATUS.get(verdict.code, 400), detail=verdict.reason)
+        idem = None
+        if key is not None:
+            claimed = idempotency.claim(
+                db, tenant_id=ctx.tenant_id, user_id=ctx.user_id, scope="reports.upload", key=key,
+                request_fingerprint=idempotency.fingerprint(sha256_file(tmp), display, sender or "", programme or ""))
+            if isinstance(claimed, JSONResponse):
+                return claimed
+            idem = claimed
         tenant = db.get(Tenant, ctx.tenant_id)
-        report = Report(tenant_id=ctx.tenant_id, created_by=ctx.user_id, file_name=display, file_size_bytes=size,
-                        file_kind=verdict.kind, status="UPLOADED", ingest_notes={"file_notes": verdict.notes},
-                        expires_at=utcnow() + timedelta(days=tenant.retention_days), updated_at=utcnow(),
-                        source_channel="upload", sender=(sender or "").strip() or None,
-                        programme=(programme or "").strip() or None)
-        db.add(report)
-        db.flush()
-        key = source_key(ctx.tenant_id, report.id, verdict.kind)
-        report.source_sha256 = store.put_file(key, tmp)
-        report.storage_key = key
+        if verdict.kind is None or tenant is None:  # an accepted verdict always names its kind
+            raise HTTPException(status_code=415, detail="Unsupported file type.")
         try:
-            audit_service.log_action(db, ctx.tenant_id, report.id, "REPORT_UPLOADED", "REPORT", report.id,
-                                     after={"file_name": display, "size": size, "sha256": report.source_sha256,
-                                            "kind": verdict.kind, "notes": verdict.notes},
-                                     actor=ctx.actor, actor_user_id=ctx.user_id)
-            job_service.enqueue(db, report, "INGEST", actor=ctx.actor, actor_user_id=ctx.user_id)
-            alert_service.raise_alert(db, ctx.tenant_id, report.id, "INFO", alert_service.INBOUND,
-                                      f"New file received: {display}" + (f" from {report.sender}" if report.sender else "")
-                                      + f" ({size // 1024 or 1} KB, {verdict.kind}).")
+            # Write-once, content-addressed original, stored before the database
+            # rows: if the transaction fails, the object is merely unused.
+            report = intake_service.create_report(
+                db, tenant=tenant, path=tmp, verdict=verdict, display_name=display, size=size, channel="upload",
+                actor=ctx.actor, actor_user_id=ctx.user_id, sender=sender, programme=programme)
+            replay = (idempotency.complete(idem, 202, report_out(db, report).model_dump(mode="json"))
+                      if idem is not None else None)
             db.commit()
         except Exception:
             db.rollback()
-            store.delete_report(ctx.tenant_id, report.id)
             raise
+        if replay is not None:
+            return replay
         db.refresh(report)
         return report_out(db, report)
     finally:
@@ -95,7 +96,7 @@ def upload_report(file: UploadFile, sender: str | None = Form(default=None, max_
 
 
 @router.get("", response_model=Page[ReportOut])
-def list_reports(paging: Paging = Depends(), ctx: Context = Depends(get_context),
+def list_reports(paging: Paging = Depends(), ctx: Context = Depends(require_reader),
                  db: Session = Depends(get_db)) -> Page[ReportOut]:
     q = db.query(Report).filter(Report.tenant_id == ctx.tenant_id)
     total = q.count()
@@ -104,12 +105,12 @@ def list_reports(paging: Paging = Depends(), ctx: Context = Depends(get_context)
 
 
 @router.get("/{report_id}", response_model=ReportOut)
-def get_report(report_id: str, ctx: Context = Depends(get_context), db: Session = Depends(get_db)) -> ReportOut:
+def get_report(report_id: str, ctx: Context = Depends(require_reader), db: Session = Depends(get_db)) -> ReportOut:
     return report_out(db, get_report_or_404(db, ctx, report_id))
 
 
 @router.get("/{report_id}/summary", response_model=ReportSummaryOut)
-def get_report_summary(report_id: str, ctx: Context = Depends(get_context),
+def get_report_summary(report_id: str, ctx: Context = Depends(require_reader),
                        db: Session = Depends(get_db)) -> ReportSummaryOut:
     report = get_report_or_404(db, ctx, report_id)
     return ReportSummaryOut(report=report_out(db, report), summary=report.summary)
@@ -143,7 +144,7 @@ def retry_report(report_id: str, ctx: Context = Depends(require_writer), db: Ses
 
 
 @router.delete("/{report_id}", status_code=204)
-def delete_report(report_id: str, ctx: Context = Depends(require_writer), db: Session = Depends(get_db)) -> Response:
+def delete_report(report_id: str, ctx: Context = Depends(require(Permission.DATA_DELETE)), db: Session = Depends(get_db)) -> Response:
     report = get_report_or_404(db, ctx, report_id)
     try:
         retention_service.delete_report(db, report, "REPORT_DELETED", actor=ctx.actor, actor_user_id=ctx.user_id)
@@ -168,17 +169,40 @@ def _export(db: Session, ctx: Context, report: Report, kind: str) -> StreamingRe
 
 
 @router.get("/{report_id}/export/claims.csv")
-def export_claims(report_id: str, ctx: Context = Depends(get_context), db: Session = Depends(get_db)):
+def export_claims(report_id: str, ctx: Context = Depends(require_reader), db: Session = Depends(get_db)):
     """One line per extracted claim row with lineage (sheet + source row),
     unmapped source values and the findings raised against it."""
     return _export(db, ctx, get_report_or_404(db, ctx, report_id), "claims_csv")
 
 
 @router.get("/{report_id}/export/exceptions.csv")
-def export_exceptions(report_id: str, ctx: Context = Depends(get_context), db: Session = Depends(get_db)):
+def export_exceptions(report_id: str, ctx: Context = Depends(require_reader), db: Session = Depends(get_db)):
     return _export(db, ctx, get_report_or_404(db, ctx, report_id), "exceptions_csv")
 
 
 @router.get("/{report_id}/export/audit.csv")
-def export_audit(report_id: str, ctx: Context = Depends(get_context), db: Session = Depends(get_db)):
+def export_audit(report_id: str, ctx: Context = Depends(require_reader), db: Session = Depends(get_db)):
     return _export(db, ctx, get_report_or_404(db, ctx, report_id), "audit_csv")
+
+@router.get("/{report_id}/audit-pack.zip")
+def audit_pack(report_id: str, ctx: Context = Depends(require_reader), db: Session = Depends(get_db)) -> Response:
+    """Everything an auditor needs for this report in one ZIP, with a manifest of SHA-256 hashes."""
+    report = get_report_or_404(db, ctx, report_id)
+    if report.status != "COMPLETE":
+        raise HTTPException(status_code=409, detail="The audit pack is available once the report is processed.")
+    summary = report.summary if isinstance(report.summary, dict) else {}
+    statement = str(summary.get("coverage_statement") or "No coverage statement was recorded.")
+    try:
+        body = audit_pack_service.build(db, report, statement, ctx.actor, utcnow())
+    except audit_pack_service.PackIntegrityError as exc:
+        raise HTTPException(status_code=409, detail="The stored original no longer matches the file uploaded; "
+                            "the pack was not built.") from exc
+    name = f"truebind_{report.id}_audit_pack.zip"
+    audit_service.log_action(db, ctx.tenant_id, report.id, "AUDIT_PACK_EXPORTED", "REPORT", report.id,
+                             after={"export": "audit_pack", "sha256": hashlib.sha256(body).hexdigest(),
+                                    "bytes": len(body)}, actor=ctx.actor, actor_user_id=ctx.user_id)
+    delivery_service.record(db, ctx.tenant_id, report.id, "audit_pack", "download", None, name, None, "DELIVERED",
+                            None, ctx.actor)
+    db.commit()
+    return Response(body, media_type="application/zip",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})

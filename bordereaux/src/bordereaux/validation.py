@@ -192,7 +192,6 @@ def _check_arithmetic(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState
                 + (val[S.FEES_PAID_MONTH_CODE].fillna(0) + val[S.FEES_PREV_PAID_CODE].fillna(0)).where(use_fee_comp, 0))
     fee_sum = fee_paid + val[S.FEES_RESERVE_CODE].fillna(0).where(m[S.FEES_RESERVE_CODE], 0)
 
-    paid_components_used = (*S.PAID_COMPONENT_CODES, S.RESERVE_CODE)
     any_unparseable = pd.Series(False, index=idx)
     for c in S.MONETARY_CODES:
         any_unparseable |= unp[c]

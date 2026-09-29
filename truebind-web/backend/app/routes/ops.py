@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -25,9 +25,9 @@ from ..models.jobs import Job
 from ..models.obligations import Obligation
 from ..models.reports import Report, Sheet, ValidationResult
 from ..schemas.reports import AlertOut, AuditLogOut, JobOut, Page, UtcDatetime
-from ..security.auth import Context, get_context, require_writer
+from ..security.auth import Context, require_reader, require_writer
 from ..security.ratelimit import limiter
-from ..services import audit_service, delivery_service, job_service
+from ..services import audit_service, delivery_service, job_service, sftp_service
 from .deps import Paging, get_report_or_404, report_out
 
 router = APIRouter(prefix="/api/v1", tags=["operations"])
@@ -45,19 +45,20 @@ def _age_s(dt: datetime | None) -> float | None:
 # ------------------------------------------------------------------ overview
 
 @router.get("/overview")
-def overview(ctx: Context = Depends(get_context), db: Session = Depends(get_db)) -> dict:
+def overview(ctx: Context = Depends(require_reader), db: Session = Depends(get_db)) -> dict:
     tid = ctx.tenant_id
     reports = db.query(Report).filter(Report.tenant_id == tid).order_by(Report.created_at.desc()).all()
     by_status = Counter(r.status for r in reports)
     complete = [r for r in reports if r.status == "COMPLETE" and r.summary]
     totals = Counter()
     for r in complete:
-        s = r.summary
+        s = r.summary or {}
         for k in ("missing_mandatory_rows", "arithmetic_mismatches", "exact_duplicates", "probable_duplicates",
                   "development_pairs", "arithmetic_not_evaluable"):
             totals[k] += int(s.get(k) or 0)
         totals["unmapped_columns"] += sum(len(u["columns"]) for u in s.get("unmapped_source_columns") or [])
         totals["claims"] += int(s.get("total_claims") or 0)
+        totals["reports_with_checks_not_assessed"] += 1 if s.get("not_assessed_checks") else 0
     severity = dict(db.query(ValidationResult.severity, func.count())
                     .join(Report, Report.id == ValidationResult.report_id)
                     .filter(ValidationResult.tenant_id == tid, ValidationResult.status.in_(("FAIL", "REVIEW")))
@@ -112,7 +113,7 @@ _PRIORITY = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "INFO": 3}
 
 
 @router.get("/work-queue")
-def work_queue(ctx: Context = Depends(get_context), db: Session = Depends(get_db)) -> dict:
+def work_queue(ctx: Context = Depends(require_reader), db: Session = Depends(get_db)) -> dict:
     tid = ctx.tenant_id
     items: list[dict] = []
 
@@ -188,12 +189,18 @@ class DeliveryOut(BaseModel):
 class DeliveryRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     kind: Literal["claims_csv", "exceptions_csv", "audit_csv"]
-    channel: Literal["email"]
-    recipient: str = Field(min_length=3, max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    channel: Literal["email", "sftp"]
+    recipient: str | None = Field(default=None, min_length=3, max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+    @model_validator(mode="after")
+    def _recipient_for_email(self):
+        if self.channel == "email" and not self.recipient:
+            raise ValueError("recipient is required for e-mail delivery")
+        return self
 
 
 @router.get("/deliveries", response_model=Page[DeliveryOut])
-def list_deliveries(paging: Paging = Depends(), ctx: Context = Depends(get_context),
+def list_deliveries(paging: Paging = Depends(), ctx: Context = Depends(require_reader),
                     db: Session = Depends(get_db)) -> Page[DeliveryOut]:
     q = db.query(Delivery).filter(Delivery.tenant_id == ctx.tenant_id)
     total = q.count()
@@ -209,8 +216,11 @@ def create_delivery(report_id: str, body: DeliveryRequest, ctx: Context = Depend
     if report.status != "COMPLETE":
         raise HTTPException(status_code=409, detail="Outputs can be sent once the report is complete.")
     limiter.check("delivery", ctx.tenant_id, limit=30, window_s=3600)
-    d = delivery_service.send_email(db, ctx.tenant_id, report, body.kind, body.recipient.lower(), ctx.actor,
-                                    ctx.user_id)
+    if body.channel == "sftp":
+        d = sftp_service.deliver(db, ctx.tenant_id, report, body.kind, ctx.actor, ctx.user_id)
+    else:
+        d = delivery_service.send_email(db, ctx.tenant_id, report, body.kind, (body.recipient or "").lower(),
+                                        ctx.actor, ctx.user_id)
     db.commit()
     return DeliveryOut.model_validate(d)
 
@@ -218,42 +228,69 @@ def create_delivery(report_id: str, body: DeliveryRequest, ctx: Context = Depend
 # ------------------------------------------------------------------ channels
 
 @router.get("/channels")
-def channels(ctx: Context = Depends(get_context)) -> dict:
-    """Inbound and outbound channels and whether each is live on this server.
-    Planned connectors are listed as such -- never shown as working."""
+def channels(ctx: Context = Depends(require_reader), db: Session = Depends(get_db)) -> dict:
+    """Inbound and outbound channels and whether each is live for this
+    organisation on this server. Nothing is shown as working unless it is
+    configured; planned connectors are listed as planned."""
+    from ..ai import providers as ai_providers
+    from ..models.channels import FxRate, SftpDestination, WebhookEndpoint
+    from ..models.identity import Tenant
+    from ..services import inbound_email
+
+    tenant = db.get(Tenant, ctx.tenant_id)
+    email_in_server = bool(config.INBOUND_EMAIL_DOMAIN and (config.INBOUND_WEBHOOK_SECRET or config.SES_SNS_TOPIC_ARNS))
+    address = inbound_email.address_for(tenant.inbound_token if tenant else None)
+    hooks = db.query(WebhookEndpoint).filter(WebhookEndpoint.tenant_id == ctx.tenant_id,
+                                             WebhookEndpoint.enabled.is_(True)).count()
+    sftp = db.query(SftpDestination).filter(SftpDestination.tenant_id == ctx.tenant_id).first()
     email_out = delivery_service.email_configured()
+    latest_fx = db.query(func.max(FxRate.rate_date)).scalar()
+    ai = ai_providers.describe()
+
+    def status(server_ready: bool, org_ready: bool) -> str:
+        return "active" if server_ready and org_ready else ("not_set_up" if server_ready else "not_configured")
+
     return {
         "inbound": [
             {"id": "upload", "name": "Web upload", "status": "active",
              "detail": "Drag and drop .xlsx, .xlsm, .xls or .csv on the Intake page."},
             {"id": "api", "name": "API", "status": "active",
-             "detail": "POST /api/v1/reports/upload (multipart, session auth + CSRF)."},
-            {"id": "email", "name": "E-mail inbox", "status": "planned",
-             "detail": "Forward bordereaux to a dedicated address; attachments ingested automatically."},
-            {"id": "sftp", "name": "SFTP drop", "status": "planned", "detail": "Poll a partner SFTP folder on a schedule."},
-            {"id": "cloud", "name": "Cloud storage", "status": "planned",
-             "detail": "Watch a SharePoint / S3 / Google Drive folder."},
-            {"id": "schedule", "name": "Scheduled import", "status": "planned",
-             "detail": "Fetch a recurring submission at a set time."},
+             "detail": "POST /api/v1/reports/upload (session auth + CSRF, optional Idempotency-Key)."},
+            {"id": "email", "name": "E-mail inbox", "status": status(email_in_server, bool(address)),
+             "detail": (f"Forward bordereaux to {address}." if address and email_in_server else
+                        "Create your organisation's inbound address in Settings -> Channels." if email_in_server else
+                        "Set INBOUND_EMAIL_DOMAIN and a Postmark or SES connection on the server."),
+             "address": address if email_in_server else None},
+            {"id": "sftp", "name": "SFTP pickup", "status": "planned", "detail": "Poll a partner SFTP folder."},
         ],
         "outbound": [
             {"id": "download", "name": "Download", "status": "active", "detail": "Claims, exceptions and audit CSV."},
             {"id": "email", "name": "E-mail", "status": "active" if email_out else "not_configured",
              "detail": "Send outputs to a recipient." + ("" if email_out else " Set SMTP_HOST on the server to enable.")},
-            {"id": "webhook", "name": "Webhook / API push", "status": "planned",
-             "detail": "Post structured results to another system."},
-            {"id": "sftp_out", "name": "SFTP delivery", "status": "planned", "detail": "Drop outputs on a partner SFTP."},
+            {"id": "webhook", "name": "Webhooks", "status": "active" if hooks else "not_set_up",
+             "detail": (f"{hooks} signed endpoint(s) receive report events." if hooks else
+                        "Add an https endpoint to receive signed report events.")},
+            {"id": "sftp_out", "name": "SFTP delivery",
+             "status": "active" if sftp and sftp.enabled else "not_set_up",
+             "detail": (f"{sftp.username}@{sftp.host}:{sftp.remote_dir}"
+                        + (" (automatic on completion)" if sftp.auto_deliver else "")) if sftp else
+                       "Add a partner SFTP server with its pinned host key."},
         ],
+        "services": {
+            "ai": ai,
+            "fx": {"source": "ECB euro reference rates", "latest_rate_date": latest_fx.isoformat() if latest_fx else None,
+                   "auto_refresh": bool(config.FX_AUTO_REFRESH)},
+        },
         "pipeline": ["Receive", "Validate file", "Read workbook", "Map columns", "Validate data",
                      "Check duplicates", "Reconcile", "Report", "Deliver"],
-        "limits": {"max_upload_mb": config.MAX_UPLOAD_BYTES // (1024 * 1024), "ai_mapping": bool(config.ANTHROPIC_API_KEY)},
+        "limits": {"max_upload_mb": config.MAX_UPLOAD_BYTES // (1024 * 1024), "ai_mapping": bool(ai["configured"])},
     }
 
 
 # ------------------------------------------------------------------ processing history
 
 @router.get("/reports/{report_id}/jobs", response_model=list[JobOut])
-def report_jobs(report_id: str, ctx: Context = Depends(get_context), db: Session = Depends(get_db)) -> list[JobOut]:
+def report_jobs(report_id: str, ctx: Context = Depends(require_reader), db: Session = Depends(get_db)) -> list[JobOut]:
     report = get_report_or_404(db, ctx, report_id)
     jobs = db.query(Job).filter(Job.report_id == report.id).order_by(Job.created_at).all()
     return [JobOut.model_validate(j) for j in jobs]

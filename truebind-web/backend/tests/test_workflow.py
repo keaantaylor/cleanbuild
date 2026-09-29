@@ -157,7 +157,7 @@ def test_mapping_override_is_audited_with_session_identity(api):
 
 
 def test_lists_are_paginated(api):
-    rows = simple_rows(0) + [[f"DUP", "Same Insured", "2024-01-15", "Open", "GBP", 1, 1, 99]] * 30
+    rows = simple_rows(0) + [["DUP", "Same Insured", "2024-01-15", "Open", "GBP", 1, 1, 99]] * 30
     rid, _ = api.full_run("dups.xlsx", xlsx_bytes(rows))
     page = api.get(f"/api/v1/reports/{rid}/exceptions", params={"limit": 5, "offset": 0}).json()
     assert len(page["items"]) == 5 and page["total"] > 5
@@ -222,18 +222,22 @@ def test_failed_report_can_be_retried(api, db):
     assert db.query(Job).filter_by(report_id=rid).count() == 2
 
 
-def test_delete_removes_file_and_data_but_keeps_audit(api, db):
+def test_delete_hides_report_keeps_original_and_audit(api, db):
+    # P1.5 (non-negotiable #7): originals are immutable and the app has no
+    # delete path. Previously this test asserted the file was removed.
     from app.config import STORAGE_DIR
     from app.models.audit import AuditLogEntry
-    from app.models.reports import ClaimRow, Report
+    from app.models.reports import Report
     rid, _ = api.full_run("a.xlsx", xlsx_bytes(simple_rows()))
     report = db.get(Report, rid)
     path = STORAGE_DIR / report.storage_key
     assert path.exists()
+    before = path.read_bytes()
     assert api.delete(f"/api/v1/reports/{rid}").status_code == 204
     db.expire_all()
-    assert not path.exists()
-    assert db.get(Report, rid) is None and db.query(ClaimRow).filter_by(report_id=rid).count() == 0
+    assert path.exists() and path.read_bytes() == before, "the original is never deleted or changed"
+    assert db.query(Report).filter_by(id=rid).first() is None, "hidden from every query"
+    assert api.get(f"/api/v1/reports/{rid}/claims").status_code == 404
     assert db.query(AuditLogEntry).filter_by(report_id=rid, action_type="REPORT_DELETED").count() == 1
 
 

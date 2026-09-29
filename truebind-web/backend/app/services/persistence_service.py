@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from ..models._util import new_uuid, utcnow
 from ..models.alerts import Alert
 from ..models.reports import ClaimRow, ExcludedRow, Mapping, Report, Sheet, ValidationResult
-from . import alert_service, audit_service
+from . import alert_service, audit_service, pipeline_service
 from .pipeline_service import FIELDS, FIELDS_BY_CODE, REQUIRED_CODES as _REQUIRED, classify_sheet_status, mapping_mod
 
 FIELD_TO_COLUMN = {
@@ -363,6 +363,11 @@ def _report_alerts(health, cov) -> list[dict]:
     return out
 
 
+def _check_label(check: str) -> str:
+    label = pipeline_service.CHECK_LABELS.get(check, check)
+    return label[:1].upper() + label[1:]
+
+
 def build_summary(result, canonical: pd.DataFrame) -> dict:
     """Everything the report screen shows, computed from the engine's own
     objects. Every number here has one definition (see `definitions`)."""
@@ -406,6 +411,7 @@ def build_summary(result, canonical: pd.DataFrame) -> dict:
                 counts[v.date().isoformat() if hasattr(v, "date") and callable(v.date) else str(v).strip()] += 1
         return dict(counts.most_common(limit))
 
+    not_assessed = {c for c, _ in cov.not_assessed_checks}
     summary = {
         "claim_status_counts": _value_counts("CR0105CM"),
         "reporting_periods": _value_counts("TB_PERIOD"),
@@ -422,7 +428,11 @@ def build_summary(result, canonical: pd.DataFrame) -> dict:
         "not_evaluable_by_reason": ne_counts,
         "exception_counts_by_rule": rule_counts,
         "exact_duplicates": health.exact_duplicates,
-        "probable_duplicates": health.probable_duplicates,
+        # None, not 0, when the check did not run (see not_assessed_checks).
+        "probable_duplicates": None if "probable_duplicates" in not_assessed else health.probable_duplicates,
+        "not_assessed_checks": [{"check": c, "label": _check_label(c), "reason": r}
+                                for c, r in cov.not_assessed_checks],
+        "coverage_statement": pipeline_service.coverage_statement(cov),
         "period_unknown_repeats": health.period_unknown_repeats,
         "field_completeness": [{"field_code": f.code, "field_name": f.name, "present": f.present,
                                 "denominator": f.denominator, "never_mapped": f.never_mapped}

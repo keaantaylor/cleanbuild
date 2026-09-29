@@ -2,6 +2,7 @@
 
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
+import { channelStatus } from "@/lib/findings";
 import { ErrorState, Icon, Panel, PageHeader, Pill, ds } from "@/components/ds";
 import { PageSkeleton } from "@/components/layout/ShellSkeleton";
 import type { Channel } from "@/lib/types";
@@ -16,8 +17,8 @@ function ChannelList({ items }: { items: Channel[] }) {
             <p className={styles.name}>{c.name}</p>
             <p className={styles.detail}>{c.detail}</p>
           </div>
-          <Pill tone={c.status === "active" ? "live" : c.status === "planned" ? "neutral" : "warn"} pulse={c.status === "active"}>
-            {c.status === "active" ? "Live" : c.status === "planned" ? "Planned" : "Not configured"}
+          <Pill tone={channelStatus(c.status).tone} pulse={c.status === "active"}>
+            {channelStatus(c.status).label}
           </Pill>
         </li>
       ))}

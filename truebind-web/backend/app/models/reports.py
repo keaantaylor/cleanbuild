@@ -11,12 +11,16 @@ UPLOADED -> QUEUED -> INGESTING -> WAITING_FOR_REVIEW -> QUEUED -> PROCESSING
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import Decimal
 
 from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import event, select
+from sqlalchemy.orm import ORMExecuteState, Session, with_loader_criteria
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..database import Base
 from ._util import created_at_col, uuid_pk
+from .money import Money
 
 REPORT_STATUSES = ("UPLOADED", "QUEUED", "INGESTING", "WAITING_FOR_REVIEW", "PROCESSING",
                    "COMPLETE", "FAILED", "CANCELLED", "EXPIRED")
@@ -66,7 +70,13 @@ class Report(Base):
     summary: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # computed once at persist time
     ingest_notes: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # AI usage, file notes
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Soft delete (P1.5): the record, its derived rows and the original file are
+    # kept; the report is hidden from every query unless include_deleted is set.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_by: Mapped[str | None] = mapped_column(String(320), nullable=True)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    binder_id: Mapped[str | None] = mapped_column(  # P3: the binder this bordereau is reported under
+        ForeignKey("binders.id", ondelete="SET NULL"), nullable=True, index=True)
 
     sheets: Mapped[list["Sheet"]] = relationship(back_populates="report", cascade="all, delete-orphan")
     claim_rows: Mapped[list["ClaimRow"]] = relationship(back_populates="report", cascade="all, delete-orphan")
@@ -157,19 +167,19 @@ class ClaimRow(Base):
     date_notified: Mapped[date | None] = mapped_column(Date, nullable=True)
     policy_reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
     reporting_period: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    paid_amount: Mapped[float | None] = mapped_column(Float, nullable=True)  # indemnity paid to date
-    paid_this_month: Mapped[float | None] = mapped_column(Float, nullable=True)
-    previously_paid: Mapped[float | None] = mapped_column(Float, nullable=True)
-    reserve_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
-    fees_paid_this_month: Mapped[float | None] = mapped_column(Float, nullable=True)
-    fees_previously_paid: Mapped[float | None] = mapped_column(Float, nullable=True)
-    fees_reserve: Mapped[float | None] = mapped_column(Float, nullable=True)
-    fees_paid_to_date: Mapped[float | None] = mapped_column(Float, nullable=True)
+    paid_amount: Mapped[Decimal | None] = mapped_column(Money, nullable=True)  # indemnity paid to date
+    paid_this_month: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
+    previously_paid: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
+    reserve_amount: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
+    fees_paid_this_month: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
+    fees_previously_paid: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
+    fees_reserve: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
+    fees_paid_to_date: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
     # Values of source columns the confirmed mapping bound to no canonical
     # field, kept verbatim with the row (never silently discarded).
     unmapped_values: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    incurred_indemnity: Mapped[float | None] = mapped_column(Float, nullable=True)
-    incurred_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    incurred_indemnity: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
+    incurred_amount: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
     currency: Mapped[str | None] = mapped_column(String(64), nullable=True)
     extracted_at: Mapped[datetime] = created_at_col()
 
@@ -192,7 +202,26 @@ class ValidationResult(Base):
     status: Mapped[str] = mapped_column(String(16))
     severity: Mapped[str] = mapped_column(String(16))
     message: Mapped[str] = mapped_column(String(2000))
-    delta: Mapped[float | None] = mapped_column(Float, nullable=True)
+    delta: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
     extra: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     claim_row: Mapped[ClaimRow] = relationship(back_populates="validation_results")
+
+
+@event.listens_for(Session, "do_orm_execute")
+def _hide_deleted_reports(state: ORMExecuteState) -> None:
+    """Soft-deleted reports are invisible to the application: every ORM
+    SELECT (including Session.get and relationship loads) filters them out
+    unless executed with ``execution_options(include_deleted=True)``."""
+    if state.is_select and not state.execution_options.get("include_deleted", False):
+        from .alerts import Alert
+        from .deliveries import Delivery
+        from .obligations import Obligation
+
+        live = select(Report.id).where(Report.deleted_at.is_(None)).scalar_subquery()
+        state.statement = state.statement.options(
+            with_loader_criteria(Report, lambda cls: cls.deleted_at.is_(None), include_aliases=True),
+            # Tenant-wide lists that point at a report hide that report's rows too.
+            *(with_loader_criteria(m, m.report_id.in_(live), include_aliases=True)
+              for m in (Alert, Obligation, Delivery)),
+        )

@@ -1,3 +1,16 @@
 -r requirements.txt
 pytest>=8.3
 httpx>=0.27
+
+# QA toolchain used by scripts/verify.py (pinned so the ratchet baselines in
+# scripts/quality.json stay comparable between machines).
+ruff==0.16.9
+mypy==2.3.1
+pandas-stubs==3.0.5.260914
+types-openpyxl==3.1.5.20260827
+pytest-cov==7.1.0
+coverage==7.16.2
+bandit==1.9.4
+pip-audit==2.10.1
+setuptools>=83
+types-defusedxml==0.7.0.20260504

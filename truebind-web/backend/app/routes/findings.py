@@ -13,7 +13,7 @@ from ..models.reports import ClaimRow, ExcludedRow, Sheet, ValidationResult
 from ..schemas.reports import (
     ClaimRowOut, DuplicatePairOut, DuplicateReviewRequest, ExceptionRowOut, ExcludedRowOut, Page,
 )
-from ..security.auth import Context, get_context, require_writer
+from ..security.auth import Context, require_reader, require_writer
 from ..services import audit_service
 from .deps import Paging, get_report_or_404
 
@@ -33,7 +33,7 @@ def list_exceptions(
     sheet_id: str | None = Query(default=None, max_length=36),
     q_ref: str | None = Query(default=None, max_length=100, alias="q"),
     sort: str = Query(default="row", pattern="^(row|severity)$"),
-    paging: Paging = Depends(), ctx: Context = Depends(get_context), db: Session = Depends(get_db),
+    paging: Paging = Depends(), ctx: Context = Depends(require_reader), db: Session = Depends(get_db),
 ) -> Page[ExceptionRowOut]:
     report = get_report_or_404(db, ctx, report_id)
     if check_type and check_type not in CHECK_TYPES:
@@ -87,7 +87,7 @@ def _pair(vr: ValidationResult, a: ClaimRow, b: ClaimRow | None, sheet_names) ->
 
 @router.get("/{report_id}/duplicates", response_model=Page[DuplicatePairOut])
 def list_duplicates(report_id: str, match_type: str | None = Query(default=None, max_length=32),
-                    paging: Paging = Depends(), ctx: Context = Depends(get_context),
+                    paging: Paging = Depends(), ctx: Context = Depends(require_reader),
                     db: Session = Depends(get_db)) -> Page[DuplicatePairOut]:
     report = get_report_or_404(db, ctx, report_id)
     sheet_names = dict(db.query(Sheet.id, Sheet.sheet_name).filter(Sheet.report_id == report.id).all())
@@ -130,7 +130,7 @@ def review_duplicate(report_id: str, validation_result_id: str, body: DuplicateR
 
 @router.get("/{report_id}/excluded-rows", response_model=Page[ExcludedRowOut])
 def list_excluded_rows(report_id: str, reason: str | None = Query(default=None, max_length=32),
-                       paging: Paging = Depends(), ctx: Context = Depends(get_context),
+                       paging: Paging = Depends(), ctx: Context = Depends(require_reader),
                        db: Session = Depends(get_db)) -> Page[ExcludedRowOut]:
     report = get_report_or_404(db, ctx, report_id)
     q = db.query(ExcludedRow).filter(ExcludedRow.report_id == report.id)
@@ -145,7 +145,7 @@ def list_excluded_rows(report_id: str, reason: str | None = Query(default=None, 
 @router.get("/{report_id}/claims", response_model=Page[ClaimRowOut])
 def list_claims(report_id: str, sheet_id: str | None = Query(default=None, max_length=36),
                 q_ref: str | None = Query(default=None, max_length=100, alias="q"),
-                paging: Paging = Depends(), ctx: Context = Depends(get_context),
+                paging: Paging = Depends(), ctx: Context = Depends(require_reader),
                 db: Session = Depends(get_db)) -> Page[ClaimRowOut]:
     report = get_report_or_404(db, ctx, report_id)
     q = db.query(ClaimRow).filter(ClaimRow.report_id == report.id)

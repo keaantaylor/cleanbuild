@@ -27,16 +27,23 @@ import time
 import uuid
 from datetime import timedelta
 
-from .config import JOB_LEASE_S, JOB_MEMORY_MB, JOB_TIMEOUT_S, describe_database_url
+from .config import JOB_LEASE_S, JOB_MEMORY_MB, JOB_TIMEOUT_S, LOG_JSON, LOG_LEVEL, describe_database_url
 from .database import get_session_factory, set_tenant
+from .observability import configure_logging
 from .models._util import utcnow
 from .models.jobs import Job, WorkerHeartbeat
-from .services import job_service, retention_service
+from . import config
+from .services import fx_service, job_service, job_signal, retention_service, webhooks
 
 log = logging.getLogger("truebind.worker")
 
 POLL_S = 0.5
+# With Redis (REDIS_URL) an idle worker blocks this long for a wake-up, then
+# re-checks the database anyway: wake-ups speed things up, never gate them.
+WAKE_WAIT_S = 2.0
 REAP_EVERY_S = 10.0
+WEBHOOK_EVERY_S = 5.0
+FX_EVERY_S = 6 * 3600.0
 RETENTION_EVERY_S = 3600.0
 
 
@@ -58,7 +65,7 @@ def _child_entry(conn, memory_mb: int) -> None:
     process start + pandas/openpyxl/SQLAlchemy import time. Each child runs
     exactly one job and exits (isolation is unchanged)."""
     _limit_memory(memory_mb)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    configure_logging(LOG_LEVEL, LOG_JSON)
     from .database import get_session_factory as _factory  # fresh engine in this process
     from .services import job_handlers
 
@@ -99,6 +106,8 @@ class Worker:
         self._ctx = mp.get_context("spawn")
         self._last_reap = 0.0
         self._last_retention = 0.0
+        self._last_webhooks = 0.0
+        self._last_fx = 0.0
         self._last_registry = 0.0
         self._started_at = utcnow()
         self._warm: tuple | None = None  # (process, parent_conn)
@@ -171,6 +180,24 @@ class Worker:
                 n = job_service.reap_expired(db)
                 if n:
                     log.warning("recovered %d job(s) from a stopped or unresponsive worker", n)
+            finally:
+                db.close()
+        if now - self._last_webhooks >= WEBHOOK_EVERY_S:
+            self._last_webhooks = now
+            db = self.factory()
+            try:
+                webhooks.dispatch_due(db)
+            except Exception:  # noqa: BLE001 -- housekeeping must not stop the worker
+                log.exception("webhook dispatch failed")
+            finally:
+                db.close()
+        if config.FX_AUTO_REFRESH and now - self._last_fx >= FX_EVERY_S:
+            self._last_fx = now
+            db = self.factory()
+            try:
+                fx_service.refresh(db)
+            except Exception:  # noqa: BLE001 -- housekeeping must not stop the worker
+                log.exception("ECB rate refresh failed")
             finally:
                 db.close()
         if now - self._last_retention >= RETENTION_EVERY_S:
@@ -295,7 +322,7 @@ class Worker:
                 try:
                     self.check_in()
                     self.housekeeping()
-                    if not self.run_one():
+                    if not self.run_one() and not job_signal.wait(WAKE_WAIT_S):
                         self._stop.wait(POLL_S)
                 except Exception:  # noqa: BLE001 -- e.g. DB briefly unavailable: back off, keep going
                     log.exception("worker loop error; backing off")
@@ -355,7 +382,7 @@ def stop_embedded(timeout_s: float = 10.0) -> None:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    configure_logging(LOG_LEVEL, LOG_JSON)
     w = Worker()
     signal.signal(signal.SIGTERM, lambda *_: w.stop())
     signal.signal(signal.SIGINT, lambda *_: w.stop())

@@ -1,4 +1,4 @@
-import type { Alert, AuditLogEntry, Channels, ClaimRow, Delivery, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Job, Me, MappingField, Obligation, Overview, Report, ReportSummary, Sheet, SheetMapping, SystemStatus, Template, WorkQueue } from "./types";
+import type { Alert, AuditLogEntry, Billing, Binder, Preflight, SanctionsList, Scorecard, Submission, BinderInput, Disposition, ModuleFinding, ModuleRun, Channels, ClaimRow, Delivery, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Invitation, InvitationCreated, Job, Me, MappingField, Member, MfaChallenge, MfaStatus, Obligation, OrgSettings, Overview, Report, ReportSummary, Role, Sheet, SheetMapping, SftpDestination, SftpInput, SsoConfig, SsoConfigInput, SystemStatus, Template, WebhookDelivery, WebhookEndpoint, WebhookEvent, WorkQueue } from "./types";
 
 // Default: same hostname as the page, port 8000. Using the page's own host
 // matters: a page on localhost calling an API on 127.0.0.1 is cross-site, so
@@ -8,6 +8,10 @@ function defaultApiBase(): string {
   return "http://localhost:8000/api/v1";
 }
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || defaultApiBase();
+
+export function isMfaChallenge(r: Me | MfaChallenge): r is MfaChallenge {
+  return (r as MfaChallenge).mfa_required === true;
+}
 
 export class ApiError extends Error {
   status: number;
@@ -75,6 +79,12 @@ async function request<T>(path: string, init?: RequestInit & { timeoutMs?: numbe
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
   }
+  if (res.status === 403 && res.headers.get("X-TrueBind-Reason") === "mfa_setup_required" && typeof window !== "undefined"
+      && !window.location.pathname.startsWith("/settings")) {
+    // The organisation requires 2FA and this session has not set it up yet.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.href = "/settings?tab=security&required=1";
+  }
   if (!res.ok) {
     let detail = res.statusText;
     try {
@@ -116,11 +126,58 @@ async function waitForReport(reportId: string, onUpdate?: (r: Report) => void, t
 
 export const api = {
   // ---- auth
-  login: async (email: string, password: string) => {
-    const me = await request<Me>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+  /** Either a session (Me) or, when 2FA is on, a challenge to complete with verifyMfa. */
+  login: async (email: string, password: string): Promise<Me | MfaChallenge> => {
+    const res = await request<Me | MfaChallenge>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+    if (!isMfaChallenge(res)) setCsrf(res.csrf_token);
+    return res;
+  },
+  verifyMfa: async (mfaToken: string, factor: { code: string } | { recovery_code: string }) => {
+    const me = await request<Me>("/auth/2fa/verify", { method: "POST", body: JSON.stringify({ mfa_token: mfaToken, ...factor }) });
     setCsrf(me.csrf_token);
     return me;
   },
+  acceptInvitation: async (token: string, displayName: string, password: string) => {
+    const me = await request<Me>("/auth/invitations/accept", { method: "POST", body: JSON.stringify({ token, display_name: displayName, password }) });
+    setCsrf(me.csrf_token);
+    return me;
+  },
+  /** Full-page navigation: the IdP flow is a browser redirect, not a fetch. */
+  ssoStartUrl: (email: string) => `${API_BASE}/auth/sso/start?email=${encodeURIComponent(email)}`,
+  mfaStatus: () => request<MfaStatus>("/auth/2fa"),
+  mfaSetup: () => request<{ secret: string; otpauth_uri: string }>("/auth/2fa/setup", { method: "POST" }),
+  mfaEnable: (code: string) => request<{ recovery_codes: string[] }>("/auth/2fa/enable", { method: "POST", body: JSON.stringify({ code }) }),
+  mfaDisable: (code: string) => request<void>("/auth/2fa/disable", { method: "POST", body: JSON.stringify({ code }) }),
+
+  // ---- organisation
+  getOrg: () => request<OrgSettings>("/org"),
+  updateOrg: (body: Partial<Pick<OrgSettings, "name" | "org_type" | "require_2fa">>) =>
+    request<OrgSettings>("/org", { method: "PATCH", body: JSON.stringify(body) }),
+  listMembers: () => request<Member[]>("/org/members"),
+  changeRole: (membershipId: string, role: Role) =>
+    request<Member>(`/org/members/${membershipId}`, { method: "PATCH", body: JSON.stringify({ role }) }),
+  removeMember: (membershipId: string) => request<void>(`/org/members/${membershipId}`, { method: "DELETE" }),
+  listInvitations: () => request<Invitation[]>("/org/invitations"),
+  invite: (email: string, role: Role) =>
+    request<InvitationCreated>("/org/invitations", { method: "POST", body: JSON.stringify({ email, role }) }),
+  revokeInvitation: (id: string) => request<void>(`/org/invitations/${id}`, { method: "DELETE" }),
+  getSso: () => request<SsoConfig>("/org/sso"),
+  saveSso: (body: SsoConfigInput) => request<SsoConfig>("/org/sso", { method: "PATCH", body: JSON.stringify(body) }),
+  removeSso: () => request<void>("/org/sso", { method: "DELETE" }),
+  getInbound: () => request<{ address: string | null; configured: boolean }>("/org/inbound"),
+  rotateInbound: () => request<{ address: string | null; configured: boolean }>("/org/inbound/rotate", { method: "POST" }),
+  listWebhooks: () => request<WebhookEndpoint[]>("/org/webhooks"),
+  createWebhook: (url: string, events: WebhookEvent[]) =>
+    request<WebhookEndpoint & { secret: string }>("/org/webhooks", { method: "POST", body: JSON.stringify({ url, events }) }),
+  deleteWebhook: (id: string) => request<void>(`/org/webhooks/${id}`, { method: "DELETE" }),
+  testWebhook: (id: string) => request<WebhookDelivery>(`/org/webhooks/${id}/test`, { method: "POST" }),
+  webhookDeliveries: (id: string) => request<WebhookDelivery[]>(`/org/webhooks/${id}/deliveries`),
+  replayWebhook: (deliveryId: string) => request<WebhookDelivery>(`/org/webhooks/deliveries/${deliveryId}/replay`, { method: "POST" }),
+  getSftp: () => request<SftpDestination | null>("/org/sftp"),
+  saveSftp: (body: SftpInput) => request<SftpDestination>("/org/sftp", { method: "PUT", body: JSON.stringify(body) }),
+  removeSftp: () => request<void>("/org/sftp", { method: "DELETE" }),
+  testSftp: () => request<{ ok: boolean; message: string }>("/org/sftp/test", { method: "POST" }),
+  refreshFx: () => request<{ rows_written: number; latest_rate_date: string | null }>("/fx/refresh", { method: "POST" }),
   signup: async (body: { email: string; password: string; display_name: string; organisation: string }) => {
     const me = await request<Me>("/auth/signup", { method: "POST", body: JSON.stringify(body) });
     setCsrf(me.csrf_token);
@@ -254,9 +311,47 @@ export const api = {
     return request<Report>("/reports/upload", { method: "POST", body: form, timeoutMs: 300_000 });
   },
 
+  // ---- check modules and binders (P3+)
+  listChecks: (reportId: string) => request<ModuleRun[]>(`/reports/${reportId}/checks`),
+  runCheck: (reportId: string, module: string) =>
+    request<ModuleRun>(`/reports/${reportId}/checks/${encodeURIComponent(module)}/run`, { method: "POST" }),
+  listModuleFindings: (reportId: string, params: { module?: string; status?: string; disposition?: string; limit?: number; offset?: number } = {}) =>
+    request<Page<ModuleFinding>>(`/reports/${reportId}/checks/findings${qs(params)}`),
+  disposeFinding: (reportId: string, findingId: string, disposition: Disposition, note?: string) =>
+    request<ModuleFinding>(`/reports/${reportId}/checks/findings/${findingId}`, { method: "PATCH", body: JSON.stringify({ disposition, note: note || null }) }),
+  assignBinder: (reportId: string, binderId: string | null) =>
+    request<ModuleRun[]>(`/reports/${reportId}/binder`, { method: "PUT", body: JSON.stringify({ binder_id: binderId }) }),
+  listBinders: () => request<Binder[]>("/binders"),
+  createBinder: (body: BinderInput) => request<Binder>("/binders", { method: "POST", body: JSON.stringify(body) }),
+  deleteBinder: (id: string) => request<void>(`/binders/${id}`, { method: "DELETE" }),
+  getBilling: () => request<Billing>("/billing"),
+  billingCheckout: (plan: string) => request<{ url: string }>("/billing/checkout", { method: "POST", body: JSON.stringify({ plan }) }),
+  billingPortal: () => request<{ url: string }>("/billing/portal", { method: "POST" }),
+  senderPreflight: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<Preflight>("/sender/preflight", { method: "POST", body: form, timeoutMs: 300_000 });
+  },
+  senderSubmit: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<Submission>("/sender/submissions", { method: "POST", body: form, timeoutMs: 300_000 });
+  },
+  senderSubmissions: () => request<Submission[]>("/sender/submissions"),
+  getScorecard: (since?: string) => request<Scorecard>(`/scorecard${qs({ since })}`),
+  listSanctionsLists: () => request<SanctionsList[]>("/sanctions/lists"),
+  loadSanctionsList: (name: string, file: File) => {
+    const form = new FormData();
+    form.append("name", name);
+    form.append("file", file);
+    return request<SanctionsList>("/sanctions/lists", { method: "POST", body: form, timeoutMs: 300_000 });
+  },
+  deleteSanctionsList: (id: string) => request<void>(`/sanctions/lists/${id}`, { method: "DELETE" }),
+
   // ---- exports (plain GET links; the session cookie authenticates them)
   exportClaimsUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/claims.csv`,
   exportExceptionsUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/exceptions.csv`,
+  auditPackUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/audit-pack.zip`,
   exportAuditCsvUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/audit.csv`,
   exportByStatusUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/claims.csv`,
 };

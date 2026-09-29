@@ -1,0 +1,59 @@
+"use client";
+
+import { Suspense } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useMe } from "@/components/auth/AuthGate";
+import { PageHeader, ds } from "@/components/ds";
+import { Tabs } from "@/components/ui/Tabs";
+import { PageSkeleton } from "@/components/layout/ShellSkeleton";
+import { MembersSettings } from "@/components/settings/MembersSettings";
+import { OrganisationSettings } from "@/components/settings/OrganisationSettings";
+import { SecuritySettings } from "@/components/settings/SecuritySettings";
+import { SsoSettings } from "@/components/settings/SsoSettings";
+import { ChannelsSettings } from "@/components/settings/ChannelsSettings";
+import { BindersSettings } from "@/components/settings/BindersSettings";
+import { SanctionsSettings } from "@/components/settings/SanctionsSettings";
+import { BillingSettings } from "@/components/settings/BillingSettings";
+import { hasPermission } from "@/lib/auth";
+
+function SettingsInner() {
+  const me = useMe();
+  const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  if (!me) return <PageSkeleton label="Loading settings" />;
+  const can = (p: string) => hasPermission(me.permissions, p);
+  const tabs = [
+    ...(can("org:read") ? [{ value: "organisation", label: "Organisation" }] : []),
+    ...(can("member:read") ? [{ value: "members", label: "Members" }] : []),
+    { value: "security", label: "Security" },
+    ...(can("org:read") && me.role !== "SENDER" ? [{ value: "sso", label: "Single sign-on" }] : []),
+    ...(can("org:read") && me.role !== "SENDER" ? [{ value: "channels", label: "Channels" }] : []),
+    ...(can("data:read") ? [{ value: "binders", label: "Binders" }] : []),
+    ...(can("data:read") ? [{ value: "sanctions", label: "Sanctions lists" }] : []),
+    ...(can("billing:manage") ? [{ value: "billing", label: "Billing" }] : []),
+  ];
+  const requested = params.get("tab");
+  const active = tabs.some((t) => t.value === requested) ? requested! : me.mfa?.setup_required ? "security" : tabs[0].value;
+  const select = (v: string) => router.replace(`${pathname}?tab=${v}`);
+  return (
+    <>
+      <PageHeader eyebrow="Govern" title="Settings" description={`${me.tenant.name} · signed in as ${me.user.email}`} />
+      <div className={ds.stack}>
+        <Tabs options={tabs} active={active} onChange={select} />
+        {active === "organisation" && <OrganisationSettings canManage={can("org:manage")} />}
+        {active === "members" && <MembersSettings canManage={can("member:manage")} myRole={me.role} myUserId={me.user.id} />}
+        {active === "security" && <SecuritySettings required={params.get("required") === "1" || Boolean(me.mfa?.setup_required)} />}
+        {active === "sso" && <SsoSettings canManage={can("org:manage")} />}
+        {active === "channels" && <ChannelsSettings canManage={can("org:manage")} />}
+        {active === "binders" && <BindersSettings canManage={can("data:write")} />}
+        {active === "sanctions" && <SanctionsSettings canManage={can("data:write")} />}
+        {active === "billing" && <BillingSettings />}
+      </div>
+    </>
+  );
+}
+
+export default function SettingsPage() {
+  return <Suspense fallback={<PageSkeleton label="Loading settings" />}><SettingsInner /></Suspense>;
+}

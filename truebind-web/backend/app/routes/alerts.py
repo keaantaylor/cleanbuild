@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.alerts import Alert
 from ..schemas.reports import AlertOut, Page
-from ..security.auth import Context, get_context, require_writer
+from ..security.auth import Context, require_reader, require_writer
 from ..services import audit_service
 from .deps import Paging
 
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/v1/alerts", tags=["alerts"])
 
 @router.get("", response_model=Page[AlertOut])
 def list_alerts(report_id: str | None = Query(default=None, max_length=36), acknowledged: bool | None = None,
-                paging: Paging = Depends(), ctx: Context = Depends(get_context),
+                paging: Paging = Depends(), ctx: Context = Depends(require_reader),
                 db: Session = Depends(get_db)) -> Page[AlertOut]:
     q = db.query(Alert).filter(Alert.tenant_id == ctx.tenant_id)
     if report_id:

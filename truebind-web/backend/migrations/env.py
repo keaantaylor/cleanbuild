@@ -1,3 +1,4 @@
+import logging
 import sys
 from logging.config import fileConfig
 from pathlib import Path
@@ -18,9 +19,11 @@ from app.database import Base  # noqa: E402
 config = context.config
 
 # Interpret the config file for Python logging.
-# This line sets up loggers basically.
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# Configure logging from alembic.ini only when run from the CLI (no handlers
+# yet). Run in-process (tests, app start-up) it must not reset the root level
+# or disable the application's loggers.
+if config.config_file_name is not None and not logging.getLogger().handlers:
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 config.set_main_option("sqlalchemy.url", get_database_url())

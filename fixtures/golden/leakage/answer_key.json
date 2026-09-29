@@ -1,0 +1,53 @@
+{
+  "module": "leakage",
+  "findings": [
+    {
+      "sheet": "Claims",
+      "row": 5,
+      "rule": "LKG_DUPLICATE_PAYMENT",
+      "status": "FAIL",
+      "amount": "2000.00",
+      "currency": "GBP"
+    },
+    {
+      "sheet": "Claims",
+      "row": 6,
+      "rule": "LKG_NEGATIVE_RESERVE",
+      "status": "FAIL",
+      "amount": "500.00",
+      "currency": "GBP"
+    },
+    {
+      "sheet": "Claims",
+      "row": 7,
+      "rule": "LKG_CLOSED_WITH_RESERVE",
+      "status": "FAIL",
+      "amount": "1200.00",
+      "currency": "GBP"
+    },
+    {
+      "sheet": "Claims",
+      "row": 9,
+      "rule": "LKG_PAID_AFTER_CLOSURE",
+      "status": "REVIEW",
+      "amount": "750.00",
+      "currency": "EUR"
+    },
+    {
+      "sheet": "Claims",
+      "row": 11,
+      "rule": "LKG_PAID_DECREASED",
+      "status": "REVIEW",
+      "amount": "600.00",
+      "currency": "GBP"
+    },
+    {
+      "sheet": "Claims",
+      "row": 13,
+      "rule": "LKG_NEGATIVE_RESERVE",
+      "status": "FAIL",
+      "amount": "250.00",
+      "currency": null
+    }
+  ]
+}

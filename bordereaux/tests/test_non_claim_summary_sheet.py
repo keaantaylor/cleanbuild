@@ -14,10 +14,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 import openpyxl  # noqa: E402
-import pandas as pd  # noqa: E402
 
 from bordereaux import ingest, pipeline  # noqa: E402
-from bordereaux.mapping import build_mapping  # noqa: E402
 
 # Generated fixtures go to a temp dir: tests must never rewrite tracked files.
 import tempfile  # noqa: E402

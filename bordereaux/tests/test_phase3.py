@@ -30,8 +30,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from bordereaux.mapping import (  # noqa: E402
-    AIMapper,
-    MappingSuggestion,
     audit_trail,
     build_mapping,
     fuzzy_match_headers,

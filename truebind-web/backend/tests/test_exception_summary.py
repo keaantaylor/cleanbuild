@@ -5,11 +5,13 @@ Exceptions page must never break because of it)."""
 
 from __future__ import annotations
 
-from unittest.mock import patch
+
 
 from app.database import set_tenant
 from app.models.identity import Tenant
 from app.models.reports import ClaimRow, Report, Sheet, ValidationResult
+from app.ai import providers as ai_providers
+from app.ai.providers import FakeProvider
 from app.services import exception_aggregation_service, exception_narrative_service
 from conftest import simple_rows, xlsx_bytes
 
@@ -95,8 +97,8 @@ def test_aggregate_handles_report_with_no_exceptions(db):
     assert agg["root_cause_split"]["ingestion"]["count"] == 0
 
 
-def test_narrative_unavailable_when_no_api_key(monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+def test_narrative_unavailable_when_no_provider(monkeypatch):
+    monkeypatch.setattr(ai_providers, "get_provider", lambda: None)
     assert exception_narrative_service.narrative_available() is False
 
     result = exception_narrative_service.generate_narrative({"total_exceptions": 0})
@@ -105,58 +107,36 @@ def test_narrative_unavailable_when_no_api_key(monkeypatch):
     assert result.error
 
 
-def test_narrative_completes_on_a_well_formed_tool_response(monkeypatch):
-    """Confirms the actual response-parsing path (block.type ==
-    'tool_use', reading .input) against a realistic anthropic SDK
-    response shape, and that a clean tool call round-trips into a
-    COMPLETE result with no warning."""
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-
-    class _FakeBlock:
-        type = "tool_use"
-        name = "triage_summary"
-        input = {
-            "executive_summary": "42 exceptions were found across the file.",
-            "actions": [
-                {"title": "Review French Sheet mapping", "rationale": "It has 42 exceptions.",
-                 "category": "ingestion", "filter_check_type": "MAPPING_COMPLETENESS",
-                 "filter_sheet_name": "French Sheet"},
-            ],
-            "ingestion_issues": ["French Sheet mapped too few fields."],
-            "data_issues": [],
-        }
-
-    class _FakeResponse:
-        content = [_FakeBlock()]
-
-    class _FakeClient:
-        def __init__(self, *a, **kw):
-            self.messages = self
-
-        def create(self, *a, **kw):
-            return _FakeResponse()
-
-    with patch("anthropic.Anthropic", _FakeClient):
-        result = exception_narrative_service.generate_narrative({"total_exceptions": 42})
+def test_narrative_completes_on_a_well_formed_tool_response():
+    """A clean structured reply from the provider round-trips into a
+    COMPLETE result with no warning, and only the aggregate is sent."""
+    narrative = {
+        "executive_summary": "42 exceptions were found across the file.",
+        "actions": [
+            {"title": "Review French Sheet mapping", "rationale": "It has 42 exceptions.",
+             "category": "ingestion", "filter_check_type": "MAPPING_COMPLETENESS",
+             "filter_sheet_name": "French Sheet"},
+        ],
+        "ingestion_issues": ["French Sheet mapped too few fields."],
+        "data_issues": [],
+    }
+    provider = FakeProvider({"triage_summary": lambda prompt: narrative})
+    result = exception_narrative_service.generate_narrative({"total_exceptions": 42}, provider=provider)
 
     assert result.status == "COMPLETE"
     assert result.warning is None
     assert result.narrative["executive_summary"].startswith("42 exceptions")
-    assert result.model == exception_narrative_service.MODEL
+    assert result.model == "fake:fake-deterministic-1"
+    [call] = provider.calls
+    assert call["tool"] == "triage_summary" and "<statistics>" in call["prompt"]
 
 
-def test_narrative_fails_gracefully_on_api_error(monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+def test_narrative_fails_gracefully_on_api_error():
+    def boom(prompt):
+        raise RuntimeError("simulated network timeout")
 
-    class _BoomClient:
-        def __init__(self, *a, **kw):
-            self.messages = self
-
-        def create(self, *a, **kw):
-            raise RuntimeError("simulated network timeout")
-
-    with patch("anthropic.Anthropic", _BoomClient):
-        result = exception_narrative_service.generate_narrative({"total_exceptions": 3})
+    result = exception_narrative_service.generate_narrative(
+        {"total_exceptions": 3}, provider=FakeProvider({"triage_summary": boom}))
 
     assert result.status == "FAILED"
     # Provider error text can echo request details; only the class name is kept.
@@ -196,7 +176,7 @@ def test_prompt_delimits_untrusted_text_and_forbids_currency_mixing():
 
 
 def test_summary_endpoint_returns_aggregate_with_unavailable_narrative_when_no_key(api, monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(ai_providers, "get_provider", lambda: None)
     rid, _ = api.full_run("f.xlsx", xlsx_bytes(simple_rows()))
     assert api.get(f"/api/v1/reports/{rid}/exceptions/summary").status_code == 204
     created = api.post(f"/api/v1/reports/{rid}/exceptions/summary")

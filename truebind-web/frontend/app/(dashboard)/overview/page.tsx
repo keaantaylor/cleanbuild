@@ -78,7 +78,8 @@ export default function OverviewPage() {
               tone={crit ? "bad" : high ? "warn" : "good"} caption={`${formatNumber(crit)} critical · ${formatNumber(high)} high`} />
             <MetricCard icon="duplicates" label="Exact resubmissions" value={formatNumber(f.exact_duplicates ?? 0)} href="/duplicates"
               tone={f.exact_duplicates ? "warn" : "good"}
-              caption={`${formatNumber(f.probable_duplicates ?? 0)} probable · ${formatNumber(f.development_pairs ?? 0)} development (not duplicates)`} />
+              caption={`${formatNumber(f.probable_duplicates ?? 0)} probable · ${formatNumber(f.development_pairs ?? 0)} development (not duplicates)${
+                f.reports_with_checks_not_assessed ? ` · ${formatNumber(f.reports_with_checks_not_assessed)} report(s) with a check not assessed` : ""}`} />
           </div>
 
           <div className={o_.columns}>

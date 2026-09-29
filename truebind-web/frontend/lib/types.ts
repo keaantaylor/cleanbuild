@@ -31,6 +31,7 @@ export interface Report {
   file_kind?: string | null;
   sender?: string | null;
   programme?: string | null;
+  binder_id?: string | null;
   issues_found?: number | null;
 }
 
@@ -50,12 +51,36 @@ export interface Job {
   metrics?: Record<string, unknown> | null;
 }
 
+export type Role = "OWNER" | "ADMIN" | "ANALYST" | "VIEWER" | "SENDER";
+export type OrgType = "capacity_provider" | "mga" | "tpa";
+
+export interface MfaStatus { enabled: boolean; required: boolean; setup_required: boolean }
+
 export interface Me {
   user: { id: string; email: string; display_name: string };
-  tenant: { id: string; name: string; retention_days: number };
-  role: string;
+  tenant: { id: string; name: string; retention_days: number; org_type?: OrgType; require_2fa?: boolean };
+  role: Role | string;
   can_write: boolean;
+  permissions?: string[];
+  mfa?: MfaStatus | null;
   csrf_token: string;
+}
+
+/** Returned by /auth/login instead of a session when a second factor is needed. */
+export interface MfaChallenge { mfa_required: true; mfa_token: string; methods: string[] }
+
+export interface OrgSettings { id: string; name: string; org_type: OrgType; require_2fa: boolean; retention_days: number }
+export interface Member { membership_id: string; user_id: string; email: string; display_name: string; role: Role; created_at: string }
+export interface Invitation { id: string; email: string; role: Role; created_at: string; expires_at: string }
+export interface InvitationCreated extends Invitation { accept_token: string }
+export interface SsoConfig {
+  configured: boolean; issuer: string | null; client_id: string | null; has_client_secret: boolean;
+  token_auth_method: string | null; domains: string[]; jit_provisioning: boolean; default_role: Role | null;
+  enabled: boolean; callback_url: string;
+}
+export interface SsoConfigInput {
+  issuer: string; client_id: string; client_secret?: string | null; token_auth_method: string; domains: string[];
+  jit_provisioning: boolean; default_role: Role; enabled: boolean;
 }
 
 export interface SheetMapping {
@@ -215,7 +240,10 @@ export interface ReportSummary {
   arithmetic_mismatches: number;
   arithmetic_not_evaluable: number;
   exact_duplicates: number;
-  probable_duplicates: number;
+  /** null when the probable-duplicate check was not run (see not_assessed_checks). */
+  probable_duplicates: number | null;
+  not_assessed_checks?: { check: string; label: string; reason: string }[];
+  coverage_statement?: string;
   field_completeness: FieldCompleteness[];
   missing_mandatory_by_sheet?: Record<string, number>;
   totals_by_currency?: { currency: string; rows: number; paid_to_date: number; reserve: number; incurred: number; fees_paid_to_date?: number; fees_rows?: number; paid_rows?: number; reserve_rows?: number; incurred_rows?: number }[];
@@ -357,7 +385,7 @@ export interface Overview {
     open_by_severity: Record<string, number>;
     missing_mandatory_rows?: number; arithmetic_mismatches?: number; exact_duplicates?: number;
     probable_duplicates?: number; development_pairs?: number; arithmetic_not_evaluable?: number;
-    unmapped_columns?: number; claims?: number;
+    unmapped_columns?: number; claims?: number; reports_with_checks_not_assessed?: number;
   };
   trend: { date: string; reports: number; rows: number }[];
   processing: { worker_available: boolean; workers_alive: number; jobs_24h: number; failed_24h: number; median_job_s: number | null };
@@ -380,12 +408,33 @@ export interface WorkItem {
 }
 export interface WorkQueue { items: WorkItem[]; total: number }
 
-export interface Channel { id: string; name: string; status: "active" | "planned" | "not_configured"; detail: string }
+export type ChannelStatus = "active" | "not_set_up" | "not_configured" | "planned";
+export interface Channel { id: string; name: string; status: ChannelStatus; detail: string; address?: string | null }
 export interface Channels {
   inbound: Channel[];
   outbound: Channel[];
+  services?: {
+    ai: { configured: boolean; provider: string | null; region: string | null; model: string | null };
+    fx: { source: string; latest_rate_date: string | null; auto_refresh: boolean };
+  };
   pipeline: string[];
   limits: { max_upload_mb: number; ai_mapping: boolean };
+}
+
+export type WebhookEvent = "report.completed" | "report.failed" | "report.waiting_for_review";
+export interface WebhookEndpoint { id: string; url: string; events: WebhookEvent[]; description: string | null; enabled: boolean; created_at: string }
+export interface WebhookDelivery {
+  id: string; event_type: string; message_id: string; status: "PENDING" | "DELIVERED" | "FAILED" | "EXHAUSTED";
+  attempts: number; last_status_code: number | null; last_error: string | null; next_attempt_at: string | null;
+  created_at: string; delivered_at: string | null;
+}
+export interface SftpDestination {
+  host: string; port: number; username: string; auth: "password" | "private_key"; host_key_fingerprint: string;
+  remote_dir: string; auto_deliver: boolean; enabled: boolean; created_at: string;
+}
+export interface SftpInput {
+  host: string; port: number; username: string; password?: string | null; private_key?: string | null;
+  host_key_fingerprint: string; remote_dir: string; auto_deliver: boolean; enabled: boolean;
 }
 
 export interface Delivery {
@@ -418,4 +467,50 @@ export interface ClaimRow {
   incurred_amount: number | null;
   fees_paid_to_date?: number | null;
   unmapped_values?: Record<string, unknown> | null;
+}
+
+// ---------------------------------------------------------------- check modules (P3+)
+export type ModuleState = "ASSESSED" | "PARTIAL" | "NOT_ASSESSED" | "NOT_RUN";
+export interface CheckRule { code: string; label: string; assessed: number; not_assessed: number; reasons: string[] }
+export interface ModuleRun {
+  module: string; label: string; state: ModuleState; reason: string | null; rules: CheckRule[];
+  finding_count: number; open_count: number; ran_at: string | null; ran_by: string | null; coverage_statement: string;
+  exposure: Record<string, string>; unpriced_findings: number;
+}
+export type Disposition = "OPEN" | "CONFIRMED" | "DISMISSED";
+export interface ModuleFinding {
+  id: string; module: string; rule_code: string; status: "FAIL" | "REVIEW"; severity: string; title: string;
+  explanation: string; sheet_name: string | null; row_number: number | null; field_code: string | null;
+  source_column: string | null; claim_row_id: string | null; claim_reference: string | null;
+  amount: string | null; currency: string | null; evidence: Record<string, unknown> | null;
+  disposition: Disposition; disposition_note: string | null; disposed_by: string | null; disposed_at: string | null;
+}
+export interface BinderInput {
+  name: string; umr: string | null; coverholder: string | null; inception_date: string; expiry_date: string;
+  currencies: string[]; limit_currency: string; claims_authority: string | null; aggregate_limit: string | null;
+}
+export interface Binder extends BinderInput { id: string; created_at: string; created_by: string }
+export interface SanctionsList {
+  id: string; name: string; source: "OFSI" | "OFAC" | "EU" | "UN" | "CUSTOM"; file_name: string; sha256: string;
+  entry_count: number; uploaded_at: string; uploaded_by: string;
+}
+export interface SenderScore {
+  sender: string; reports: number; rows: number; first_report_at: string; latest_report_at: string;
+  latest_grade: string | null; latest_score: number | null; average_score: number | null; score_trend: number[];
+  exceptions_per_1000_rows: number | null; resubmissions_per_1000_rows: number | null; binder_breaches: number;
+  sanctions_open_matches: number; leakage_exposure: Record<string, string>; mapping_first_time_right_pct: number;
+}
+export interface Scorecard { since: string | null; senders: SenderScore[]; not_assessed: string[] }
+export interface PreflightSheet { sheet_name: string; rows: number; mapped_fields: string[]; missing_required_fields: string[]; unmapped_columns: string[]; notes: string[] }
+export interface Preflight {
+  file_name: string; sha256: string; ready: boolean; verdict: string; rows: number; missing_mandatory_rows: number;
+  arithmetic_mismatches: number; exact_duplicates: number; sheets: PreflightSheet[];
+  issues: { sheet_name: string | null; row_number: number | null; check: string; message: string }[];
+  issues_total: number; coverage_statement: string;
+}
+export interface Submission { id: string; file_name: string; status: string; created_at: string; rows_total: number }
+export interface BillingPlan { name: string; label: string; modules: string[]; monthly_rows: number | null; seats: number | null; purchasable: boolean }
+export interface Billing {
+  enforced: boolean; plan: string | null; status: string | null; period_end: string | null; modules: string[] | null;
+  monthly_rows: number | null; seats: number | null; rows_this_month: number; seats_used: number; plans: BillingPlan[]; customer: boolean;
 }

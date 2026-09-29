@@ -54,6 +54,8 @@ class TenantOut(BaseModel):
     id: str
     name: str
     retention_days: int
+    org_type: str = "capacity_provider"
+    require_2fa: bool = False
 
 
 class MeOut(BaseModel):
@@ -61,7 +63,10 @@ class MeOut(BaseModel):
     tenant: TenantOut
     role: str
     can_write: bool
+    permissions: list[str] = []
     csrf_token: str
+    # {"enabled", "required", "setup_required"}; see routes/mfa.py
+    mfa: dict[str, bool] | None = None
 
 
 # ---------------------------------------------------------------- reports
@@ -98,6 +103,7 @@ class ReportOut(BaseModel):
     source_channel: str = "upload"
     sender: str | None = None
     programme: str | None = None
+    binder_id: str | None = None
     file_size_bytes: int
     source_sha256: str | None = None
     sheet_count_total: int

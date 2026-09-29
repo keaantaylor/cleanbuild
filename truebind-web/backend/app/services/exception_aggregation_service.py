@@ -18,16 +18,21 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from sqlalchemy import case, func
+from decimal import Decimal
+from typing import Any
+
+from sqlalchemy import case, func, literal
 from sqlalchemy.orm import Session
 
+from ..models.money import Money, to_money
 from ..models.reports import ClaimRow, Report, Sheet, ValidationResult
 
 ROOT_CAUSE_INGESTION = "ingestion"
 ROOT_CAUSE_DATA_QUALITY = "data_quality"
 
+_ZERO = literal(Decimal("0.00"), Money())  # a NUMERIC zero: mixing in a float literal would turn sums into floats
 _VALUE = func.coalesce(ClaimRow.incurred_amount,
-                       func.coalesce(ClaimRow.paid_amount, 0.0) + func.coalesce(ClaimRow.reserve_amount, 0.0))
+                       func.coalesce(ClaimRow.paid_amount, _ZERO) + func.coalesce(ClaimRow.reserve_amount, _ZERO))
 _CCY = func.coalesce(ClaimRow.currency, "UNKNOWN")
 
 
@@ -36,7 +41,9 @@ def _pct(part: float, total: float) -> float:
 
 
 def _money(pairs) -> list[dict]:
-    return [{"currency": c, "amount": round(float(a or 0.0), 2)} for c, a in sorted(pairs, key=lambda p: p[0])]
+    """Exact per-currency totals (quantised Decimal), rendered as JSON numbers
+    for the existing UI; the decimal text of the number is exact to the cent."""
+    return [{"currency": c, "amount": float(to_money(a) or Decimal("0.00"))} for c, a in sorted(pairs, key=lambda p: p[0])]
 
 
 def build_aggregate(db: Session, report: Report) -> dict:
@@ -65,14 +72,17 @@ def build_aggregate(db: Session, report: Report) -> dict:
     cat_money: dict[str, list] = defaultdict(list)
     for ct, ccy, amount in db.query(rbc.c.ct, rbc.c.ccy, func.sum(rbc.c.v)).group_by(rbc.c.ct, rbc.c.ccy):
         cat_money[ct].append((ccy, amount))
-    by_category = sorted([{"check_type": ct, "count": n, "pct_of_total_exceptions": _pct(n, total),
-                           "sheet_count": cat_sheets.get(ct, 0), "value_at_stake": _money(cat_money.get(ct, []))}
-                          for ct, n in cat_counts.items()], key=lambda x: -x["count"])
+    categories: list[dict[str, Any]] = [
+        {"check_type": ct, "count": n, "pct_of_total_exceptions": _pct(n, total),
+         "sheet_count": cat_sheets.get(ct, 0), "value_at_stake": _money(cat_money.get(ct, []))}
+        for ct, n in cat_counts.items()]
+    by_category = sorted(categories, key=lambda x: -x["count"])
 
-    by_sheet = sorted([{"sheet_name": sheet_names.get(sid, "unknown sheet"), "count": n,
-                        "pct_of_total_exceptions": _pct(n, total), "low_mapping_completeness": sid in low_sheet_ids}
-                       for sid, n in base.with_entities(ClaimRow.sheet_id, func.count()).group_by(ClaimRow.sheet_id)],
-                      key=lambda x: -x["count"])[:50]
+    sheets: list[dict[str, Any]] = [
+        {"sheet_name": sheet_names.get(sid, "unknown sheet"), "count": n,
+         "pct_of_total_exceptions": _pct(n, total), "low_mapping_completeness": sid in low_sheet_ids}
+        for sid, n in base.with_entities(ClaimRow.sheet_id, func.count()).group_by(ClaimRow.sheet_id)]
+    by_sheet = sorted(sheets, key=lambda x: -x["count"])[:50]
 
     is_ingestion = case((ValidationResult.check_type == "MAPPING_COMPLETENESS", True),
                         (ClaimRow.sheet_id.in_(low_sheet_ids or {""}), True), else_=False)

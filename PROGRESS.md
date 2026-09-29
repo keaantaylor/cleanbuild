@@ -14,9 +14,9 @@ Python (`truebind-web/backend/.venv`).
 | P3 Binder compliance | **done** — gate green |
 | P4 Leakage & overpayment | **done** — gate green |
 | P5 Sanctions screening | **done** — gate green |
-| P6 Scorecard | built — gate below |
-| P7 Audit pack | built — gate below |
-| P8 Sender pre-flight portal | built — gate below |
+| P6 Scorecard | **done** — gate green |
+| P7 Audit pack | **done** — gate green |
+| P8 Sender pre-flight portal | **done** — gate green |
 | P9 Billing & entitlements | pending |
 | P10 Production readiness | pending |
 
@@ -373,5 +373,10 @@ Acceptance:
 - [x] Pre-flight (`POST /api/v1/sender/preflight`) runs the same intake gate, exact-alias mapping only (no AI, so nothing leaves the server and no suggestion is applied unconfirmed) and the engine's checks. It returns required fields not found, unrecognised columns, rows missing mandatory values, arithmetic mismatches, duplicates, sheet/row-located issues and the coverage statement. Nothing is stored except an audit event with the file SHA-256 — `test_preflight_reports_problems_and_stores_nothing`.
 - [x] Submission (`POST /api/v1/sender/submissions`) enters the organisation's inbox as a normal report (channel "portal"), where the organisation's analysts map and process it. A sender lists only their own submissions and gets 403 on the organisation's reports — `test_submission_reaches_the_inbox_and_senders_see_only_their_own`. Other roles cannot use the portal, and files the gate refuses are refused — `test_only_senders_use_the_portal_and_the_gate_still_applies`.
 - Existing tests extended (evidence): the audit walker gained sender pre-flight and submission steps. The list-isolation walker now expects 403 (not 200) for the sender-only `/sender/submissions` when a non-sender calls it, and still asserts that nothing of another tenant leaks.
+
+### P6–P8 phase gate (one `verify --full` run; the three phases were built together)
+- Gate evidence — `verify --full`: ruff/mypy clean (legacy 92/92); engine 90; vitest 20; migrations OK; backend on PostgreSQL 375 passed; golden 19; next build; e2e 5 (now including the sender portal); perf realistic 53.3 s / adversarial 48.8 s (probe max 0.068 s; budget 120 s — this run followed a container restart and every step was slower, e.g. next build 40.8 s vs 7.5 s); security clean; coverage 92.34%, 94.55% of 4,184 changed lines. OpenAPI: +5 operations (scorecard, audit pack, 3 sender portal), accepted (100 operations). The first attempt stopped at `services` because the Docker daemon had exited with the container restart; it was restarted and the full run above is the re-run.
+- Review: the audit pack never includes a file whose SHA-256 no longer matches; the sender portal shows senders nothing of the provider's data and uses no AI; the scorecard never shows 0 for "no data".
+- Summary: (1) The scorecard ranks senders on health, exceptions, resubmissions, breaches, sanctions and leakage exposure. (2) One click builds an audit pack with a verifiable SHA-256 manifest and the original. (3) Coverholders get their own pre-flight portal and can send files into the inbox. (4) Senders never land in the provider's workspace again. (5) Every new action is audited and tenant-isolated.
 
 Remaining tasks (acceptance criteria written in full when each starts):

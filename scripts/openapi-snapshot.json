@@ -428,6 +428,46 @@
     "title": "Body_load_list_api_v1_sanctions_lists_post",
     "type": "object"
    },
+   "Body_preflight_api_v1_sender_preflight_post": {
+    "properties": {
+     "file": {
+      "contentMediaType": "application/octet-stream",
+      "title": "File",
+      "type": "string"
+     }
+    },
+    "required": [
+     "file"
+    ],
+    "title": "Body_preflight_api_v1_sender_preflight_post",
+    "type": "object"
+   },
+   "Body_submit_api_v1_sender_submissions_post": {
+    "properties": {
+     "file": {
+      "contentMediaType": "application/octet-stream",
+      "title": "File",
+      "type": "string"
+     },
+     "programme": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Programme"
+     }
+    },
+    "required": [
+     "file"
+    ],
+    "title": "Body_submit_api_v1_sender_submissions_post",
+    "type": "object"
+   },
    "Body_upload_report_api_v1_reports_upload_post": {
     "properties": {
      "file": {
@@ -2938,6 +2978,172 @@
     "title": "Page[ReportOut]",
     "type": "object"
    },
+   "PreflightIssue": {
+    "properties": {
+     "check": {
+      "title": "Check",
+      "type": "string"
+     },
+     "message": {
+      "title": "Message",
+      "type": "string"
+     },
+     "row_number": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Row Number"
+     },
+     "sheet_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Sheet Name"
+     }
+    },
+    "required": [
+     "sheet_name",
+     "row_number",
+     "check",
+     "message"
+    ],
+    "title": "PreflightIssue",
+    "type": "object"
+   },
+   "PreflightOut": {
+    "properties": {
+     "arithmetic_mismatches": {
+      "title": "Arithmetic Mismatches",
+      "type": "integer"
+     },
+     "coverage_statement": {
+      "title": "Coverage Statement",
+      "type": "string"
+     },
+     "exact_duplicates": {
+      "title": "Exact Duplicates",
+      "type": "integer"
+     },
+     "file_name": {
+      "title": "File Name",
+      "type": "string"
+     },
+     "issues": {
+      "items": {
+       "$ref": "#/components/schemas/PreflightIssue"
+      },
+      "title": "Issues",
+      "type": "array"
+     },
+     "issues_total": {
+      "title": "Issues Total",
+      "type": "integer"
+     },
+     "missing_mandatory_rows": {
+      "title": "Missing Mandatory Rows",
+      "type": "integer"
+     },
+     "ready": {
+      "title": "Ready",
+      "type": "boolean"
+     },
+     "rows": {
+      "title": "Rows",
+      "type": "integer"
+     },
+     "sha256": {
+      "title": "Sha256",
+      "type": "string"
+     },
+     "sheets": {
+      "items": {
+       "$ref": "#/components/schemas/PreflightSheet"
+      },
+      "title": "Sheets",
+      "type": "array"
+     },
+     "verdict": {
+      "title": "Verdict",
+      "type": "string"
+     }
+    },
+    "required": [
+     "file_name",
+     "sha256",
+     "ready",
+     "verdict",
+     "rows",
+     "missing_mandatory_rows",
+     "arithmetic_mismatches",
+     "exact_duplicates",
+     "sheets",
+     "issues",
+     "issues_total",
+     "coverage_statement"
+    ],
+    "title": "PreflightOut",
+    "type": "object"
+   },
+   "PreflightSheet": {
+    "properties": {
+     "mapped_fields": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Mapped Fields",
+      "type": "array"
+     },
+     "missing_required_fields": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Missing Required Fields",
+      "type": "array"
+     },
+     "notes": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Notes",
+      "type": "array"
+     },
+     "rows": {
+      "title": "Rows",
+      "type": "integer"
+     },
+     "sheet_name": {
+      "title": "Sheet Name",
+      "type": "string"
+     },
+     "unmapped_columns": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Unmapped Columns",
+      "type": "array"
+     }
+    },
+    "required": [
+     "sheet_name",
+     "rows",
+     "mapped_fields",
+     "missing_required_fields",
+     "unmapped_columns",
+     "notes"
+    ],
+    "title": "PreflightSheet",
+    "type": "object"
+   },
    "RatesOut": {
     "properties": {
      "base": {
@@ -3361,6 +3567,169 @@
      "uploaded_by"
     ],
     "title": "SanctionsListOut",
+    "type": "object"
+   },
+   "ScorecardOut": {
+    "properties": {
+     "not_assessed": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Not Assessed",
+      "type": "array"
+     },
+     "senders": {
+      "items": {
+       "$ref": "#/components/schemas/SenderScore"
+      },
+      "title": "Senders",
+      "type": "array"
+     },
+     "since": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Since"
+     }
+    },
+    "required": [
+     "since",
+     "senders",
+     "not_assessed"
+    ],
+    "title": "ScorecardOut",
+    "type": "object"
+   },
+   "SenderScore": {
+    "properties": {
+     "average_score": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Average Score"
+     },
+     "binder_breaches": {
+      "title": "Binder Breaches",
+      "type": "integer"
+     },
+     "exceptions_per_1000_rows": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Exceptions Per 1000 Rows"
+     },
+     "first_report_at": {
+      "format": "date-time",
+      "title": "First Report At",
+      "type": "string"
+     },
+     "latest_grade": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latest Grade"
+     },
+     "latest_report_at": {
+      "format": "date-time",
+      "title": "Latest Report At",
+      "type": "string"
+     },
+     "latest_score": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latest Score"
+     },
+     "leakage_exposure": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "title": "Leakage Exposure",
+      "type": "object"
+     },
+     "mapping_first_time_right_pct": {
+      "title": "Mapping First Time Right Pct",
+      "type": "number"
+     },
+     "reports": {
+      "title": "Reports",
+      "type": "integer"
+     },
+     "resubmissions_per_1000_rows": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Resubmissions Per 1000 Rows"
+     },
+     "rows": {
+      "title": "Rows",
+      "type": "integer"
+     },
+     "sanctions_open_matches": {
+      "title": "Sanctions Open Matches",
+      "type": "integer"
+     },
+     "score_trend": {
+      "items": {
+       "type": "number"
+      },
+      "title": "Score Trend",
+      "type": "array"
+     },
+     "sender": {
+      "title": "Sender",
+      "type": "string"
+     }
+    },
+    "required": [
+     "sender",
+     "reports",
+     "rows",
+     "first_report_at",
+     "latest_report_at",
+     "latest_grade",
+     "latest_score",
+     "average_score",
+     "score_trend",
+     "exceptions_per_1000_rows",
+     "resubmissions_per_1000_rows",
+     "binder_breaches",
+     "sanctions_open_matches",
+     "leakage_exposure",
+     "mapping_first_time_right_pct"
+    ],
+    "title": "SenderScore",
     "type": "object"
    },
    "SetupOut": {
@@ -3834,6 +4203,40 @@
      "callback_url"
     ],
     "title": "SsoConfigOut",
+    "type": "object"
+   },
+   "SubmissionOut": {
+    "properties": {
+     "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+     },
+     "file_name": {
+      "title": "File Name",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "rows_total": {
+      "title": "Rows Total",
+      "type": "integer"
+     },
+     "status": {
+      "title": "Status",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "file_name",
+     "status",
+     "created_at",
+     "rows_total"
+    ],
+    "title": "SubmissionOut",
     "type": "object"
    },
    "TemplateCreateRequest": {
@@ -6329,6 +6732,47 @@
     ]
    }
   },
+  "/api/v1/reports/{report_id}/audit-pack.zip": {
+   "get": {
+    "description": "Everything an auditor needs for this report in one ZIP, with a manifest of SHA-256 hashes.",
+    "operationId": "audit_pack_api_v1_reports__report_id__audit_pack_zip_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Audit Pack",
+    "tags": [
+     "reports"
+    ]
+   }
+  },
   "/api/v1/reports/{report_id}/binder": {
    "put": {
     "operationId": "assign_binder_api_v1_reports__report_id__binder_put",
@@ -8003,6 +8447,161 @@
     "summary": "Delete List",
     "tags": [
      "sanctions"
+    ]
+   }
+  },
+  "/api/v1/scorecard": {
+   "get": {
+    "operationId": "scorecard_api_v1_scorecard_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "since",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "format": "date",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Since"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ScorecardOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Scorecard",
+    "tags": [
+     "scorecard"
+    ]
+   }
+  },
+  "/api/v1/sender/preflight": {
+   "post": {
+    "operationId": "preflight_api_v1_sender_preflight_post",
+    "requestBody": {
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_preflight_api_v1_sender_preflight_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PreflightOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Preflight",
+    "tags": [
+     "sender"
+    ]
+   }
+  },
+  "/api/v1/sender/submissions": {
+   "get": {
+    "operationId": "my_submissions_api_v1_sender_submissions_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/SubmissionOut"
+         },
+         "title": "Response My Submissions Api V1 Sender Submissions Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "My Submissions",
+    "tags": [
+     "sender"
+    ]
+   },
+   "post": {
+    "operationId": "submit_api_v1_sender_submissions_post",
+    "requestBody": {
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_submit_api_v1_sender_submissions_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "202": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SubmissionOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Submit",
+    "tags": [
+     "sender"
     ]
    }
   },

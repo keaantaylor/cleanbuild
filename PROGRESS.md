@@ -17,7 +17,7 @@ Python (`truebind-web/backend/.venv`).
 | P6 Scorecard | **done** — gate green |
 | P7 Audit pack | **done** — gate green |
 | P8 Sender pre-flight portal | **done** — gate green |
-| P9 Billing & entitlements | built — gate running |
+| P9 Billing & entitlements | **done** — gate green |
 | P10 Production readiness | pending |
 
 ---
@@ -386,5 +386,10 @@ Acceptance:
 - [x] Entitlements are enforced. A module outside the plan is NOT_ASSESSED with "not included in your plan". Processing past the monthly rows is refused with 402 and a plain message. Invitations past the seats (pending invitations count) are refused with 402 — `test_entitlements_are_enforced`.
 - [x] Only owners (billing:manage) see Settings → Billing: plan, status, renewal, usage, plans with "Choose", and "Manage billing". The audit walker covers checkout, portal and webhook.
 - Human decisions (HUMAN_TODO): the plans' modules, rows, seats and Stripe prices, the webhook endpoint and the portal configuration.
+
+### P9 phase gate
+- Gate evidence — `verify --full`: ruff/mypy clean (legacy 92/92); engine 90; vitest 20; migrations round-trip to 0016; backend on PostgreSQL 382 passed (including billing requests validated by stripe-mock); golden 19; next build; e2e 5; perf realistic 53.7 s / adversarial 53.6 s (probe max 0.037 s; budget 120 s); security clean; coverage 92.31%, 94.33% of 4,495 changed lines. OpenAPI: +4 billing operations, accepted (104 operations).
+- Review: no amount or plan limit is invented (all configuration); webhooks must be signed and are idempotent; Stripe error text never reaches the user; entitlements fail closed when billing is on and no plan is active.
+- Summary: (1) Plans, modules, rows and seats are configuration-driven. (2) Stripe Checkout and the portal are one click from Settings → Billing. (3) Signed, idempotent webhooks keep the subscription state. (4) Limits are enforced honestly: NOT_ASSESSED for modules outside the plan, 402 with a plain message for rows and seats. (5) With billing off, nothing changes for existing users.
 
 Remaining tasks (acceptance criteria written in full when each starts):

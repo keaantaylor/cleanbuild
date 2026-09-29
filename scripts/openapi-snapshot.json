@@ -209,6 +209,118 @@
     "title": "AuditVerifyOut",
     "type": "object"
    },
+   "BillingOut": {
+    "properties": {
+     "customer": {
+      "title": "Customer",
+      "type": "boolean"
+     },
+     "enforced": {
+      "title": "Enforced",
+      "type": "boolean"
+     },
+     "modules": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Modules"
+     },
+     "monthly_rows": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Monthly Rows"
+     },
+     "period_end": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Period End"
+     },
+     "plan": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Plan"
+     },
+     "plans": {
+      "items": {
+       "$ref": "#/components/schemas/PlanOut"
+      },
+      "title": "Plans",
+      "type": "array"
+     },
+     "rows_this_month": {
+      "title": "Rows This Month",
+      "type": "integer"
+     },
+     "seats": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Seats"
+     },
+     "seats_used": {
+      "title": "Seats Used",
+      "type": "integer"
+     },
+     "status": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Status"
+     }
+    },
+    "required": [
+     "enforced",
+     "plan",
+     "status",
+     "period_end",
+     "modules",
+     "monthly_rows",
+     "seats",
+     "rows_this_month",
+     "seats_used",
+     "plans",
+     "customer"
+    ],
+    "title": "BillingOut",
+    "type": "object"
+   },
    "BinderIn": {
     "properties": {
      "aggregate_limit": {
@@ -504,6 +616,21 @@
      "file"
     ],
     "title": "Body_upload_report_api_v1_reports_upload_post",
+    "type": "object"
+   },
+   "CheckoutIn": {
+    "properties": {
+     "plan": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Plan",
+      "type": "string"
+     }
+    },
+    "required": [
+     "plan"
+    ],
+    "title": "CheckoutIn",
     "type": "object"
    },
    "ClaimRowOut": {
@@ -1978,6 +2105,19 @@
     "title": "JobOut",
     "type": "object"
    },
+   "LinkOut": {
+    "properties": {
+     "url": {
+      "title": "Url",
+      "type": "string"
+     }
+    },
+    "required": [
+     "url"
+    ],
+    "title": "LinkOut",
+    "type": "object"
+   },
    "LoginRequest": {
     "additionalProperties": false,
     "properties": {
@@ -2976,6 +3116,61 @@
      "offset"
     ],
     "title": "Page[ReportOut]",
+    "type": "object"
+   },
+   "PlanOut": {
+    "properties": {
+     "label": {
+      "title": "Label",
+      "type": "string"
+     },
+     "modules": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Modules",
+      "type": "array"
+     },
+     "monthly_rows": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Monthly Rows"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "purchasable": {
+      "title": "Purchasable",
+      "type": "boolean"
+     },
+     "seats": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Seats"
+     }
+    },
+    "required": [
+     "name",
+     "label",
+     "modules",
+     "monthly_rows",
+     "seats",
+     "purchasable"
+    ],
+    "title": "PlanOut",
     "type": "object"
    },
    "PreflightIssue": {
@@ -5216,6 +5411,114 @@
     "summary": "Sso Start",
     "tags": [
      "auth"
+    ]
+   }
+  },
+  "/api/v1/billing": {
+   "get": {
+    "operationId": "billing_api_v1_billing_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BillingOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Billing",
+    "tags": [
+     "billing"
+    ]
+   }
+  },
+  "/api/v1/billing/checkout": {
+   "post": {
+    "operationId": "checkout_api_v1_billing_checkout_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CheckoutIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LinkOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Checkout",
+    "tags": [
+     "billing"
+    ]
+   }
+  },
+  "/api/v1/billing/portal": {
+   "post": {
+    "operationId": "portal_api_v1_billing_portal_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LinkOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Portal",
+    "tags": [
+     "billing"
+    ]
+   }
+  },
+  "/api/v1/billing/webhook": {
+   "post": {
+    "operationId": "webhook_api_v1_billing_webhook_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "string"
+         },
+         "title": "Response Webhook Api V1 Billing Webhook Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Webhook",
+    "tags": [
+     "billing"
     ]
    }
   },

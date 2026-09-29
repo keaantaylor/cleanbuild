@@ -275,6 +275,18 @@ def test_every_state_change_is_audited_and_the_chain_holds(monkeypatch: pytest.M
     trail.step("DELETE", "/api/v1/sanctions/lists/{list_id}",
                lambda: owner.delete(f"/api/v1/sanctions/lists/{sl['id']}"))  # fmt: skip
 
+    # --- sender portal (P8): a coverholder user pre-flights and sends a file
+    sinv = owner.post("/api/v1/org/invitations", json={"email": "tpa@a.example", "role": "SENDER"}).json()
+    tpa = TestClient(app)
+    tpa_csrf = {"X-CSRF-Token": tpa.post("/api/v1/auth/invitations/accept", json={
+        "token": sinv["accept_token"], "display_name": "TPA", "password": PASSWORD}).json()["csrf_token"]}  # fmt: skip
+    xl = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    book = {"file": ("p.xlsx", xlsx_bytes(simple_rows()), xl)}
+    trail.step("POST", "/api/v1/sender/preflight",
+               lambda: tpa.post("/api/v1/sender/preflight", headers=tpa_csrf, files=book))  # fmt: skip
+    trail.step("POST", "/api/v1/sender/submissions",
+               lambda: tpa.post("/api/v1/sender/submissions", headers=tpa_csrf, files=book))  # fmt: skip
+
     missing = _mutating_operations() - trail.covered
     assert not missing, f"state-changing operations without an audited scenario step: {sorted(missing)}"
     verdict = owner.get("/api/v1/audit/verify").json()

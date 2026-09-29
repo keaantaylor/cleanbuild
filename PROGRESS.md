@@ -14,9 +14,9 @@ Python (`truebind-web/backend/.venv`).
 | P3 Binder compliance | **done** — gate green |
 | P4 Leakage & overpayment | **done** — gate green |
 | P5 Sanctions screening | **done** — gate green |
-| P6 Scorecard | pending |
-| P7 Audit pack | pending |
-| P8 Sender pre-flight portal | pending |
+| P6 Scorecard | built — gate below |
+| P7 Audit pack | built — gate below |
+| P8 Sender pre-flight portal | built — gate below |
 | P9 Billing & entitlements | pending |
 | P10 Production readiness | pending |
 
@@ -359,5 +359,19 @@ Acceptance:
 - Gate evidence — `verify --full`: ruff/mypy clean (legacy 92/92); engine 90; vitest 20; migrations round-trip to 0015; backend on PostgreSQL 369 passed; golden 4 suites / 19 passed; next build; e2e 4; perf realistic 40.2 s / adversarial 41.2 s (probe max 0.124 s); security clean (bandit and gitleaks on the new parsers included); coverage 92.18%, 94.29% of 3,885 changed lines. OpenAPI: +3 sanctions operations, accepted (95 operations).
 - Review: the XML list parser refuses DTDs and entities (tested); list uploads are size-capped (50 MB) and rate-limited; no insured name leaves the server; matches are REVIEW, never a verdict.
 - Summary: (1) Organisations load the official UK, US, EU and UN lists or their own. (2) Insured names are screened with accent, case, legal-form and word-order insensitive matching plus a 90% fuzzy threshold. (3) Every hit is a REVIEW with evidence (list, entry, reference, score). (4) The golden suite proves 100% precision and recall, including the near-miss that must not match. (5) Screening 20k × 20k runs in about a second.
+
+## P6 — Coverholder / TPA scorecard (reconstructed criteria)
+- [x] `GET /api/v1/scorecard?since=` gives one row per sender over processed reports only. Reports without a sender are grouped as "Sender not recorded". Metrics: reports, rows, latest and average health score with trend, exceptions and resubmissions per 1,000 rows, binder breaches, open sanctions matches, leakage exposure per currency (never summed across currencies; dismissed findings excluded) and mapping first time right. A metric with no data is null ("not assessed"), never 0. Timeliness is stated as not assessed because deadlines are not recorded. Tenant-scoped — `test_scorecard_per_sender`.
+- [x] UI: Investigate → Scorecard (period filter, table with caption and row headers, trend bars, "not assessed" shown in words).
+
+## P7 — One-click audit pack (reconstructed criteria)
+- [x] `GET /api/v1/reports/{id}/audit-pack.zip` returns one ZIP in a fixed order with fixed timestamps. It holds: README (with the coverage statement), report.json, the original byte for byte, mapping decisions (state, AI model, who confirmed and when), claims, exceptions, check runs, findings with decisions, the report's audit entries with hashes, the organisation chain verification result, and manifest.json with the SHA-256 and size of every file — `test_the_pack_holds_everything_with_verifiable_hashes`.
+- [x] The pack is refused (409) for an unprocessed report, or when the stored original no longer matches its SHA-256. It is never built from a tampered file — `test_the_pack_is_refused_when_unprocessed_or_tampered`. Building it is audited (AUDIT_PACK_EXPORTED with the pack's SHA-256) and recorded as a delivery. The report page has a "Download audit pack" button.
+
+## P8 — Sender pre-flight portal (reconstructed criteria)
+- [x] SENDER members get their own portal (`/sender`, own narrow shell). Every other page redirects them there, except Settings → Security, which fixes the known limitation that senders landed in the provider's dashboard. e2e `tests/e2e/sender.spec.ts`.
+- [x] Pre-flight (`POST /api/v1/sender/preflight`) runs the same intake gate, exact-alias mapping only (no AI, so nothing leaves the server and no suggestion is applied unconfirmed) and the engine's checks. It returns required fields not found, unrecognised columns, rows missing mandatory values, arithmetic mismatches, duplicates, sheet/row-located issues and the coverage statement. Nothing is stored except an audit event with the file SHA-256 — `test_preflight_reports_problems_and_stores_nothing`.
+- [x] Submission (`POST /api/v1/sender/submissions`) enters the organisation's inbox as a normal report (channel "portal"), where the organisation's analysts map and process it. A sender lists only their own submissions and gets 403 on the organisation's reports — `test_submission_reaches_the_inbox_and_senders_see_only_their_own`. Other roles cannot use the portal, and files the gate refuses are refused — `test_only_senders_use_the_portal_and_the_gate_still_applies`.
+- Existing tests extended (evidence): the audit walker gained sender pre-flight and submission steps. The list-isolation walker now expects 403 (not 200) for the sender-only `/sender/submissions` when a non-sender calls it, and still asserts that nothing of another tenant leaks.
 
 Remaining tasks (acceptance criteria written in full when each starts):

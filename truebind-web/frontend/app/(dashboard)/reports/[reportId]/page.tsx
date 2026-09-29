@@ -68,6 +68,7 @@ export default function ReportWorkspace({ params }: { params: Promise<{ reportId
         {complete && <ButtonLink href={`/exceptions?reportId=${reportId}`} variant="secondary">Exceptions</ButtonLink>}
         {complete && <ButtonLink href={`/duplicates?reportId=${reportId}`} variant="secondary">Duplicates</ButtonLink>}
         {complete && <Button variant="primary" onClick={() => window.open(api.exportClaimsUrl(reportId), "_blank")}>Export claims</Button>}
+        {complete && <Button variant="secondary" onClick={() => window.open(api.auditPackUrl(reportId), "_blank")}>Download audit pack</Button>}
       </>} />
   );
 

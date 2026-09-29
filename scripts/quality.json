@@ -75,7 +75,14 @@
     "truebind-web/backend/app/routes/sanctions.py",
     "truebind-web/backend/migrations/versions/0015_sanctions.py",
     "truebind-web/backend/tests/test_sanctions.py",
-    "fixtures/golden/sanctions/test_sanctions_golden.py"
+    "fixtures/golden/sanctions/test_sanctions_golden.py",
+    "truebind-web/backend/app/services/scorecard_service.py",
+    "truebind-web/backend/app/routes/scorecard.py",
+    "truebind-web/backend/tests/test_scorecard.py",
+    "truebind-web/backend/app/services/audit_pack_service.py",
+    "truebind-web/backend/tests/test_audit_pack.py",
+    "truebind-web/backend/app/routes/sender.py",
+    "truebind-web/backend/tests/test_sender_portal.py"
   ],
   "baseline": {
     "mypy_legacy_errors": 92,

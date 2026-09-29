@@ -25,7 +25,7 @@ function AcceptForm() {
     setError(null);
     try {
       const me = await api.acceptInvitation(token, name || "New member", password);
-      router.replace(me.role === "SENDER" ? "/settings" : "/overview");
+      router.replace(me.role === "SENDER" ? "/sender" : "/overview");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "The invitation could not be accepted.");
     } finally {

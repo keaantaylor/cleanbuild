@@ -4,6 +4,7 @@ only enqueues jobs for app/worker.py."""
 
 from __future__ import annotations
 
+import hashlib
 import os
 import tempfile
 from pathlib import Path
@@ -14,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..config import MAX_UPLOAD_BYTES, STORAGE_DIR
 from ..database import get_db
+from ..models._util import utcnow
 from ..models.identity import Tenant
 from ..models.reports import Report
 from ..schemas.reports import Page, ReportOut, ReportSummaryOut
@@ -21,7 +23,7 @@ from ..security.auth import Context, require, require_reader, require_writer
 from ..security.permissions import Permission
 from ..security.file_guard import safe_display_name
 from ..security.ratelimit import limiter
-from ..services import (audit_service, delivery_service, export_service, idempotency, intake_service,
+from ..services import (audit_pack_service, audit_service, delivery_service, export_service, idempotency, intake_service,
                         job_service, retention_service)
 from ..services.storage import sha256_file
 from .deps import Paging, get_report_or_404, latest_job, report_out
@@ -181,3 +183,26 @@ def export_exceptions(report_id: str, ctx: Context = Depends(require_reader), db
 @router.get("/{report_id}/export/audit.csv")
 def export_audit(report_id: str, ctx: Context = Depends(require_reader), db: Session = Depends(get_db)):
     return _export(db, ctx, get_report_or_404(db, ctx, report_id), "audit_csv")
+
+@router.get("/{report_id}/audit-pack.zip")
+def audit_pack(report_id: str, ctx: Context = Depends(require_reader), db: Session = Depends(get_db)) -> Response:
+    """Everything an auditor needs for this report in one ZIP, with a manifest of SHA-256 hashes."""
+    report = get_report_or_404(db, ctx, report_id)
+    if report.status != "COMPLETE":
+        raise HTTPException(status_code=409, detail="The audit pack is available once the report is processed.")
+    summary = report.summary if isinstance(report.summary, dict) else {}
+    statement = str(summary.get("coverage_statement") or "No coverage statement was recorded.")
+    try:
+        body = audit_pack_service.build(db, report, statement, ctx.actor, utcnow())
+    except audit_pack_service.PackIntegrityError as exc:
+        raise HTTPException(status_code=409, detail="The stored original no longer matches the file uploaded; "
+                            "the pack was not built.") from exc
+    name = f"truebind_{report.id}_audit_pack.zip"
+    audit_service.log_action(db, ctx.tenant_id, report.id, "AUDIT_PACK_EXPORTED", "REPORT", report.id,
+                             after={"export": "audit_pack", "sha256": hashlib.sha256(body).hexdigest(),
+                                    "bytes": len(body)}, actor=ctx.actor, actor_user_id=ctx.user_id)
+    delivery_service.record(db, ctx.tenant_id, report.id, "audit_pack", "download", None, name, None, "DELIVERED",
+                            None, ctx.actor)
+    db.commit()
+    return Response(body, media_type="application/zip",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})

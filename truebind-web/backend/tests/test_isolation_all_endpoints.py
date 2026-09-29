@@ -32,6 +32,8 @@ PUBLIC = {
 }
 # Global reference data (health probes, ECB FX rates): no tenant rows to leak.
 NO_TENANT_DATA = {"/health", "/health/ready", "/api/v1/fx/rates", "/api/v1/fx/convert"}
+# The sender portal lists only the calling SENDER's own submissions; other roles are refused (403).
+SENDER_ONLY = {"/api/v1/sender/submissions"}
 
 # Bodies that pass validation, so the handler (and its tenant check) runs.
 BODIES: dict[tuple[str, str], dict[str, Any]] = {
@@ -161,7 +163,7 @@ def test_every_list_endpoint_hides_other_tenants(api: Api, api_b: Api) -> None:
         if method != "get" or "{" in path or path in PUBLIC or path in NO_TENANT_DATA:
             continue
         r = api_b.get(path)
-        assert r.status_code == 200, (path, r.status_code)
+        assert r.status_code == (403 if path in SENDER_ONLY else 200), (path, r.status_code)
         for leak in leaks:
             assert leak not in r.text, (path, leak)
         checked += 1

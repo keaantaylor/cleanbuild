@@ -49,5 +49,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
   if (!me) return <ShellSkeleton message="Checking your session…" />;
+  // Senders (coverholder / TPA users) have their own portal and no access to the provider's workspace.
+  if (me.role === "SENDER" && !pathname.startsWith("/sender") && !pathname.startsWith("/settings")) {
+    router.replace("/sender");
+    return <ShellSkeleton message="Opening the sender portal…" />;
+  }
   return <MeContext.Provider value={me}>{children}</MeContext.Provider>;
 }

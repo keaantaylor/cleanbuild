@@ -494,3 +494,18 @@ export interface SanctionsList {
   id: string; name: string; source: "OFSI" | "OFAC" | "EU" | "UN" | "CUSTOM"; file_name: string; sha256: string;
   entry_count: number; uploaded_at: string; uploaded_by: string;
 }
+export interface SenderScore {
+  sender: string; reports: number; rows: number; first_report_at: string; latest_report_at: string;
+  latest_grade: string | null; latest_score: number | null; average_score: number | null; score_trend: number[];
+  exceptions_per_1000_rows: number | null; resubmissions_per_1000_rows: number | null; binder_breaches: number;
+  sanctions_open_matches: number; leakage_exposure: Record<string, string>; mapping_first_time_right_pct: number;
+}
+export interface Scorecard { since: string | null; senders: SenderScore[]; not_assessed: string[] }
+export interface PreflightSheet { sheet_name: string; rows: number; mapped_fields: string[]; missing_required_fields: string[]; unmapped_columns: string[]; notes: string[] }
+export interface Preflight {
+  file_name: string; sha256: string; ready: boolean; verdict: string; rows: number; missing_mandatory_rows: number;
+  arithmetic_mismatches: number; exact_duplicates: number; sheets: PreflightSheet[];
+  issues: { sheet_name: string | null; row_number: number | null; check: string; message: string }[];
+  issues_total: number; coverage_statement: string;
+}
+export interface Submission { id: string; file_name: string; status: string; created_at: string; rows_total: number }

@@ -1,5 +1,7 @@
 # Deploying TrueBind
 
+> Platform V1: `render.yaml` now describes a separate API, job worker, Postgres (paid, with backups) and Redis. See `docs/RUNBOOK.md` for operations, rollback and restore, and `HUMAN_TODO.md` for the accounts needed first. The steps below describe the original single-service deployment that is live today.
+
 Two pieces:
 
 | Piece | Host | Config |

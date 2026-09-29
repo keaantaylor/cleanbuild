@@ -85,3 +85,15 @@ Logged in PROGRESS.md; each is resolved in the phase named.
 | D7 | AI via EU-region, zero-retention provider behind an interface | Direct Anthropic API | P2: provider interface (Azure OpenAI EU, Bedrock EU), masking, fake provider; direct Anthropic path removed. |
 | D8 | pydantic-settings config | raw `os.environ` | P1. |
 | D9 | Ambiguous dates flagged | Column-level disclosure when *every* value is ambiguous; mixed columns follow the winning format | P3/P4 rules consume a per-cell `date_ambiguous` flag added in P1. |
+
+## 11. Platform V1 modules (P3–P10)
+
+- **Check modules** (`app/checks/`): pure functions over the processed claim rows (`CheckInput` → `ModuleResult`). They run inside the processing job, in the same transaction as the results, and again on demand. Registry: `binder`, `leakage`, `sanctions`. Every run stores a `module_runs` row (state ASSESSED / PARTIAL / NOT_ASSESSED, per-rule coverage and reasons, configuration) and replaces its `findings`. Each finding carries a rule code, FAIL or REVIEW, severity, explanation, sheet/row/field drill-down, a Decimal amount with an ISO currency, and evidence. A stable fingerprint carries people's confirm/dismiss decisions across re-runs.
+- **Binders** (P3): `binders` table and `reports.binder_id`. Ambiguous date columns (engine note D9) are read both ways; when the two readings disagree, the finding is REVIEW.
+- **Sanctions** (P5): `sanctions_lists` and `sanctions_entries`, loaded from OFSI, OFAC, EU, UN or custom files. Matching uses normalised exact and token-sort fuzzy comparison through a word index.
+- **Scorecard** (P6): computed on request from reports, summaries and findings; no table.
+- **Audit pack** (P7): a ZIP built from stored data, with a SHA-256 manifest. The original's hash is checked before it is included.
+- **Sender portal** (P8): `/api/v1/sender/*` (sender:submit) and a separate `/sender` web shell. Pre-flight is stateless apart from an audit event.
+- **Billing** (P9): subscription columns on `tenants`, plus `billing_events` (Stripe event ids, global). Entitlements come from `billing_service.entitlements()`, consulted by module runs, processing (rows a month) and invitations (seats).
+- **Production readiness** (P10): `render.yaml` describes API, worker, Postgres and Redis in Frankfurt; `docs/RUNBOOK.md` covers operations; the web app sends browser-hardening headers.
+- Migrations now run to `0016_billing`; the OpenAPI snapshot has 104 operations.

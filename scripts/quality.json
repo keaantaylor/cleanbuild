@@ -91,7 +91,7 @@
   ],
   "baseline": {
     "mypy_legacy_errors": 92,
-    "coverage_total_pct": 91.65
+    "coverage_total_pct": 92.31
   },
   "new_code_coverage_min_pct": 85
 }

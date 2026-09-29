@@ -1,39 +1,165 @@
-# Render Blueprint: TrueBind API (+ embedded job worker) and PostgreSQL.
-# Deploy: render.com -> New -> Blueprint -> pick this repository.
-# The frontend is hosted on Vercel and proxies /api/v1 to this service
-# (see truebind-web/frontend/next.config.ts and DEPLOY.md).
+# Render Blueprint: TrueBind Platform V1 — API, job worker, PostgreSQL and Redis (Frankfurt).
+# Deploy: render.com -> New -> Blueprint -> pick this repository (a human step; see HUMAN_TODO.md).
+# The frontend is hosted on Vercel and proxies /api/v1 to the API
+# (see truebind-web/frontend/next.config.ts, DEPLOY.md and docs/RUNBOOK.md).
+# Secrets are declared with `sync: false`: Render asks for their values; none live in this file.
 databases:
   - name: truebind-db
-    plan: free
+    plan: basic-256mb # paid: daily backups and point-in-time recovery (free Postgres expires)
     region: frankfurt
     databaseName: truebind
     user: truebind
+    postgresMajorVersion: "16"
 
 services:
+  - type: keyvalue
+    name: truebind-redis
+    plan: starter
+    region: frankfurt
+    ipAllowList: [] # private network only
+
   - type: web
     name: truebind-api
     runtime: docker
-    plan: free
+    plan: starter
     region: frankfurt
     dockerContext: .
     dockerfilePath: ./truebind-web/backend/Dockerfile
-    healthCheckPath: /health/ready
-    autoDeploy: true
+    healthCheckPath: /readyz # database reachable and on the Alembic head
+    autoDeploy: false # deploy deliberately after verify --full is green
     envVars:
       - key: DATABASE_URL
         fromDatabase:
           name: truebind-db
           property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: truebind-redis
+          property: connectionString
       - key: TRUEBIND_ENV
         value: production
-      # One service runs both the API and the job worker (each job still
-      # runs in its own memory/time-limited child process).
-      - key: TRUEBIND_EMBEDDED_WORKER
-        value: "1"
-      # Lets you create the first organisation from the login page. Set to
-      # "false" once your team's accounts exist.
-      - key: ALLOW_SIGNUP
-        value: "true"
-      # Optional: enables AI-assisted column mapping (headers only).
-      - key: ANTHROPIC_API_KEY
+      - key: SECRET_KEY
         sync: false
+      - key: PUBLIC_APP_URL
+        sync: false
+      - key: PUBLIC_API_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: ALLOW_SIGNUP
+        value: "false"
+      - key: LOG_JSON
+        value: "true"
+      - key: SENTRY_DSN
+        sync: false
+      - key: STORAGE_BACKEND
+        value: s3
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_REGION
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: AI_PROVIDER
+        value: none # azure_openai (EU/UK region) or bedrock (eu-*) once contracted
+      - key: FX_AUTO_REFRESH
+        value: "true"
+      - key: BILLING_ENABLED
+        value: "false" # true once Stripe plans are configured
+      - key: BILLING_PLANS
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: INBOUND_EMAIL_DOMAIN
+        sync: false
+      - key: INBOUND_WEBHOOK_SECRET
+        sync: false
+      # The API does not run jobs itself; truebind-worker does.
+      - key: TRUEBIND_EMBEDDED_WORKER
+        value: "0"
+
+  - type: worker
+    name: truebind-worker
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    dockerContext: .
+    dockerfilePath: ./truebind-web/backend/Dockerfile
+    dockerCommand: python -m app.worker
+    autoDeploy: false
+    envVars: # same as truebind-api; keep the two lists in step
+      - key: DATABASE_URL
+        fromDatabase:
+          name: truebind-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: truebind-redis
+          property: connectionString
+      - key: TRUEBIND_ENV
+        value: production
+      - key: SECRET_KEY
+        sync: false
+      - key: PUBLIC_APP_URL
+        sync: false
+      - key: PUBLIC_API_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: ALLOW_SIGNUP
+        value: "false"
+      - key: LOG_JSON
+        value: "true"
+      - key: SENTRY_DSN
+        sync: false
+      - key: STORAGE_BACKEND
+        value: s3
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_REGION
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: AI_PROVIDER
+        value: none # azure_openai (EU/UK region) or bedrock (eu-*) once contracted
+      - key: FX_AUTO_REFRESH
+        value: "true"
+      - key: BILLING_ENABLED
+        value: "false" # true once Stripe plans are configured
+      - key: BILLING_PLANS
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: INBOUND_EMAIL_DOMAIN
+        sync: false
+      - key: INBOUND_WEBHOOK_SECRET
+        sync: false
+      # The API does not run jobs itself; truebind-worker does.
+      - key: TRUEBIND_EMBEDDED_WORKER
+        value: "0"

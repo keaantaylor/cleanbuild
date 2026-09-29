@@ -18,7 +18,7 @@ Python (`truebind-web/backend/.venv`).
 | P7 Audit pack | **done** — gate green |
 | P8 Sender pre-flight portal | **done** — gate green |
 | P9 Billing & entitlements | **done** — gate green |
-| P10 Production readiness | pending |
+| P10 Production readiness | **done** — final gate green |
 
 ---
 
@@ -392,4 +392,33 @@ Acceptance:
 - Review: no amount or plan limit is invented (all configuration); webhooks must be signed and are idempotent; Stripe error text never reaches the user; entitlements fail closed when billing is on and no plan is active.
 - Summary: (1) Plans, modules, rows and seats are configuration-driven. (2) Stripe Checkout and the portal are one click from Settings → Billing. (3) Signed, idempotent webhooks keep the subscription state. (4) Limits are enforced honestly: NOT_ASSESSED for modules outside the plan, 402 with a plain message for rows and seats. (5) With billing off, nothing changes for existing users.
 
-Remaining tasks (acceptance criteria written in full when each starts):
+## P10 — Production readiness (reconstructed criteria)
+- [x] Deployment description: `render.yaml` defines API and worker as separate services (worker via `python -m app.worker`), paid Postgres 16 with backups, Redis, S3 storage and `/readyz` health checks. Every secret is `sync: false` and `autoDeploy` is off. Nothing was deployed.
+- [x] Operations runbook `docs/RUNBOOK.md`: topology, deploy and rollback, configuration and secrets (including the `SECRET_KEY` rotation consequence, recorded as a limitation), backups with a restore test that verifies the audit chain, routine tasks (FX, sanctions lists, binders), incidents, and the measured performance envelope.
+- [x] Browser hardening on every page: nosniff, frame denial (XFO + CSP frame-ancestors), referrer policy, permissions policy, HSTS, `object-src`/`base-uri`/`form-action` restrictions, no `X-Powered-By`. The API keeps its own headers behind the proxy — e2e `tests/e2e/headers.spec.ts`.
+- [x] `.env.example`, `HUMAN_TODO.md`, `DEPLOY.md` and `docs/ARCHITECTURE.md` are current.
+
+### P10 phase gate — final
+- Final `verify --full` **PASS** (506 s):
+
+| Step | Result |
+|---|---|
+| ruff | legacy clean; 87 strict paths lint + format clean |
+| mypy | strict paths 0 errors; legacy 92/92 |
+| engine tests | 90 passed |
+| frontend lint | eslint + tsc clean |
+| vitest | 20 passed |
+| services | 8 healthy |
+| migrations | upgrade → downgrade → upgrade to 0016 |
+| backend on PostgreSQL (+ integration) | 382 passed, 1 skipped |
+| golden | 4 suites, 19 passed (engine boundary 320 rows / 10 sheets unchanged; binder, leakage, sanctions at precision and recall 100%) |
+| next build | OK |
+| e2e (Postgres) | 6 passed |
+| perf 50k | realistic 50.9 s, adversarial 50.4 s, probe max 0.119 s (budget 120 s) |
+| security | pip-audit, npm audit, bandit, gitleaks clean |
+| coverage | 92.31% total (baseline ratcheted 91.65 → 92.31); 94.33% of 4,495 changed lines |
+| OpenAPI | matches snapshot (104 operations) |
+
+- Summary: (1) P3–P10 are built, tested and gated on `feat/platform-v1`. (2) Every module has golden proof and never passes silently. (3) Billing is ready but off until Stripe plans exist. (4) The deployment description, runbook and hardening headers are in place. (5) Going live is now a list of human steps in HUMAN_TODO.md; nothing was deployed.
+
+All phases P0–P10 are complete. Follow-ups are in HUMAN_TODO.md and BLOCKERS.md.

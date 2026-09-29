@@ -393,7 +393,7 @@ Acceptance:
 - Summary: (1) Plans, modules, rows and seats are configuration-driven. (2) Stripe Checkout and the portal are one click from Settings → Billing. (3) Signed, idempotent webhooks keep the subscription state. (4) Limits are enforced honestly: NOT_ASSESSED for modules outside the plan, 402 with a plain message for rows and seats. (5) With billing off, nothing changes for existing users.
 
 ## P10 — Production readiness (reconstructed criteria)
-- [x] Deployment description: `render.yaml` defines API and worker as separate services (worker via `python -m app.worker`), paid Postgres 16 with backups, Redis, S3 storage and `/readyz` health checks. Every secret is `sync: false` and `autoDeploy` is off. Nothing was deployed.
+- [x] Deployment description: `deploy/render.platform-v1.yaml` defines API and worker as separate services (worker via `python -m app.worker`), paid Postgres 16 with backups, Redis, S3 storage and `/readyz` health checks. Every secret is `sync: false` and `autoDeploy` is off. Nothing was deployed.
 - [x] Operations runbook `docs/RUNBOOK.md`: topology, deploy and rollback, configuration and secrets (including the `SECRET_KEY` rotation consequence, recorded as a limitation), backups with a restore test that verifies the audit chain, routine tasks (FX, sanctions lists, binders), incidents, and the measured performance envelope.
 - [x] Browser hardening on every page: nosniff, frame denial (XFO + CSP frame-ancestors), referrer policy, permissions policy, HSTS, `object-src`/`base-uri`/`form-action` restrictions, no `X-Powered-By`. The API keeps its own headers behind the proxy — e2e `tests/e2e/headers.spec.ts`.
 - [x] `.env.example`, `HUMAN_TODO.md`, `DEPLOY.md` and `docs/ARCHITECTURE.md` are current.

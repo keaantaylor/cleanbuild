@@ -95,5 +95,5 @@ Logged in PROGRESS.md; each is resolved in the phase named.
 - **Audit pack** (P7): a ZIP built from stored data, with a SHA-256 manifest. The original's hash is checked before it is included.
 - **Sender portal** (P8): `/api/v1/sender/*` (sender:submit) and a separate `/sender` web shell. Pre-flight is stateless apart from an audit event.
 - **Billing** (P9): subscription columns on `tenants`, plus `billing_events` (Stripe event ids, global). Entitlements come from `billing_service.entitlements()`, consulted by module runs, processing (rows a month) and invitations (seats).
-- **Production readiness** (P10): `render.yaml` describes API, worker, Postgres and Redis in Frankfurt; `docs/RUNBOOK.md` covers operations; the web app sends browser-hardening headers.
+- **Production readiness** (P10): `deploy/render.platform-v1.yaml` describes API, worker, Postgres and Redis in Frankfurt; `docs/RUNBOOK.md` covers operations; the web app sends browser-hardening headers.
 - Migrations now run to `0016_billing`; the OpenAPI snapshot has 104 operations.

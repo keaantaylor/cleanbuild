@@ -33,6 +33,12 @@ class Tenant(Base):
     require_2fa: Mapped[bool] = mapped_column(Boolean, default=False, server_default=sa_false())
     # Inbound e-mail address <inbound_token>@<INBOUND_EMAIL_DOMAIN> (P2); unguessable, rotatable.
     inbound_token: Mapped[str | None] = mapped_column(String(32), unique=True, nullable=True)
+    # P9 billing (Stripe); null until the organisation subscribes.
+    billing_plan: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    billing_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    billing_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = created_at_col()
 
 

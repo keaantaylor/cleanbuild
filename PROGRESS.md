@@ -17,7 +17,7 @@ Python (`truebind-web/backend/.venv`).
 | P6 Scorecard | **done** — gate green |
 | P7 Audit pack | **done** — gate green |
 | P8 Sender pre-flight portal | **done** — gate green |
-| P9 Billing & entitlements | pending |
+| P9 Billing & entitlements | built — gate running |
 | P10 Production readiness | pending |
 
 ---
@@ -378,5 +378,13 @@ Acceptance:
 - Gate evidence — `verify --full`: ruff/mypy clean (legacy 92/92); engine 90; vitest 20; migrations OK; backend on PostgreSQL 375 passed; golden 19; next build; e2e 5 (now including the sender portal); perf realistic 53.3 s / adversarial 48.8 s (probe max 0.068 s; budget 120 s — this run followed a container restart and every step was slower, e.g. next build 40.8 s vs 7.5 s); security clean; coverage 92.34%, 94.55% of 4,184 changed lines. OpenAPI: +5 operations (scorecard, audit pack, 3 sender portal), accepted (100 operations). The first attempt stopped at `services` because the Docker daemon had exited with the container restart; it was restarted and the full run above is the re-run.
 - Review: the audit pack never includes a file whose SHA-256 no longer matches; the sender portal shows senders nothing of the provider's data and uses no AI; the scorecard never shows 0 for "no data".
 - Summary: (1) The scorecard ranks senders on health, exceptions, resubmissions, breaches, sanctions and leakage exposure. (2) One click builds an audit pack with a verifiable SHA-256 manifest and the original. (3) Coverholders get their own pre-flight portal and can send files into the inbox. (4) Senders never land in the provider's workspace again. (5) Every new action is audited and tenant-isolated.
+
+## P9 — Billing and entitlements (Stripe; reconstructed criteria)
+- [x] With BILLING_ENABLED off (the default), nothing is limited. `/api/v1/billing` says billing is not enforced and online checkout is refused — `test_billing_off_means_unlimited`.
+- [x] Enabling billing requires both Stripe keys and at least one valid plan (known modules; positive whole-number rows and seats, or unlimited). A default plan must be one of the configured plans. Plans come from configuration and prices from Stripe; no amount is written in code — `test_billing_configuration_is_validated` (3).
+- [x] Checkout creates the Stripe customer once and returns a Checkout link for the plan's price. The customer portal needs an existing customer. Stripe errors become customer-safe messages. Webhooks are refused unless signed within 5 minutes, are applied once per event id, and move the plan, status and period end; a cancelled subscription entitles nothing. Everything is audited — `test_checkout_portal_and_webhooks`. The same REST calls are validated against Stripe's OpenAPI with stripe-mock — `tests/integration/test_stripe_mock.py`.
+- [x] Entitlements are enforced. A module outside the plan is NOT_ASSESSED with "not included in your plan". Processing past the monthly rows is refused with 402 and a plain message. Invitations past the seats (pending invitations count) are refused with 402 — `test_entitlements_are_enforced`.
+- [x] Only owners (billing:manage) see Settings → Billing: plan, status, renewal, usage, plans with "Choose", and "Manage billing". The audit walker covers checkout, portal and webhook.
+- Human decisions (HUMAN_TODO): the plans' modules, rows, seats and Stripe prices, the webhook endpoint and the portal configuration.
 
 Remaining tasks (acceptance criteria written in full when each starts):

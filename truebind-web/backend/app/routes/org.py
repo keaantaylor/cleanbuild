@@ -32,7 +32,7 @@ from ..security.permissions import (
     Permission,
 )
 from ..security.ratelimit import client_ip, limiter
-from ..services import audit_service
+from ..services import audit_service, billing_service
 
 router = APIRouter(prefix="/api/v1/org", tags=["organisation"])
 public_router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -265,6 +265,12 @@ def create_invitation(
     db: Session = Depends(get_db),
 ) -> InvitationCreated:
     _check_can_assign(ctx, body.role)
+    tenant = db.get(Tenant, ctx.tenant_id)
+    if tenant is not None:
+        try:
+            billing_service.require_seat(db, tenant)
+        except billing_service.QuotaError as exc:
+            raise HTTPException(status_code=402, detail=str(exc)) from exc
     email = str(body.email).lower()
     existing = (
         db.query(Membership)

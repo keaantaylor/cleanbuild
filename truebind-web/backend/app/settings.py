@@ -16,7 +16,7 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -40,6 +40,8 @@ AZURE_EU_UK_REGIONS = frozenset(
     }
 )
 _MIN_SECRET_KEY_LEN = 32
+# Check modules a billing plan may include (app/checks REGISTRY).
+BILLING_MODULES = frozenset({"binder", "leakage", "sanctions"})
 
 
 def load_dotenv(path: Path = BACKEND_ROOT / ".env") -> None:
@@ -146,6 +148,14 @@ class Settings(BaseSettings):
         default="https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist-90d.xml", validation_alias="ECB_RATES_URL"
     )
 
+    # ---- billing (P9): plans from configuration, prices in Stripe
+    billing_enabled: bool = Field(default=False, validation_alias="BILLING_ENABLED")
+    billing_plans: dict[str, dict[str, Any]] = Field(default_factory=dict, validation_alias="BILLING_PLANS")
+    billing_default_plan: str | None = Field(default=None, validation_alias="BILLING_DEFAULT_PLAN")
+    stripe_secret_key: SecretStr = Field(default=SecretStr(""), validation_alias="STRIPE_SECRET_KEY")
+    stripe_webhook_secret: SecretStr = Field(default=SecretStr(""), validation_alias="STRIPE_WEBHOOK_SECRET")
+    stripe_api_base: str = Field(default="https://api.stripe.com", validation_alias="STRIPE_API_BASE")
+
     # ---- observability
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = Field(default="INFO", validation_alias="LOG_LEVEL")
     log_json: bool | None = Field(default=None, validation_alias="LOG_JSON")
@@ -189,6 +199,24 @@ class Settings(BaseSettings):
     def storage_path(self) -> Path:
         return self.storage_dir or (self.data_dir / "objects")
 
+    def _check_billing(self) -> None:
+        if not self.stripe_secret_key.get_secret_value() or not self.stripe_webhook_secret.get_secret_value():
+            raise ValueError("BILLING_ENABLED needs STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET")
+        if not self.billing_plans:
+            raise ValueError(
+                "BILLING_ENABLED needs BILLING_PLANS (JSON: name -> modules, monthly_rows, seats, price_id)"
+            )
+        for name, plan in self.billing_plans.items():
+            unknown = set(plan.get("modules") or []) - BILLING_MODULES
+            if unknown:
+                raise ValueError(f"BILLING_PLANS[{name}] names an unknown module: {', '.join(sorted(unknown))}")
+            for key in ("monthly_rows", "seats"):
+                v = plan.get(key)
+                if v is not None and (not isinstance(v, int) or isinstance(v, bool) or v < 1):
+                    raise ValueError(f"BILLING_PLANS[{name}].{key} must be a positive whole number or null")
+        if self.billing_default_plan and self.billing_default_plan not in self.billing_plans:
+            raise ValueError("BILLING_DEFAULT_PLAN must name one of BILLING_PLANS")
+
     @model_validator(mode="after")
     def _resolve_and_check(self) -> Settings:
         if self.cookie_secure is None:
@@ -213,6 +241,8 @@ class Settings(BaseSettings):
             )
         if self.ai_provider == "fake" and self.is_production:
             raise ValueError("AI_PROVIDER=fake is for tests only")
+        if self.billing_enabled:
+            self._check_billing()
         if self.is_production:
             problems = []
             if not self.database_url:

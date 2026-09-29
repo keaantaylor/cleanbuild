@@ -82,7 +82,12 @@
     "truebind-web/backend/app/services/audit_pack_service.py",
     "truebind-web/backend/tests/test_audit_pack.py",
     "truebind-web/backend/app/routes/sender.py",
-    "truebind-web/backend/tests/test_sender_portal.py"
+    "truebind-web/backend/tests/test_sender_portal.py",
+    "truebind-web/backend/app/services/billing_service.py",
+    "truebind-web/backend/app/routes/billing.py",
+    "truebind-web/backend/app/models/billing.py",
+    "truebind-web/backend/migrations/versions/0016_billing.py",
+    "truebind-web/backend/tests/test_billing.py"
   ],
   "baseline": {
     "mypy_legacy_errors": 92,

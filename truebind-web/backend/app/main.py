@@ -16,7 +16,7 @@ from .database import get_session_factory, set_tenant
 from .models._util import utcnow
 from .models.exception_summary import ExceptionSummary
 from .models.identity import Tenant
-from .routes import (alerts, audit, auth, checks, sanctions, scorecard, sender, exception_summary, findings, fx, inbound, mapping, mfa, obligations, ops, org,
+from .routes import (alerts, audit, auth, billing, checks, sanctions, scorecard, sender, exception_summary, findings, fx, inbound, mapping, mfa, obligations, ops, org,
                      reports, sftp, sso, system, templates, webhooks)
 
 observability.configure_logging(LOG_LEVEL, LOG_JSON)
@@ -151,6 +151,7 @@ app.include_router(checks.router)
 app.include_router(sanctions.router)
 app.include_router(scorecard.router)
 app.include_router(sender.router)
+app.include_router(billing.router)
 
 
 app.include_router(observability.router)

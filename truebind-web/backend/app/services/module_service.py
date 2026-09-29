@@ -23,9 +23,10 @@ from sqlalchemy.orm import Session
 from ..checks import LABELS, REGISTRY
 from ..checks.base import CheckInput, ModuleResult, RowView, SheetView
 from ..checks.sanctions import Entry, Index
+from ..models.identity import Tenant
 from ..models.modules import Binder, Finding, ModuleRun, SanctionsEntry, SanctionsList
 from ..models.reports import ClaimRow, Mapping, Report, Sheet
-from . import audit_service, fx_service
+from . import audit_service, billing_service, fx_service
 
 log = logging.getLogger("truebind.modules")
 
@@ -204,6 +205,18 @@ def _store(
 def run_module(
     db: Session, report: Report, module: str, actor: str = audit_service.SYSTEM_ACTOR, actor_user_id: str | None = None
 ) -> ModuleRun:
+    tenant = db.get(Tenant, report.tenant_id)
+    ent = billing_service.entitlements(tenant) if tenant is not None else billing_service.UNLIMITED
+    if not ent.allows_module(module):
+        plan = f" ({ent.plan})" if ent.plan else ""
+        result = ModuleResult(
+            "NOT_ASSESSED",
+            f"{LABELS[module]} is not included in your plan{plan}, so it was not assessed. See Settings -> Billing.",
+            [],
+            [],
+            None,
+        )
+        return _store(db, report, module, result, actor, actor_user_id)
     inp = build_input(db, report, module)
     try:
         with db.begin_nested():

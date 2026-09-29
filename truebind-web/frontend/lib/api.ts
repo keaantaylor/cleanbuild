@@ -1,4 +1,4 @@
-import type { Alert, AuditLogEntry, Binder, Preflight, SanctionsList, Scorecard, Submission, BinderInput, Disposition, ModuleFinding, ModuleRun, Channels, ClaimRow, Delivery, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Invitation, InvitationCreated, Job, Me, MappingField, Member, MfaChallenge, MfaStatus, Obligation, OrgSettings, Overview, Report, ReportSummary, Role, Sheet, SheetMapping, SftpDestination, SftpInput, SsoConfig, SsoConfigInput, SystemStatus, Template, WebhookDelivery, WebhookEndpoint, WebhookEvent, WorkQueue } from "./types";
+import type { Alert, AuditLogEntry, Billing, Binder, Preflight, SanctionsList, Scorecard, Submission, BinderInput, Disposition, ModuleFinding, ModuleRun, Channels, ClaimRow, Delivery, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Invitation, InvitationCreated, Job, Me, MappingField, Member, MfaChallenge, MfaStatus, Obligation, OrgSettings, Overview, Report, ReportSummary, Role, Sheet, SheetMapping, SftpDestination, SftpInput, SsoConfig, SsoConfigInput, SystemStatus, Template, WebhookDelivery, WebhookEndpoint, WebhookEvent, WorkQueue } from "./types";
 
 // Default: same hostname as the page, port 8000. Using the page's own host
 // matters: a page on localhost calling an API on 127.0.0.1 is cross-site, so
@@ -324,6 +324,9 @@ export const api = {
   listBinders: () => request<Binder[]>("/binders"),
   createBinder: (body: BinderInput) => request<Binder>("/binders", { method: "POST", body: JSON.stringify(body) }),
   deleteBinder: (id: string) => request<void>(`/binders/${id}`, { method: "DELETE" }),
+  getBilling: () => request<Billing>("/billing"),
+  billingCheckout: (plan: string) => request<{ url: string }>("/billing/checkout", { method: "POST", body: JSON.stringify({ plan }) }),
+  billingPortal: () => request<{ url: string }>("/billing/portal", { method: "POST" }),
   senderPreflight: (file: File) => {
     const form = new FormData();
     form.append("file", file);

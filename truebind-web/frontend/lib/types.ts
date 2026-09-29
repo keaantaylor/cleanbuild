@@ -509,3 +509,8 @@ export interface Preflight {
   issues_total: number; coverage_statement: string;
 }
 export interface Submission { id: string; file_name: string; status: string; created_at: string; rows_total: number }
+export interface BillingPlan { name: string; label: string; modules: string[]; monthly_rows: number | null; seats: number | null; purchasable: boolean }
+export interface Billing {
+  enforced: boolean; plan: string | null; status: string | null; period_end: string | null; modules: string[] | null;
+  monthly_rows: number | null; seats: number | null; rows_this_month: number; seats_used: number; plans: BillingPlan[]; customer: boolean;
+}

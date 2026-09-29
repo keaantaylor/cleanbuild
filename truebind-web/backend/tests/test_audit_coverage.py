@@ -287,6 +287,36 @@ def test_every_state_change_is_audited_and_the_chain_holds(monkeypatch: pytest.M
     trail.step("POST", "/api/v1/sender/submissions",
                lambda: tpa.post("/api/v1/sender/submissions", headers=tpa_csrf, files=book))  # fmt: skip
 
+    # --- billing (P9), against a mocked Stripe
+    import json as _json
+
+    import httpx
+    from app.services import billing_service
+    from app.settings import get_settings
+    from test_billing import PLANS, WHSEC
+
+    for k, v in {"BILLING_ENABLED": "true", "BILLING_PLANS": _json.dumps(PLANS), "STRIPE_SECRET_KEY": "sk_test_only",
+                 "STRIPE_WEBHOOK_SECRET": WHSEC}.items():  # fmt: skip
+        monkeypatch.setenv(k, v)
+    get_settings.cache_clear()
+    stripe = {"/v1/customers": {"id": "cus_w"}, "/v1/checkout/sessions": {"url": "https://c.test/1"},
+              "/v1/billing_portal/sessions": {"url": "https://p.test/1"}}  # fmt: skip
+    real_client = httpx.Client
+    monkeypatch.setattr("app.services.billing_service.httpx.Client", lambda **kw: real_client(
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, json=stripe[r.url.path])), **kw))  # fmt: skip
+    try:
+        trail.step("POST", "/api/v1/billing/checkout",
+                   lambda: owner.post("/api/v1/billing/checkout", json={"plan": "professional"}))  # fmt: skip
+        trail.step("POST", "/api/v1/billing/portal", lambda: owner.post("/api/v1/billing/portal"))
+        raw = _json.dumps({"id": "evt_w", "type": "customer.subscription.updated", "data": {"object": {
+            "id": "sub_w", "customer": "cus_w", "status": "active"}}}).encode()  # fmt: skip
+        sig = {"Stripe-Signature": billing_service.sign(raw, WHSEC), "Content-Type": "application/json"}
+        trail.step("POST", "/api/v1/billing/webhook",
+                   lambda: TestClient(app).post("/api/v1/billing/webhook", content=raw, headers=sig))  # fmt: skip
+    finally:
+        monkeypatch.undo()
+        get_settings.cache_clear()
+
     missing = _mutating_operations() - trail.covered
     assert not missing, f"state-changing operations without an audited scenario step: {sorted(missing)}"
     verdict = owner.get("/api/v1/audit/verify").json()

@@ -12,7 +12,8 @@ from ..database import get_db
 from ..models.reports import Mapping, Report, Sheet
 from ..schemas.reports import MappingConfirmRequest, MappingFieldOut, ReportOut, SheetMappingOut, SheetOut
 from ..security.auth import Context, require_reader, require_writer
-from ..services import idempotency, job_service, persistence_service
+from ..models.identity import Tenant
+from ..services import billing_service, idempotency, job_service, persistence_service
 from ..services.pipeline_service import FIELDS, FIELDS_BY_CODE, REQUIRED_CODES
 from .deps import get_report_or_404, get_sheet_or_404, report_out
 
@@ -116,6 +117,12 @@ def process_report(report_id: str, idempotency_key: str | None = Header(default=
     pending = [s.sheet_name for s in sheets if s.status == "PENDING_CONFIRMATION"]
     if pending:
         raise HTTPException(status_code=409, detail=f"{len(pending)} sheet(s) still need their mapping confirmed.")
+    tenant = db.get(Tenant, ctx.tenant_id)
+    if tenant is not None:
+        try:
+            billing_service.require_rows(db, tenant, sum(s.row_count or 0 for s in sheets if s.status == "CONFIRMED"))
+        except billing_service.QuotaError as exc:
+            raise HTTPException(status_code=402, detail=str(exc)) from exc
     try:
         job_service.enqueue(db, report, "PROCESS", actor=ctx.actor, actor_user_id=ctx.user_id)
     except job_service.JobConflict as exc:

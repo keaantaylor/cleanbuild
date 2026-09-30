@@ -24,7 +24,7 @@ export default function SampleReportPage() {
   return (
     <div className="min-h-screen" style={{ background: "var(--chrome)", color: "var(--chromeStrong)" }}>
       <SiteNav />
-      <main className="mx-auto flex max-w-[944px] flex-col items-center gap-6 px-4 pb-16 pt-[120px] sm:px-8">
+      <main id="main" className="mx-auto flex max-w-[944px] flex-col items-center gap-6 px-4 pb-16 pt-[120px] sm:px-8">
         <div className="flex w-full flex-wrap items-center justify-between gap-3">
           <Link href="/#health" className="flex items-center gap-1.5 text-[13px] hover:text-[var(--chromeStrong)]" style={{ color: "var(--muted)" }}>
             <ArrowLeft />

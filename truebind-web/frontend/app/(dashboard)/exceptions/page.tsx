@@ -9,7 +9,7 @@ import type { ClaimRow, ExceptionRow, ExceptionSummary } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
 import { useUi } from "@/lib/ui";
 import { findingGuide } from "@/lib/findings";
-import { formatMoney, formatNumber } from "@/lib/formatters";
+import { formatDateTime, formatMoney, formatNumber, formatPct } from "@/lib/formatters";
 import { EmptyState, ErrorState, LoadingState, Modal, PageHeader, StatusPill } from "@/components/nocturne/ui";
 import { ReportPicker, useSelectedReport } from "@/components/nocturne/select-report";
 import { SEV, SHEET } from "@/components/nocturne/status";
@@ -86,10 +86,10 @@ function Exceptions() {
   );
 
   const decide = useCallback(
-    async (review: string, note?: string, successText?: string) => {
+    async (review: string, note?: string, successText?: string, assignee?: string | null) => {
       if (!reportId || !sel) return;
       try {
-        await api.reviewException(reportId, sel.validation_result_id, { review_status: review, assignee: sel.assignee ?? null, note: note ?? null });
+        await api.reviewException(reportId, sel.validation_result_id, { review_status: review, assignee: assignee === undefined ? sel.assignee ?? null : assignee, note: note ?? null });
         toast(`${successText ?? REVIEW_LABEL[review]} · recorded in the audit trail`, "ok");
         list.reload();
         if (review !== "open") setTimeout(() => move(1), 350);
@@ -228,7 +228,7 @@ function Exceptions() {
           )}
         </div>
         {sel && reportId ? (
-          <FindingPanels key={sel.validation_result_id} reportId={reportId} fileName={report?.file_name ?? ""} f={sel} onAccept={() => setModal("accept")} onFollowup={() => setModal("followup")} onDismiss={() => void decide("false_positive")} onReopen={() => void decide("open", undefined, "Finding reopened")} onResolve={() => void decide("resolved")} prev={() => move(-1)} next={() => move(1)} />
+          <FindingPanels key={sel.validation_result_id} reportId={reportId} fileName={report?.file_name ?? ""} f={sel} onAccept={() => setModal("accept")} onFollowup={() => setModal("followup")} onDismiss={() => void decide("false_positive")} onReopen={() => void decide("open", undefined, "Finding reopened")} onResolve={() => void decide("resolved")} onRecord={(review, assignee, note) => void decide(review, note, undefined, assignee)} prev={() => move(-1)} next={() => move(1)} />
         ) : (
           <div className="flex flex-[5_1_560px] items-center justify-center p-10 text-[13.5px]" style={{ color: "var(--faint)" }}>{page && !items.length ? "" : "Select a finding."}</div>
         )}
@@ -259,7 +259,7 @@ const COLS: [keyof ClaimRow, string, string][] = [
   ["incurred_amount", "total_incurred", "Total inc."],
 ];
 
-function FindingPanels({ reportId, fileName, f, onAccept, onFollowup, onDismiss, onReopen, onResolve, prev, next }: { reportId: string; fileName: string; f: ExceptionRow; onAccept: () => void; onFollowup: () => void; onDismiss: () => void; onReopen: () => void; onResolve: () => void; prev: () => void; next: () => void }) {
+function FindingPanels({ reportId, fileName, f, onAccept, onFollowup, onDismiss, onReopen, onResolve, onRecord, prev, next }: { reportId: string; fileName: string; f: ExceptionRow; onAccept: () => void; onFollowup: () => void; onDismiss: () => void; onReopen: () => void; onResolve: () => void; onRecord: (review: string, assignee: string | null, note: string) => void; prev: () => void; next: () => void }) {
   const g = findingGuide(f.rule, f.status);
   const sv = SEV[f.severity];
   const sheet = SHEET[f.severity];
@@ -394,6 +394,7 @@ function FindingPanels({ reportId, fileName, f, onAccept, onFollowup, onDismiss,
           <button type="button" onClick={onResolve} className="tb-btn tb-btn-ghost !justify-start !px-[13px] !py-2 text-[13px]">
             Mark resolved
           </button>
+          <RecordDecision key={f.validation_result_id} f={f} onRecord={onRecord} />
           <div className="flex justify-between pt-2 text-[12px]" style={{ color: "var(--faint)" }}>
             <button type="button" className="tb-hit cursor-pointer py-1 hover:text-[var(--text)]" onClick={prev}>← Previous<span className="hidden md:inline"> · K</span></button>
             <button type="button" className="tb-hit cursor-pointer py-1 hover:text-[var(--text)]" onClick={next}>Next<span className="hidden md:inline"> · J</span> →</button>
@@ -401,6 +402,48 @@ function FindingPanels({ reportId, fileName, f, onAccept, onFollowup, onDismiss,
         </div>
       </div>
     </>
+  );
+}
+
+/** Any status, an assignee and a note in one step (the quick buttons above cover the common cases). */
+function RecordDecision({ f, onRecord }: { f: ExceptionRow; onRecord: (review: string, assignee: string | null, note: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [review, setReview] = useState(f.review_status ?? "open");
+  const [assignee, setAssignee] = useState(f.assignee ?? "");
+  const [note, setNote] = useState("");
+  return (
+    <div className="flex flex-col gap-2 pt-1">
+      <button type="button" className="tb-hit cursor-pointer self-start text-[12.5px]" style={{ color: "var(--accentText)" }} aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        {open ? "Hide decision form" : "Assign or record a decision with a note"}
+      </button>
+      {open && (
+        <form
+          className="anim-fade flex flex-col gap-2.5 rounded-[10px] p-3"
+          style={{ boxShadow: "inset 0 0 0 1px var(--line)" }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            onRecord(review, assignee.trim() || null, note.trim());
+            setNote("");
+          }}
+        >
+          <div>
+            <label className="tb-label" htmlFor="rd-status">Status</label>
+            <select id="rd-status" className="tb-input" value={review} onChange={(e) => setReview(e.target.value)}>
+              {Object.entries(REVIEW_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="tb-label" htmlFor="rd-assignee">Assignee</label>
+            <input id="rd-assignee" className="tb-input" value={assignee} maxLength={200} placeholder="Name" onChange={(e) => setAssignee(e.target.value)} />
+          </div>
+          <div>
+            <label className="tb-label" htmlFor="rd-note">Note</label>
+            <textarea id="rd-note" className="tb-input min-h-[64px]" value={note} maxLength={2000} onChange={(e) => setNote(e.target.value)} />
+          </div>
+          <button type="submit" className="tb-btn tb-btn-primary self-start">Save decision</button>
+        </form>
+      )}
+    </div>
   );
 }
 
@@ -492,6 +535,8 @@ function AiTriage({ reportId, onFilter }: { reportId: string; onFilter: (checkTy
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
   const [open, setOpen] = useState(true);
+  // Bumped by "Regenerate": asks the API for a fresh summary instead of the stored one.
+  const [regen, setRegen] = useState(0);
   useEffect(() => {
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -510,7 +555,7 @@ function AiTriage({ reportId, onFilter }: { reportId: string; onFilter: (checkTy
     };
     (async () => {
       try {
-        const existing = await api.getExceptionSummary(reportId);
+        const existing = regen ? null : await api.getExceptionSummary(reportId);
         const first = existing ?? (await api.generateExceptionSummary(reportId));
         await poll(first);
       } catch (e) {
@@ -523,7 +568,12 @@ function AiTriage({ reportId, onFilter }: { reportId: string; onFilter: (checkTy
       alive = false;
       if (timer) clearTimeout(timer);
     };
-  }, [reportId]);
+  }, [reportId, regen]);
+  const regenerate = () => {
+    setErr(null);
+    setBusy(true);
+    setRegen((n) => n + 1);
+  };
   const a = s?.aggregate;
   const n = s?.narrative;
   const st = s?.narrative_status;
@@ -536,14 +586,21 @@ function AiTriage({ reportId, onFilter }: { reportId: string; onFilter: (checkTy
       </button>
       {open && (
         <div className="flex flex-col gap-4 px-5 pb-5">
+          <div className="flex flex-wrap items-center gap-3 text-[12.5px]" style={{ color: "var(--faint)" }}>
+            {s?.completed_at && st !== "GENERATING" && <span>Generated {formatDateTime(s.completed_at)}</span>}
+            {(busy || st === "GENERATING") && <span>The report is already complete; this summary fills in separately and blocks nothing.</span>}
+            <button type="button" className="tb-btn ml-auto !px-2.5 !py-1.5 text-[12.5px]" disabled={busy || st === "GENERATING"} onClick={regenerate}>
+              {busy || st === "GENERATING" ? "Generating…" : "Regenerate"}
+            </button>
+          </div>
           {err && <ErrorState title="Triage could not be loaded" message={err} />}
           {a && (
             <div className="tnum grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
                 [formatNumber(a.total_exceptions), "total exceptions"],
                 [a.total_value_at_stake.map((m) => formatMoney(m.amount, m.currency)).join(" · ") || "—", "value at stake"],
-                [formatNumber(a.root_cause_split.ingestion.count), "likely ingestion issues"],
-                [formatNumber(a.root_cause_split.data_quality.count), "likely data issues"],
+                [`${formatNumber(a.root_cause_split.ingestion.count)} · ${formatPct(a.root_cause_split.ingestion.pct_of_total_exceptions)}`, "likely ingestion issues"],
+                [`${formatNumber(a.root_cause_split.data_quality.count)} · ${formatPct(a.root_cause_split.data_quality.pct_of_total_exceptions)}`, "likely data issues"],
               ].map(([v, l]) => (
                 <div key={l} className="flex flex-col gap-0.5">
                   <span className="text-[20px] font-medium">{v}</span>
@@ -569,6 +626,21 @@ function AiTriage({ reportId, onFilter }: { reportId: string; onFilter: (checkTy
                   </li>
                 ))}
               </ul>
+              <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2">
+                {([
+                  ["Fix in the tool (ingestion / mapping)", n.ingestion_issues, "No likely ingestion issues identified."],
+                  ["Query with the cedant (data quality)", n.data_issues, "No likely genuine data issues identified."],
+                ] as const).map(([h, list, none]) => (
+                  <div key={h} className="flex flex-col gap-1.5 rounded-[10px] p-4" style={{ boxShadow: "inset 0 0 0 1px var(--line)" }}>
+                    <span className="text-[13px] font-medium">{h}</span>
+                    {list.length ? (
+                      <ul className="m-0 flex flex-col gap-1 pl-4 text-[13px]" style={{ color: "var(--muted)" }}>{list.map((x, i) => <li key={i}>{x}</li>)}</ul>
+                    ) : (
+                      <span className="text-[12.5px]" style={{ color: "var(--faint)" }}>{none}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
           {st === "UNAVAILABLE" && <span className="text-[13px]" style={{ color: "var(--muted)" }}>The counts above are exact. A written AI summary needs an AI provider configured on the server.</span>}

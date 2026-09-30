@@ -49,7 +49,7 @@ export function Landing() {
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       {/* Side by side from 1024px; the headline and the workbook both scale with
           the viewport (clamp + HeroSheet's own fit-to-width), stacking only below lg. */}
-      <section className="relative mx-auto grid max-w-[1320px] items-start gap-10 px-4 pb-[72px] pt-[120px] sm:px-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-[clamp(24px,3vw,48px)] lg:px-[clamp(32px,3.5vw,48px)] lg:pt-[clamp(110px,11vh,150px)]">
+      <section id="main" className="relative mx-auto grid max-w-[1320px] items-start gap-10 px-4 pb-[72px] pt-[120px] sm:px-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-[clamp(24px,3vw,48px)] lg:px-[clamp(32px,3.5vw,48px)] lg:pt-[clamp(110px,11vh,150px)]">
         <div className="pointer-events-none absolute inset-y-0 -left-[50vw] -right-[50vw]" style={{ background: "radial-gradient(760px 520px at 60% 40%, var(--heroGlowA), transparent 70%), radial-gradient(640px 420px at 31% 0%, var(--heroGlowB), transparent 70%)" }} />
         <div className="relative flex max-w-[560px] flex-col gap-[clamp(16px,2vw,24px)] lg:max-w-[460px] lg:pt-[clamp(8px,3vh,40px)]">
           <span className={kicker} style={{ color: "var(--kicker)" }}>Claims bordereaux integrity</span>
@@ -152,6 +152,8 @@ export function Landing() {
 
       {/* ── How it works ─────────────────────────────────────────────────── */}
       <section id="how" className="mx-auto flex max-w-[1320px] scroll-mt-20 flex-col gap-11 px-4 py-[88px] sm:px-12">
+        {/* Anchors kept from the previous site so old links (e.g. /#pipeline) still land in the right place. */}
+        <span id="pipeline" className="absolute scroll-mt-20" />
         <div className="flex max-w-[700px] flex-col gap-3">
           <span className={kicker} style={{ color: "var(--kicker)" }}>TrueBind</span>
           <h2 className={h2}>The same files. One audited path.</h2>
@@ -188,6 +190,7 @@ export function Landing() {
 
       {/* ── Product ──────────────────────────────────────────────────────── */}
       <section id="product" className="mx-auto flex max-w-[1320px] scroll-mt-20 flex-col gap-9 px-4 py-[88px] sm:px-12">
+        <span id="automation" className="absolute scroll-mt-20" />
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div className="flex max-w-[640px] flex-col gap-3">
             <span className={kicker} style={{ color: "var(--kicker)" }}>Product</span>
@@ -229,6 +232,7 @@ export function Landing() {
 
       {/* ── Health Check ─────────────────────────────────────────────────── */}
       <section id="health" className="scroll-mt-16" style={{ background: "var(--section)", backgroundImage: "radial-gradient(800px 400px at 80% 0%, var(--sectionGlow), transparent 70%)" }}>
+        <span id="trust" className="absolute scroll-mt-16" />
         <div className="mx-auto flex max-w-[1320px] flex-wrap items-center justify-between gap-12 px-4 py-20 sm:px-12">
           <div className="flex max-w-[560px] flex-[1_1_420px] flex-col gap-[18px]">
             <span className={kicker} style={{ color: "var(--accentText)" }}>Bordereau Health Check</span>

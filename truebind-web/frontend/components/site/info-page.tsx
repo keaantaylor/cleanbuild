@@ -7,7 +7,7 @@ export function InfoPage({ kicker, title, intro, sections }: { kicker: string; t
   return (
     <div className="min-h-screen" style={{ background: "var(--chrome)", color: "var(--chromeStrong)" }}>
       <SiteNav />
-      <main className="mx-auto flex max-w-[760px] flex-col gap-10 px-4 pb-20 pt-[140px] sm:px-6">
+      <main id="main" className="mx-auto flex max-w-[760px] flex-col gap-10 px-4 pb-20 pt-[140px] sm:px-6">
         <div className="flex flex-col gap-3">
           <span className="text-[12px] font-medium uppercase tracking-[.1em]" style={{ color: "var(--kicker)" }}>{kicker}</span>
           <h1 className="m-0 text-[40px] font-medium leading-[1.08] tracking-[-0.03em]">{title}</h1>

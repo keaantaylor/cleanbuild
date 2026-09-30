@@ -5,7 +5,7 @@ import { useState } from "react";
 import { ArrowRight, CaretRight, CheckCircle, ShieldCheck, UploadSimple } from "@phosphor-icons/react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
-import { formatDate, formatNumber, timeAgo } from "@/lib/formatters";
+import { formatDate, formatDuration, formatNumber, timeAgo } from "@/lib/formatters";
 import type { Obligation, Report, WorkItem } from "@/lib/types";
 import { EmptyState, ErrorState, LoadingState, StatusPill } from "@/components/nocturne/ui";
 import { ActivityFeed } from "@/components/nocturne/ops";
@@ -104,6 +104,18 @@ export default function OverviewPage() {
             </section>
             <aside className="flex flex-col gap-3">
               <AlsoWaiting items={items.slice(1, 4)} more={Math.max(0, waiting - 4)} />
+              <Collapsible title="Processing">
+                <dl className="tnum m-0 grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1.5 text-[13px]">
+                  <dt style={{ color: "var(--muted)" }}>Jobs in the last 24 hours</dt>
+                  <dd className="m-0 text-right">{formatNumber(o.processing.jobs_24h)}</dd>
+                  <dt style={{ color: "var(--muted)" }}>Failed in the last 24 hours</dt>
+                  <dd className="m-0 text-right" style={{ color: o.processing.failed_24h ? "var(--err)" : undefined }}>{formatNumber(o.processing.failed_24h)}</dd>
+                  <dt style={{ color: "var(--muted)" }}>Typical time per job</dt>
+                  <dd className="m-0 text-right">{formatDuration(o.processing.median_job_s)}</dd>
+                  <dt style={{ color: "var(--muted)" }}>Files with a check not assessed</dt>
+                  <dd className="m-0 text-right">{formatNumber(o.findings.reports_with_checks_not_assessed ?? 0)}</dd>
+                </dl>
+              </Collapsible>
               <Collapsible title="Sender quality">
                 <SenderQuality />
               </Collapsible>

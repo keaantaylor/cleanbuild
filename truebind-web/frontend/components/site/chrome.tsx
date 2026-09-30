@@ -19,6 +19,8 @@ export function SiteNav() {
   return (
     // The wrapper is zero-height so the pill floats over the hero; items-start stops
     // the pill being stretched to that zero height (the pill sizes to its content).
+    <>
+    <a href="#main" className="sr-only z-[70] rounded-lg text-[13px] focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:px-3 focus:py-2" style={{ background: "var(--surface)", color: "var(--text)", boxShadow: "0 0 0 2px var(--accent)" }}>Skip to content</a>
     <div className="no-print sticky top-[calc(20px+env(safe-area-inset-top))] z-20 flex h-0 items-start justify-center px-3 sm:px-5">
       <nav
         className="flex h-[52px] w-full max-w-max flex-none items-center gap-2 whitespace-nowrap rounded-full pl-4 pr-2 min-[375px]:gap-3 min-[375px]:pl-5 lg:gap-8"
@@ -70,6 +72,7 @@ export function SiteNav() {
         </div>
       )}
     </div>
+    </>
   );
 }
 

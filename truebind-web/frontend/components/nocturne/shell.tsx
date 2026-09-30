@@ -173,7 +173,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             !system
               ? "Checking the processing engine…"
               : online
-                ? `Engine online · ${system.workers_alive} worker${system.workers_alive === 1 ? "" : "s"} · ${system.queued} queued · ${system.running} running`
+                ? `Engine online · ${system.workers_alive} worker${system.workers_alive === 1 ? "" : "s"}${system.worker_modes?.length ? ` (${system.worker_modes.join(", ")})` : ""} · ${system.queued} queued · ${system.running} running`
                 : "No processing worker has checked in recently. Uploads wait safely until one is running.",
             online ? "ok" : "warn",
           );
@@ -189,6 +189,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] min-h-screen lg:grid-cols-[232px_minmax(0,1fr)]" style={{ background: "var(--bg)", color: "var(--text)" }}>
+      <a href="#main" className="sr-only z-[70] rounded-lg text-[13px] focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:px-3 focus:py-2" style={{ background: "var(--surface)", color: "var(--text)", boxShadow: "0 0 0 2px var(--accent)" }}>Skip to content</a>
       <div className="no-print sticky top-0 hidden h-screen lg:block">{sidebar}</div>
       {mobileNav && (
         <div className="anim-fade fixed inset-0 z-40 lg:hidden" style={{ background: "rgba(0,0,0,.45)" }} onClick={() => setMobileNav(false)}>
@@ -280,7 +281,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <SignOut />
           </button>
         </header>
-        <div className="min-w-0 flex-1">{children}</div>
+        <div id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none">{children}</div>
       </main>
 
       <SearchPalette open={search} onClose={() => setSearch(false)} onNavigate={(h) => router.push(h)} />

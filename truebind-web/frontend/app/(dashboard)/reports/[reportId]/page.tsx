@@ -126,6 +126,7 @@ function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
   const na = s.not_assessed_checks ?? [];
   const pct = (n: number) => `${Math.max(0, (n / base) * 100)}%`;
   const rules = Object.entries(s.exception_counts_by_rule ?? {}).sort((a, b) => b[1] - a[1]);
+  const periods = Object.entries(s.reporting_periods ?? {}).sort((a, b) => a[0].localeCompare(b[0]));
   const totals = s.totals_by_currency ?? [];
   const impact = totals.map((t) => formatMoney(t.incurred, t.currency)).join(" · ") || "—";
   const name = report.file_name.replace(/\.\w+$/, "");
@@ -225,11 +226,12 @@ function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
             ["Sheets processed", `${s.sheets_processed} of ${s.sheets_total}`],
             ["Source rows", formatNumber(rec.source_data_rows)],
             ["Findings", formatNumber(report.issues_found ?? 0)],
-            ["Health score", s.composite_score != null ? `${Math.round(s.composite_score)}/100` : "—"],
-          ].map(([l, v], i) => (
+            ["Health score", s.composite_score != null ? `${Math.round(s.composite_score)}/100` : "—", [s.grade_label, s.score_reliable === false ? "provisional" : null].filter(Boolean).join(" · ")],
+          ].map(([l, v, note], i) => (
             <div key={l} className="flex flex-col gap-1 py-4" style={{ paddingLeft: i ? 14 : 0, paddingRight: 14, boxShadow: i ? "-1px 0 0 rgba(28,30,42,.08)" : "none" }}>
               <span className="text-[12px]" style={{ color: "#595d6c" }}>{l}</span>
               <span className="tnum text-[24px] font-medium">{v}</span>
+              {note && <span className="text-[12px]" style={{ color: "#595d6c" }}>{note}</span>}
             </div>
           ))}
         </div>
@@ -310,7 +312,10 @@ function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
                     <td className="px-4 py-2.5 text-right">{formatMoney(t.paid_to_date, t.currency)}</td>
                     <td className="px-4 py-2.5 text-right">{t.fees_rows ? formatMoney(t.fees_paid_to_date ?? 0, t.currency) : "—"}</td>
                     <td className="px-4 py-2.5 text-right">{formatMoney(t.reserve, t.currency)}</td>
-                    <td className="px-4 py-2.5 text-right font-medium">{formatMoney(t.incurred, t.currency)}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      <div className="font-medium">{formatMoney(t.incurred, t.currency)}</div>
+                      <div className="text-[11.5px]" style={{ color: "var(--faint)" }}>{formatNumber(t.incurred_rows ?? t.rows)} of {formatNumber(t.rows)} rows report a value</div>
+                    </td>
                   </tr>
                 ))}
                 {!totals.length && <tr><td colSpan={6} className="px-4 py-4" style={{ color: "var(--faint)" }}>No monetary columns were mapped in this file.</td></tr>}
@@ -354,6 +359,23 @@ function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
             <div className="tb-card flex flex-col gap-3 p-5">
               <span className="text-[14px] font-medium">Field completeness</span>
               <Bars pct items={[...s.field_completeness].sort((a, b) => a.present / Math.max(a.denominator, 1) - b.present / Math.max(b.denominator, 1)).map((f) => [f.never_mapped ? `${f.field_name} (not in file)` : f.field_name, f.never_mapped ? 0 : (100 * f.present) / Math.max(f.denominator, 1)])} empty="No fields assessed." />
+              {s.arithmetic_not_evaluable > 0 && (
+                <span className="text-[12.5px]" style={{ color: "var(--warn)" }}>
+                  {formatNumber(s.arithmetic_not_evaluable)} row{s.arithmetic_not_evaluable === 1 ? "" : "s"} could not be checked for arithmetic: {Object.entries(s.not_evaluable_by_reason ?? {}).map(([k, v]) => `${k.replace(/_/g, " ")} (${v})`).join(", ")}.
+                </span>
+              )}
+            </div>
+            <div className="tb-card flex flex-col gap-3 p-4 sm:p-6 lg:col-start-1" id="period">
+              <span className="text-[14px] font-medium">Periods in this file</span>
+              <span className="text-[12.5px]" style={{ color: "var(--muted)" }}>Rows per reporting period as stated in the file.</span>
+              {periods.length ? (
+                <Bars items={periods} empty="" />
+              ) : (
+                <span className="text-[12.5px]" style={{ color: "var(--faint)" }}>{Object.keys(s).includes("reporting_periods") ? "No reporting-period column was mapped in this file." : "Reprocess this file to see its reporting periods."}</span>
+              )}
+              {(s.period_unknown_repeats ?? 0) > 0 && (
+                <span className="text-[12.5px]" style={{ color: "var(--warn)" }}>{formatNumber(s.period_unknown_repeats ?? 0)} repeated reference(s) could not be classified because the period is missing.</span>
+              )}
             </div>
             <div className="flex flex-col gap-4">
               <div className="tb-card flex flex-col gap-3 p-5">
@@ -442,6 +464,8 @@ function Sheets({ reportId, s }: { reportId: string; s: ReportSummary }) {
   const TONE: Record<string, "ok" | "warn" | "err" | "muted" | "med"> = { mapped: "ok", partial: "warn", unmapped: "err", empty: "muted", error: "err", non_claim_summary: "med" };
   return (
     <Section id="sheets" kicker="Mapping" title="Sheets and column mapping" sub="How each sheet was understood. Every mapping change is audited.">
+      <span id="mapping" className="absolute" />
+      <Link href={`/upload?reportId=${reportId}`} className="tb-btn self-start">Change mapping</Link>
       <div className="tb-card overflow-x-auto">
         <table className="w-full min-w-[720px] border-collapse text-[13px]">
           <thead>
@@ -527,7 +551,12 @@ function Lineage({ report }: { report: Report }) {
                     <span className="font-medium">{j.kind === "INGEST" ? "Read workbook & propose mapping" : "Validate & build report"}</span>
                     <StatusPill tone={j.status === "SUCCEEDED" ? "ok" : j.status === "FAILED" ? "err" : "med"}>{j.status.toLowerCase()}</StatusPill>
                   </span>
-                  <span className="tnum" style={{ color: "var(--faint)" }}>{formatDateTime(j.created_at)} · attempt {j.attempts} · {formatDuration(dur)}{typeof m.rows === "number" ? ` · ${formatNumber(m.rows as number)} rows` : ""}</span>
+                  <span className="tnum" style={{ color: "var(--faint)" }}>{formatDateTime(j.created_at)} · attempt {j.attempts} · {formatDuration(dur)}{typeof m.rows === "number" ? ` · ${formatNumber(m.rows as number)} rows` : ""}{typeof m.ai_calls === "number" ? ` · ${m.ai_calls} AI call${m.ai_calls === 1 ? "" : "s"}` : ""}</span>
+                  {Object.keys((m.stage_timings ?? {}) as Record<string, number>).length > 0 && (
+                    <span className="tnum flex flex-wrap gap-x-3" style={{ color: "var(--muted)" }}>
+                      {Object.entries(m.stage_timings as Record<string, number>).map(([k, v]) => <span key={k}>{k.replace(/_/g, " ")} <b className="font-medium">{formatDuration(v)}</b></span>)}
+                    </span>
+                  )}
                   {j.error_message && <span style={{ color: "var(--err)" }}>{j.error_message}</span>}
                 </div>
               );

@@ -1,73 +1,81 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
-import { api } from "@/lib/api";
-import { useApi } from "@/lib/useApi";
-import { ButtonLink } from "@/components/ui/Button";
-import { EmptyState, ErrorState, Icon, Panel, PageHeader, Pill, SegmentedControl, ds } from "@/components/ds";
-import { PageSkeleton } from "@/components/layout/ShellSkeleton";
-import { ReportTable } from "@/components/ops/ReportTable";
-import { IN_PROGRESS } from "@/lib/api";
+import { MagnifyingGlass, Tray, UploadSimple } from "@phosphor-icons/react";
+import { api, IN_PROGRESS } from "@/lib/api";
 import type { Report } from "@/lib/types";
+import { useApi } from "@/lib/useApi";
+import { EmptyState, ErrorState, LoadingState, PageHeader } from "@/components/nocturne/ui";
+import { ReportTable } from "@/components/nocturne/report-list";
 
 const FILTERS = [
-  { value: "all", label: "All" },
-  { value: "active", label: "Processing" },
-  { value: "review", label: "Needs review" },
-  { value: "complete", label: "Complete" },
-  { value: "failed", label: "Failed" },
-];
+  ["all", "All"],
+  ["active", "Processing"],
+  ["review", "Needs mapping review"],
+  ["complete", "Complete"],
+  ["failed", "Failed"],
+] as const;
 
-function matches(r: Report, filter: string): boolean {
-  return filter === "all" || (filter === "active" && IN_PROGRESS.has(r.status))
-    || (filter === "review" && r.status === "WAITING_FOR_REVIEW") || (filter === "complete" && r.status === "COMPLETE")
-    || (filter === "failed" && r.status === "FAILED");
+function matches(r: Report, f: string) {
+  return f === "all" || (f === "active" && IN_PROGRESS.has(r.status)) || (f === "review" && r.status === "WAITING_FOR_REVIEW") || (f === "complete" && r.status === "COMPLETE") || (f === "failed" && r.status === "FAILED");
 }
 
 export default function InboxPage() {
   const { data, error, loading, reload } = useApi(() => api.listReports(), [], 10_000);
-  const { data: channels } = useApi(() => api.channels());
-  const [filter, setFilter] = useState("all");
+  const channels = useApi(() => api.channels());
+  const [filter, setFilter] = useState<string>("all");
   const [q, setQ] = useState("");
-  const rows = useMemo(() => (data ?? []).filter((r) => {
-    const okF = matches(r, filter);
-    const text = `${r.file_name} ${r.sender ?? ""} ${r.programme ?? ""}`.toLowerCase();
-    return okF && (!q || text.includes(q.toLowerCase()));
-  }), [data, filter, q]);
-
-  if (loading && !data) return <PageSkeleton label="Loading inbox" />;
-  if (error && !data) return <ErrorState title="The inbox could not be loaded" message={error} onRetry={reload} />;
-  const active = (channels?.inbound ?? []).filter((c) => c.status === "active");
+  const rows = useMemo(
+    () => (data ?? []).filter((r) => matches(r, filter) && (!q || `${r.file_name} ${r.sender ?? ""} ${r.programme ?? ""}`.toLowerCase().includes(q.toLowerCase()))),
+    [data, filter, q],
+  );
+  const live = (channels.data?.inbound ?? []).filter((c) => c.status === "active");
 
   return (
-    <>
-      <PageHeader eyebrow="Operate" title="Inbox"
-        description="Every bordereau TrueBind has received, where it came from and where it is in processing."
-        actions={<ButtonLink href="/upload" variant="primary">New intake</ButtonLink>} />
-      <div className={ds.stack}>
-        <div className={ds.toolbar}>
-          <div className={ds.searchWrap}>
-            <Icon name="search" />
-            <input className={ds.input} placeholder="Search file, sender or programme" value={q}
-                   onChange={(e) => setQ(e.target.value)} aria-label="Search inbox" />
-          </div>
-          <SegmentedControl label="Filter by status" value={filter} onChange={setFilter}
-            options={FILTERS.map((f) => ({ value: f.value, label: f.label, count: (data ?? []).filter((r) => matches(r, f.value)).length }))} />
-          <span className={ds.muted} style={{ marginLeft: "auto" }}>
-            Receiving via {active.map((c) => c.name).join(", ") || "web upload"}
-            {" · "}<a href="/automations">channels</a>
-          </span>
+    <div className="flex max-w-[1440px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-9">
+      <PageHeader
+        kicker="Operate"
+        title="Inbox"
+        sub="Every bordereau TrueBind has received, where it came from and where it is in processing."
+        actions={
+          <Link href="/upload" className="tb-btn tb-btn-primary">
+            <UploadSimple />
+            New intake
+          </Link>
+        }
+      />
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-lg px-3" style={{ boxShadow: "inset 0 0 0 1px var(--line2)", background: "var(--surface)" }}>
+          <MagnifyingGlass style={{ color: "var(--faint)" }} />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search file, sender or programme" aria-label="Search inbox" className="h-[38px] flex-1 bg-transparent text-[14px] outline-none" />
         </div>
-        <Panel flush>
-          {(data ?? []).length === 0 ? (
-            <EmptyState icon="inbox" title="Nothing received yet" body="Files you upload, or that arrive through a connected channel, appear here."
-              action={<ButtonLink href="/upload" variant="primary">Upload a bordereau</ButtonLink>} />
-          ) : rows.length === 0 ? (
-            <EmptyState icon="search" title="No files match" body="Try a different search or status filter." />
-          ) : <ReportTable reports={rows} detailed />}
-        </Panel>
-        <p className={ds.muted}><Pill tone="neutral" dot={false}>{rows.length}</Pill> of {(data ?? []).length} files shown · refreshes automatically</p>
+        <div className="flex flex-wrap gap-0.5 rounded-[9px] p-[3px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }} role="tablist" aria-label="Filter by status">
+          {FILTERS.map(([k, l]) => (
+            <button key={k} type="button" role="tab" aria-selected={filter === k} onClick={() => setFilter(k)} className="flex cursor-pointer items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-[13px]" style={{ background: filter === k ? "var(--accentTint)" : "transparent", color: filter === k ? "var(--text)" : "var(--muted)" }}>
+              {l}
+              <span className="tnum text-[11.5px]" style={{ color: "var(--faint)" }}>{(data ?? []).filter((r) => matches(r, k)).length}</span>
+            </button>
+          ))}
+        </div>
       </div>
-    </>
+      <span className="-mt-3 text-[12.5px]" style={{ color: "var(--faint)" }}>
+        Receiving via {live.map((c) => c.name).join(", ") || "web upload"} ·{" "}
+        <Link href="/automations" className="underline" style={{ color: "var(--accentText)" }}>channels</Link> · refreshes automatically
+      </span>
+      <div className="tb-card overflow-hidden">
+        {loading && !data ? (
+          <div className="p-5"><LoadingState label="Loading inbox" rows={6} /></div>
+        ) : error && !data ? (
+          <div className="p-5"><ErrorState title="The inbox could not be loaded" message={error} onRetry={reload} /></div>
+        ) : (data ?? []).length === 0 ? (
+          <EmptyState icon={<Tray />} title="Nothing received yet" body="Files you upload, or that arrive through a connected channel, appear here." action={<Link href="/upload" className="tb-btn tb-btn-primary">Upload a bordereau</Link>} />
+        ) : rows.length === 0 ? (
+          <EmptyState icon={<MagnifyingGlass />} title="No files match" body="Try a different search or status filter." />
+        ) : (
+          <ReportTable reports={rows} detailed />
+        )}
+      </div>
+    </div>
   );
 }

@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { Landing } from "@/components/landing/Landing";
+import { Landing } from "@/components/site/landing";
 
 export const metadata: Metadata = {
-  title: "TrueBind — insurance data, finally in motion",
-  description: "TrueBind turns the bordereaux your partners send into validated, reconciled, explainable data: mapping, validation, duplicate intelligence and a verifiable audit trail.",
+  title: "TrueBind · Clean claims bordereaux",
+  description: "TrueBind maps, validates and reconciles claims bordereaux before they reach carriers, with clear evidence of what was checked and what was not.",
 };
 
 export default function MarketingHomePage() {

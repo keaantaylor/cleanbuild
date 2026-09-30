@@ -1,10 +1,10 @@
 import { createHmac } from "node:crypto";
 
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+
+import { PASSWORD, signOut, signUp } from "./helpers";
 
 // P1.4c: the member + 2FA journey through the real UI and API.
-
-const PASSWORD = "correct horse battery staple";
 
 function base32Decode(s: string): Buffer {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -26,25 +26,14 @@ function totp(secret: string, offset = 0): string {
   return String(n % 1_000_000).padStart(6, "0");
 }
 
-async function signOut(page: Page) {
-  await page.getByRole("button", { name: /sign out/i }).first().click();
-  await expect(page).toHaveURL(/\/login/);
-}
-
 test("owner invites an analyst, then protects their own account with 2FA", async ({ page, browser }) => {
   const owner = `owner-${Date.now()}@example.com`;
-  await page.goto("/login?mode=signup");
-  await page.getByLabel("Your name").fill("Olive Owner");
-  await page.getByLabel("Organisation").fill("E2E Members Org");
-  await page.getByLabel("Work e-mail").fill(owner);
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page).not.toHaveURL(/\/login/, { timeout: 30_000 });
+  await signUp(page, { name: "Olive Owner", org: "E2E Members Org", email: owner });
 
   // ---- invite an analyst
   await page.goto("/settings?tab=members");
   const analyst = `analyst-${Date.now()}@example.com`;
-  await page.getByLabel("Work e-mail").fill(analyst);
+  await page.getByLabel("Work email").fill(analyst);
   await page.getByLabel("Role", { exact: true }).selectOption("ANALYST");
   await page.getByRole("button", { name: "Create invitation" }).click();
   const link = (await page.getByTestId("invite-link").innerText()).trim();
@@ -75,7 +64,7 @@ test("owner invites an analyst, then protects their own account with 2FA", async
 
   // ---- sign out, sign back in: the password alone is not enough
   await signOut(page);
-  await page.getByLabel("Work e-mail").fill(owner);
+  await page.getByLabel("Work email").fill(owner);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Two-step verification" })).toBeVisible();

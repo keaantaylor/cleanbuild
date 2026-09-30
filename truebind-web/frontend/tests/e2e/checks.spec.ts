@@ -2,18 +2,14 @@ import path from "node:path";
 
 import { expect, test } from "@playwright/test";
 
+import { signUp } from "./helpers";
+
 // P3: binder compliance through the real UI -- add a binder, process the golden
 // binder file, assign the binder, read and decide a finding.
 const DIRTY = path.resolve(__dirname, "../../../../fixtures/golden/binder/dirty.xlsx");
 
 test("an analyst checks a bordereau against its binder and dismisses a finding with a reason", async ({ page }) => {
-  await page.goto("/login?mode=signup");
-  await page.getByLabel("Your name").fill("Binder Owner");
-  await page.getByLabel("Organisation").fill("E2E Binder Org");
-  await page.getByLabel("Work e-mail").fill(`binder-${Date.now()}@example.com`);
-  await page.getByLabel("Password").fill("correct horse battery staple");
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page).not.toHaveURL(/\/login/, { timeout: 30_000 });
+  await signUp(page, { name: "Binder Owner", org: "E2E Binder Org", email: `binder-${Date.now()}@example.com` });
 
   await page.goto("/settings?tab=binders");
   const form = page.getByRole("form", { name: "Add a binder" });
@@ -33,7 +29,7 @@ test("an analyst checks a bordereau against its binder and dismisses a finding w
   await confirmAll.click();
   await page.getByRole("button", { name: "Produce health report" }).click();
   await expect(page).toHaveURL(/\/reports\/[^/]+$/, { timeout: 60_000 });
-  await expect(page.getByRole("button", { name: "Export claims" })).toBeVisible({ timeout: 180_000 });
+  await expect(page.getByRole("button", { name: "Audit pack" })).toBeVisible({ timeout: 180_000 });
 
   const binderCard = page.locator("section", { hasText: "Binder compliance" }).first();
   await expect(binderCard.getByText(/No binder is assigned/).first()).toBeVisible();

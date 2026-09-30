@@ -1,21 +1,15 @@
 import { expect, test } from "@playwright/test";
 
+import { signUp } from "./helpers";
+
 // P2.7: Settings -> Channels through the real UI and API.
 
-const PASSWORD = "correct horse battery staple";
-
 test("an owner sets up e-mail intake and a signed webhook", async ({ page }) => {
-  await page.goto("/login?mode=signup");
-  await page.getByLabel("Your name").fill("Chan Owner");
-  await page.getByLabel("Organisation").fill("E2E Channels Org");
-  await page.getByLabel("Work e-mail").fill(`chan-${Date.now()}@example.com`);
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page).not.toHaveURL(/\/login/, { timeout: 30_000 });
+  await signUp(page, { name: "Chan Owner", org: "E2E Channels Org", email: `chan-${Date.now()}@example.com` });
 
   await page.goto("/settings?tab=channels");
-  const intake = page.locator("section", { hasText: "E-mail intake" }).first();
-  await expect(intake.getByText("Needs setup")).toBeVisible();
+  const intake = page.locator("section", { hasText: "Email intake" }).first();
+  await expect(intake.getByText("Ready to set up")).toBeVisible();
   await intake.getByRole("button", { name: "Create address" }).click();
   await expect(intake.getByText(/@in\.e2e\.example$/)).toBeVisible();
   await expect(intake.getByText("Live")).toBeVisible();

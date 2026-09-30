@@ -2,6 +2,8 @@ import path from "node:path";
 
 import { expect, test } from "@playwright/test";
 
+import { signOut, signUp } from "./helpers";
+
 // The golden regression, driven through the real UI: the 320-row / 10-sheet
 // boundary fixture must report its answer-key totals end to end.
 const FIXTURE = path.resolve(__dirname, "../../../../bordereaux/data/synthetic/test_boundary_cases.xlsx");
@@ -10,13 +12,9 @@ test("sign up, upload the golden workbook, confirm mapping, read the report, sig
   await page.goto("/upload");
   await expect(page).toHaveURL(/\/login/);
 
-  await page.getByRole("button", { name: "Need an account? Sign up" }).click();
-  await page.getByLabel("Your name").fill("E2E Tester");
-  await page.getByLabel("Organisation").fill("E2E Org");
-  await page.getByLabel("Work e-mail").fill(`e2e-${Date.now()}@example.com`);
-  await page.getByLabel("Password").fill("correct horse battery staple");
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page).not.toHaveURL(/\/login/, { timeout: 30_000 });
+  await page.goto("/login?mode=signup");
+  await expect(page).toHaveURL(/\/onboarding/);
+  await signUp(page, { name: "E2E Tester", org: "E2E Org", email: `e2e-${Date.now()}@example.com` });
 
   await page.goto("/upload");
   await page.setInputFiles("input[type=file]", FIXTURE);
@@ -29,7 +27,7 @@ test("sign up, upload the golden workbook, confirm mapping, read the report, sig
   await produce.click();
 
   await expect(page).toHaveURL(/\/reports\/[^/]+$/, { timeout: 60_000 });
-  await expect(page.getByRole("button", { name: "Export claims" })).toBeVisible({ timeout: 180_000 });
+  await expect(page.getByRole("button", { name: "Audit pack" })).toBeVisible({ timeout: 180_000 });
   const reportId = page.url().split("/").pop()!;
 
   // Answer-key totals, read back through the same API the page uses.
@@ -44,8 +42,7 @@ test("sign up, upload the golden workbook, confirm mapping, read the report, sig
   await page.goto(`/exceptions?reportId=${reportId}`);
   await expect(page.locator("main")).toContainText(/arithmetic/i);
 
-  await page.getByRole("button", { name: /sign out/i }).first().click();
-  await expect(page).toHaveURL(/\/login/);
+  await signOut(page);
   const after = await request.get(`/api/v1/reports/${reportId}`);
   expect(after.status()).toBe(401);
 });

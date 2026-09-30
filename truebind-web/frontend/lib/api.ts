@@ -33,6 +33,16 @@ function setCsrf(token: string | null) {
   } catch {
     // storage unavailable (private mode); the in-memory copy still works
   }
+  // A non-secret hint (never the session itself) so public pages such as
+  // onboarding only ask /auth/me when someone may be signed in, instead of
+  // logging a 401 for every visitor.
+  if (typeof document !== "undefined") document.cookie = token ? "tb_hint=1; path=/; samesite=lax" : "tb_hint=; path=/; max-age=0; samesite=lax";
+}
+
+/** True when this browser may hold a signed-in session (see setCsrf). */
+export function mayHaveSession(): boolean {
+  if (typeof document === "undefined") return false;
+  return /(?:^|; )tb_hint=1/.test(document.cookie) || getCsrf() !== null;
 }
 function getCsrf(): string | null {
   if (csrfToken) return csrfToken;
@@ -184,9 +194,14 @@ export const api = {
     return me;
   },
   me: async () => {
-    const me = await request<Me>("/auth/me");
-    setCsrf(me.csrf_token);
-    return me;
+    try {
+      const me = await request<Me>("/auth/me");
+      setCsrf(me.csrf_token);
+      return me;
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) setCsrf(null);
+      throw e;
+    }
   },
   logout: async () => {
     try {

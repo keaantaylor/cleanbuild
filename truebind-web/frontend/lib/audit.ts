@@ -1,7 +1,6 @@
 import type { AuditLogEntry } from "./types";
-import type { IconName } from "@/components/ds/Icon";
 
-type Described = { title: string; detail?: string; icon: IconName; tone: "neutral" | "good" | "warn" | "bad" | "info" };
+type Described = { title: string; detail?: string; icon: string; tone: "neutral" | "good" | "warn" | "bad" | "info" };
 
 const v = (o: Record<string, unknown> | null | undefined, k: string) => (o && o[k] != null ? String(o[k]) : "");
 

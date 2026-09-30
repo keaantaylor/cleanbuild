@@ -1,8 +1,8 @@
 /** WCAG relative-luminance contrast checker + the actual token pairs used
  * across the app, checked once at module load (see app/layout.tsx). Keep
- * this list in sync with styles/variables.css -- a token added there
- * without an entry here is an unverified color, which is exactly what
- * this file exists to prevent. */
+ * this list in sync with styles/globals.css (the Nocturne theme tokens) --
+ * a text token added there without an entry here is an unverified color,
+ * which is exactly what this file exists to prevent. */
 
 function hexToRgb(hex: string): [number, number, number] {
   const h = hex.replace("#", "");
@@ -25,98 +25,57 @@ export function contrastRatio(fg: string, bg: string): number {
   return Math.max(l1, l2) / Math.min(l1, l2);
 }
 
-const LIGHT_PAIRS: [string, string, string][] = [
-  ["text-primary on bg-primary", "#0F172A", "#FFFFFF"],
-  ["text-secondary on bg-primary", "#475569", "#FFFFFF"],
-  ["text-tertiary on bg-primary", "#5B6678", "#FFFFFF"],
-  ["text-tertiary on bg-secondary", "#5B6678", "#F9FAFB"],
-  ["text-tertiary on canvas", "#5B6678", "#F4F6FA"],
-  ["text-secondary on canvas", "#475569", "#F4F6FA"],
-  ["text-tertiary on surface-sunken", "#5B6678", "#F7F9FC"],
-  ["primary on white", "#2446E0", "#FFFFFF"],
-  ["primary on primary-subtle", "#2446E0", "#EDF0FE"],
-  ["on-primary on primary", "#FFFFFF", "#2446E0"],
-  ["on-primary on primary-dark", "#FFFFFF", "#1C38B8"],
-  ["rail-text on rail", "#B7C3D9", "#0A1324"],
-  ["rail-muted on rail", "#8A99B4", "#0A1324"],
-  ["rail-text-active on rail-raised", "#FFFFFF", "#142038"],
-  ["rail-accent on rail", "#8FA2FF", "#0A1324"],
-  ["signal on rail", "#6FE3C1", "#0A1324"],
-  ["processing on white", "#4338CA", "#FFFFFF"],
-  ["processing on processing-bg", "#4338CA", "#E8EAFD"],
-  ["ai on white", "#A21CAF", "#FFFFFF"],
-  ["ai on ai-bg", "#A21CAF", "#FBEAFD"],
-  ["live on white", "#0F766E", "#FFFFFF"],
-  ["live on live-bg", "#0F766E", "#DDF4F1"],
-  ["success on white", "#15803D", "#FFFFFF"],
-  ["success on success-bg", "#15803D", "#DCFCE7"],
-  ["warning on white", "#B45309", "#FFFFFF"],
-  ["warning on warning-bg", "#B45309", "#FEF3C7"],
-  ["error on white", "#B91C1C", "#FFFFFF"],
-  ["error on error-bg", "#B91C1C", "#FEE2E2"],
-  ["info on white", "#0369A1", "#FFFFFF"],
-  ["info on info-bg", "#0369A1", "#E0F2FE"],
-  ["not-evaluable on white", "#7C3AED", "#FFFFFF"],
-  ["not-evaluable on not-evaluable-bg", "#7C3AED", "#EDE9FE"],
-  ["leakage-possible on its bg", "#78350F", "#FFFBEB"],
-  ["leakage-probable on its bg", "#92400E", "#FEF3C7"],
-  ["leakage-certain on its bg", "#B91C1C", "#FEE2E2"],
-  ["sanctions on sanctions-bg", "#FFFFFF", "#000000"],
-  ["grade-5 on white", "#15803D", "#FFFFFF"],
-  ["grade-4 on white", "#4D7C0F", "#FFFFFF"],
-  ["grade-3 on white", "#7E7407", "#FFFFFF"],
-  ["grade-2 on white", "#B85B0A", "#FFFFFF"],
-  ["grade-1 on white", "#DC2626", "#FFFFFF"],
-
-  // Marketing site (styles/marketing.css) -- a separate, light-mode-only
-  // palette (see that file's header comment for why), but validated the
-  // same way as everything else here.
-  ["mkt-ink on mkt-surface", "#0B0F19", "#FFFFFF"],
-  ["mkt-ink-secondary on mkt-surface", "#4B5468", "#FFFFFF"],
-  ["mkt-accent on mkt-surface", "#2E3FE0", "#FFFFFF"],
-  ["mkt-accent on mkt-accent-bg", "#2E3FE0", "#EEF0FD"],
-  ["mkt-ink on mkt-surface-sunken", "#0B0F19", "#F5F6FA"],
-  ["mkt-ink-secondary on mkt-surface-sunken", "#4B5468", "#F5F6FA"],
-  ["mkt-surface on mkt-ink (dark hero)", "#FFFFFF", "#0B0F19"],
-  ["mkt-ink-secondary-light on mkt-ink (dark hero)", "#CBD1E0", "#0B0F19"],
-  ["mkt trust-section eyebrow on mkt-ink", "#A9B4FF", "#0B0F19"],
-  ["mkt trust-section muted on mkt-ink", "#8891AE", "#0B0F19"],
-  ["landing lede on ink", "#C7D0E2", "#0A1324"],
-  ["landing nav link on ink", "#B7C3D9", "#0A1324"],
-  ["landing footer on ink", "#8A99B4", "#0A1324"],
-  ["landing mint on ink", "#6FE3C1", "#0A1324"],
-  ["landing step number on ink", "#8FA2FF", "#0A1324"],
-  ["landing muted on white", "#475569", "#FFFFFF"],
-  ["landing caption on white", "#64748B", "#FFFFFF"],
-  ["landing cobalt on sunken", "#2446E0", "#F4F6FA"],
-  ["landing note on sunken", "#556274", "#F4F6FA"],
-  ["count badge text on badge red", "#FFFFFF", "#D13438"],
+// Nocturne, dark theme (the default). Grounds: bg #161826, bg2 #1b1d2b,
+// surface #1f2130, surface2 #262838, chrome (sidebar / site) #12131e.
+const DARK_PAIRS: [string, string, string][] = [
+  ["text on bg", "#E9E9ED", "#161826"],
+  ["text on surface", "#E9E9ED", "#1F2130"],
+  ["muted on bg", "#9397AB", "#161826"],
+  ["muted on surface", "#9397AB", "#1F2130"],
+  ["muted on surface2", "#9397AB", "#262838"],
+  ["faint on bg", "#8B8FA2", "#161826"],
+  ["faint on bg2", "#8B8FA2", "#1B1D2B"],
+  ["faint on surface", "#8B8FA2", "#1F2130"],
+  ["faint on surface2", "#8B8FA2", "#262838"],
+  ["accentText on bg", "#D2CEFD", "#161826"],
+  ["accentText on surface", "#D2CEFD", "#1F2130"],
+  ["kicker on chrome", "#B5ABFC", "#12131E"],
+  ["chromeText on chrome", "#CFD3E5", "#12131E"],
+  ["chromeMuted on chrome", "#B2B6CA", "#12131E"],
+  ["chromeFaint on chrome", "#808493", "#12131E"],
+  // Status colours are oklch() in CSS; these are their exact sRGB values.
+  ["ok on surface", "#6DC88F", "#1F2130"],
+  ["warn on surface", "#EEB563", "#1F2130"],
+  ["err on surface", "#F47B74", "#1F2130"],
+  ["med on surface", "#8CB1E0", "#1F2130"],
+  ["on-accent on solid accent", "#161826", "#9184D9"],
+  ["toast text on glass", "#E9E9ED", "#232532"],
 ];
 
-const DARK_PAIRS: [string, string, string][] = [
-  ["text-primary-dark on bg-primary-dark", "#F8FAFC", "#0F172A"],
-  ["text-secondary-dark on surface-dark", "#CBD5E1", "#111A2B"],
-  ["text-tertiary-dark on surface-dark", "#94A3B8", "#111A2B"],
-  ["primary-dark-theme on surface-dark", "#8FAEFF", "#111A2B"],
-  ["on-primary-dark on primary-dark-theme", "#0B1220", "#8FAEFF"],
-  ["live-dark on live-bg-dark", "#5EEAD4", "#134E4A"],
-  ["processing-dark on its bg", "#A5B4FC", "#1E1B4B"],
-  ["ai-dark on its bg", "#F0ABFC", "#4A044E"],
-  ["text-secondary-dark on bg-primary-dark", "#CBD5E1", "#0F172A"],
-  ["text-tertiary-dark on bg-primary-dark", "#94A3B8", "#0F172A"],
-  ["success-dark on its bg", "#4ADE80", "#14532D"],
-  ["warning-dark on its bg", "#FBBF24", "#78350F"],
-  ["error-dark on its bg", "#FCA5A5", "#7F1D1D"],
-  ["info-dark on its bg", "#7DD3FC", "#0C4A6E"],
-  ["not-evaluable-dark on its bg", "#C4B5FD", "#4C1D95"],
-  ["leakage-possible-dark on its bg", "#FDE68A", "#78350F"],
-  ["leakage-probable-dark on its bg", "#FCD34D", "#78350F"],
-  ["leakage-certain-dark on its bg", "#FCA5A5", "#7F1D1D"],
-  ["grade-5-dark on bg", "#4ADE80", "#0F172A"],
-  ["grade-4-dark on bg", "#A3E635", "#0F172A"],
-  ["grade-3-dark on bg", "#FBDE23", "#0F172A"],
-  ["grade-2-dark on bg", "#FB923C", "#0F172A"],
-  ["grade-1-dark on bg", "#F87171", "#0F172A"],
+// Nocturne, light theme. Grounds: bg #f4f5fa, bg2 #eceef6, surface #fcfcfe,
+// surface2 #f1f2f8, chrome #ecedf5; the Health Check document is #fbfbfd.
+const LIGHT_PAIRS: [string, string, string][] = [
+  ["text on bg", "#1C1E2A", "#F4F5FA"],
+  ["text on surface", "#1C1E2A", "#FCFCFE"],
+  ["muted on bg", "#595D6C", "#F4F5FA"],
+  ["muted on bg2", "#595D6C", "#ECEEF6"],
+  ["faint on bg", "#676B7E", "#F4F5FA"],
+  ["faint on bg2", "#676B7E", "#ECEEF6"],
+  ["faint on surface", "#676B7E", "#FCFCFE"],
+  ["faint on surface2", "#676B7E", "#F1F2F8"],
+  ["accentText on bg", "#5D5294", "#F4F5FA"],
+  ["accentText on surface", "#5D5294", "#FCFCFE"],
+  ["chromeFaint on chrome", "#676B7E", "#ECEDF5"],
+  ["chromeMuted on chrome", "#595D6C", "#ECEDF5"],
+  ["report body on paper", "#3F424D", "#FBFBFD"],
+  ["report label on paper", "#595D6C", "#FBFBFD"],
+  ["report caption on paper", "#676B7E", "#FBFBFD"],
+  ["ok on bg", "#1E7546", "#F4F5FA"],
+  ["warn on bg2", "#9D5D03", "#ECEEF6"],
+  ["err on bg", "#BD3838", "#F4F5FA"],
+  ["med on bg", "#39659B", "#F4F5FA"],
+  ["count badge text on badge red (both themes)", "#FFFFFF", "#C8473A"],
+  ["on-accent on solid accent", "#FFFFFF", "#6E61B3"],
 ];
 
 export function validateDesignSystemContrast(): void {
@@ -132,14 +91,11 @@ export function validateDesignSystemContrast(): void {
   }
 }
 
-/** Also asserts not-evaluable and sanctions never collide with any other
- * family's hex value -- a distinct hue family is only meaningful if the
- * values are actually distinct. */
+/** Status colours must stay distinct from one another so severity is never
+ * carried by a colour another status also uses. */
 export function validateDistinctFamilies(): void {
-  const reserved = new Set(["#7C3AED", "#C4B5FD", "#FFFFFF", "#000000"]);
-  const other = ["#4338CA", "#A5B4FC", "#A21CAF", "#F0ABFC", "#15803D", "#4ADE80", "#B45309", "#FBBF24", "#DC2626", "#FCA5A5", "#0369A1", "#7DD3FC"];
-  const overlap = other.filter((c) => reserved.has(c));
-  if (overlap.length > 0) {
-    throw new Error(`not-evaluable/sanctions colors collide with another status family: ${overlap.join(", ")}`);
+  const families = ["#6DC88F", "#EEB563", "#F47B74", "#8CB1E0", "#9397AB", "#1E7546", "#9D5D03", "#BD3838", "#39659B"];
+  if (new Set(families).size !== families.length) {
+    throw new Error("Two status families share a colour value");
   }
 }

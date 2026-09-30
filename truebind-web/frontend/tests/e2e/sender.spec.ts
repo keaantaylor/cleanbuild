@@ -2,19 +2,13 @@ import path from "node:path";
 
 import { expect, test } from "@playwright/test";
 
+import { PASSWORD, signUp } from "./helpers";
+
 // P8: a coverholder (SENDER) is invited, lands in the sender portal (not the
 // provider's workspace), pre-flights a bordereau and sends it.
 const DIRTY = path.resolve(__dirname, "../../../../fixtures/golden/leakage/dirty.xlsx");
-const PASSWORD = "correct horse battery staple";
-
 test("a sender pre-flights a bordereau and sends it to the organisation", async ({ page, browser }) => {
-  await page.goto("/login?mode=signup");
-  await page.getByLabel("Your name").fill("Portal Owner");
-  await page.getByLabel("Organisation").fill("E2E Portal Org");
-  await page.getByLabel("Work e-mail").fill(`portal-${Date.now()}@example.com`);
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page).not.toHaveURL(/\/login/, { timeout: 30_000 });
+  await signUp(page, { name: "Portal Owner", org: "E2E Portal Org", email: `portal-${Date.now()}@example.com` });
 
   const token = await page.evaluate(async () => {
     const r = await fetch("/api/v1/org/invitations", {
@@ -36,8 +30,7 @@ test("a sender pre-flights a bordereau and sends it to the organisation", async 
   await tpa.goto("/overview");
   await expect(tpa).toHaveURL(/\/sender$/, { timeout: 30_000 }); // never the provider's workspace
 
-  await tpa.getByLabel(/Bordereau file/).setInputFiles(DIRTY);
-  await tpa.getByRole("button", { name: "Check file" }).click();
+  await tpa.setInputFiles("input[type=file]", DIRTY); // checked as soon as it is chosen
   await expect(tpa.getByText("Needs attention")).toBeVisible({ timeout: 60_000 });
   await expect(tpa.getByRole("table", { name: /Sheets and the columns recognised/ })).toBeVisible();
   await tpa.getByRole("button", { name: /Send to E2E Portal Org/ }).click();

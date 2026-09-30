@@ -1,212 +1,581 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowCounterClockwise, CheckCircle, DownloadSimple, LockSimple, MagnifyingGlass, ShieldCheck, Sparkle, Warning } from "@phosphor-icons/react";
 import { api, ApiError } from "@/lib/api";
+import type { ClaimRow, ExceptionRow, ExceptionSummary } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
-import type { ExceptionRow } from "@/lib/types";
+import { useUi } from "@/lib/ui";
 import { findingGuide } from "@/lib/findings";
 import { formatMoney, formatNumber } from "@/lib/formatters";
-import { Button, ButtonLink } from "@/components/ui/Button";
-import { Drawer, EmptyState, ErrorState, EvidencePanel, Icon, MetricCard, Panel, PageHeader, Pill, SkeletonRows, SourceReference, ds, severityTone } from "@/components/ds";
-import { PageSkeleton } from "@/components/layout/ShellSkeleton";
-import { ReportSelect, useSelectedReport } from "@/components/ops/ReportSelect";
-import { AiTriagePanel } from "@/components/exceptions/AiTriagePanel";
-import styles from "./exceptions.module.css";
+import { EmptyState, ErrorState, LoadingState, Modal, PageHeader, StatusPill } from "@/components/nocturne/ui";
+import { ReportPicker, useSelectedReport } from "@/components/nocturne/select-report";
+import { SEV, SHEET } from "@/components/nocturne/status";
+import { exportFile } from "@/lib/exports";
 
 const PAGE = 50;
-const REVIEW_LABEL: Record<string, string> = { open: "Open", in_review: "In review", resolved: "Resolved", accepted: "Accepted", false_positive: "False positive" };
-const CHECKS = [["", "All checks"], ["MANDATORY_FIELD", "Missing required data"], ["ARITHMETIC", "Arithmetic"], ["DATE", "Dates"],
-  ["CURRENCY", "Currency"], ["STATUS", "Status"], ["MAPPING_COMPLETENESS", "Mapping gaps"], ["OTHER", "Unreadable values"]];
+const REVIEW_LABEL: Record<string, string> = { open: "Open", in_review: "In review", resolved: "Resolved", accepted: "Accepted as reported", false_positive: "Dismissed · not an issue" };
+const CHECKS = [
+  ["", "All checks"],
+  ["MANDATORY_FIELD", "Missing required data"],
+  ["ARITHMETIC", "Arithmetic"],
+  ["DATE", "Dates"],
+  ["CURRENCY", "Currency"],
+  ["STATUS", "Status"],
+  ["MAPPING_COMPLETENESS", "Mapping gaps"],
+  ["OTHER", "Unreadable values"],
+];
+const SEVS = ["CRITICAL", "HIGH", "MEDIUM", "INFO"] as const;
 
 export default function ExceptionsPage() {
+  return (
+    <Suspense>
+      <Exceptions />
+    </Suspense>
+  );
+}
+
+function Exceptions() {
   const params = useSearchParams();
-  const { reportId, reports, loading: rl, select } = useSelectedReport();
+  const { toast } = useUi();
+  const { reportId, report, reports, loading: rl, error: rerr, reload: rreload, select } = useSelectedReport();
   const [severity, setSeverity] = useState(params.get("severity") ?? "");
   const [checkType, setCheckType] = useState(params.get("checkType") ?? "");
   const [status, setStatus] = useState("");
   const [q, setQ] = useState("");
   const [sort, setSort] = useState("severity");
   const [offset, setOffset] = useState(0);
-  const [selected, setSelected] = useState<ExceptionRow | null>(null);
+  const [selId, setSelId] = useState<string | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  // Phones and tablets stack the panes: bring the chosen finding's detail into view.
+  const pick = (id: string) => {
+    setSelId(id);
+    if (window.matchMedia("(max-width: 1023px)").matches) {
+      requestAnimationFrame(() => (listRef.current?.nextElementSibling as HTMLElement | null)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
+  };
+  const [modal, setModal] = useState<null | "accept" | "followup">(null);
 
-  const list = useApi(() => (reportId ? api.searchExceptions(reportId, { severity: severity || undefined, checkType: checkType || undefined,
-    status: status || undefined, q: q || undefined, sort, limit: PAGE, offset }) : Promise.resolve(null)),
-    [reportId, severity, checkType, status, q, sort, offset]);
+  const list = useApi(
+    () => (reportId ? api.searchExceptions(reportId, { severity: severity || undefined, checkType: checkType || undefined, status: status || undefined, q: q || undefined, sort, limit: PAGE, offset }) : Promise.resolve(null)),
+    [reportId, severity, checkType, status, q, sort, offset],
+  );
   const counts = useApi(async () => {
     if (!reportId) return null;
-    const sev = ["CRITICAL", "HIGH", "MEDIUM", "INFO"];
-    const totals = await Promise.all(sev.map((s) => api.searchExceptions(reportId, { severity: s, limit: 1 }).then((p) => p.total)));
-    return Object.fromEntries(sev.map((s, i) => [s, totals[i]]));
+    const totals = await Promise.all(SEVS.map((s) => api.searchExceptions(reportId, { severity: s, limit: 1 }).then((p) => p.total)));
+    const reviewed = await api.searchExceptions(reportId, { limit: 1 }).then((p) => p.total);
+    return { ...Object.fromEntries(SEVS.map((s, i) => [s, totals[i]])), all: reviewed } as Record<string, number>;
   }, [reportId]);
 
-  if (rl) return <PageSkeleton label="Loading exceptions" />;
-  if (!reportId) {
-    return (<><PageHeader eyebrow="Investigate" title="Exceptions" />
-      <Panel><EmptyState icon="exceptions" title="No completed reports yet" body="Exceptions appear once a bordereau has been processed."
-        action={<ButtonLink href="/upload" variant="primary">Upload a bordereau</ButtonLink>} /></Panel></>);
-  }
+  const items = useMemo(() => list.data?.items ?? [], [list.data]);
+  const sel = items.find((e) => e.validation_result_id === selId) ?? items[0] ?? null;
+  const setFilter = (fn: () => void) => {
+    fn();
+    setOffset(0);
+    setSelId(null);
+  };
+  const move = useCallback(
+    (d: number) => {
+      if (!items.length) return;
+      const i = Math.max(0, items.findIndex((e) => e.validation_result_id === sel?.validation_result_id));
+      setSelId(items[(i + d + items.length) % items.length].validation_result_id);
+    },
+    [items, sel],
+  );
+
+  const decide = useCallback(
+    async (review: string, note?: string, successText?: string) => {
+      if (!reportId || !sel) return;
+      try {
+        await api.reviewException(reportId, sel.validation_result_id, { review_status: review, assignee: sel.assignee ?? null, note: note ?? null });
+        toast(`${successText ?? REVIEW_LABEL[review]} · recorded in the audit trail`, "ok");
+        list.reload();
+        if (review !== "open") setTimeout(() => move(1), 350);
+      } catch (e) {
+        toast(e instanceof ApiError ? e.message : "The decision could not be saved.", "err");
+      }
+    },
+    [reportId, sel, list, move, toast],
+  );
+
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      if (modal || (ev.target as HTMLElement)?.closest("input,textarea,select,[role=dialog]") || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+      const k = ev.key.toLowerCase();
+      if (k === "j") move(1);
+      else if (k === "k") move(-1);
+      else if (k === "f" && sel) setModal("followup");
+      else if (k === "a" && sel) setModal("accept");
+      else if (k === "d" && sel) void decide("false_positive");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [move, modal, sel, decide]);
+
+  if (rl)
+    return (
+      <div className="px-4 pt-8 sm:px-9">
+        <LoadingState label="Loading exceptions" rows={8} />
+      </div>
+    );
+  if (rerr)
+    return (
+      <div className="px-4 pt-8 sm:px-9">
+        <ErrorState title="Reports could not be loaded" message={rerr} onRetry={rreload} />
+      </div>
+    );
+  if (!reportId)
+    return (
+      <div className="flex max-w-[1520px] flex-col gap-5 px-4 pb-10 pt-7 sm:px-9">
+        <PageHeader kicker="Investigate · Exception centre" title="Exceptions" />
+        <div className="tb-card">
+          <EmptyState icon={<Warning />} title="No completed reports yet" body="Exceptions appear once a bordereau has been processed." action={<Link href="/upload" className="tb-btn tb-btn-primary">Upload a bordereau</Link>} />
+        </div>
+      </div>
+    );
+
   const c = counts.data ?? {};
   const page = list.data;
-  const setFilter = (fn: () => void) => { fn(); setOffset(0); setSelected(null); };
+  const reviewedOnPage = items.filter((e) => e.review_status && e.review_status !== "open").length;
 
   return (
-    <>
-      <PageHeader eyebrow="Investigate · exception centre" title="Exceptions"
-        description="Every finding, with what happened, why it matters, the evidence and the next step. Decisions are recorded in the audit trail; source data is never changed."
-        actions={<><ReportSelect reportId={reportId} reports={reports} onSelect={(id) => { select(id); setOffset(0); setSelected(null); }} />
-          <Button variant="secondary" onClick={() => window.open(api.exportExceptionsUrl(reportId), "_blank")}><Icon name="download" />Export</Button></>} />
-      <div className={ds.stack}>
-        <div className={`${ds.grid} ${ds.cols4}`}>
-          {(["CRITICAL", "HIGH", "MEDIUM", "INFO"] as const).map((s) => (
-            <button key={s} type="button" className={styles.tileBtn} aria-pressed={severity === s}
-                    onClick={() => setFilter(() => setSeverity(severity === s ? "" : s))}>
-              <MetricCard label={s.charAt(0) + s.slice(1).toLowerCase()} value={formatNumber(c[s] ?? 0)}
-                icon={s === "CRITICAL" ? "alertCircle" : s === "HIGH" ? "exceptions" : s === "MEDIUM" ? "info" : "clock"}
-                tone={s === "CRITICAL" ? "bad" : s === "HIGH" ? "warn" : s === "MEDIUM" ? "processing" : "neutral"}
-                caption={severity === s ? "Filtering — click to clear" : "Click to filter"} />
+    <div className="flex max-w-[1520px] flex-col gap-5 px-4 pb-10 pt-7 sm:px-9">
+      <PageHeader
+        kicker="Investigate · Exception centre"
+        title="Exceptions"
+        sub="Every finding, with what happened, why it matters, the evidence and the next step. Decisions are recorded in the audit trail; source data is never changed."
+        actions={
+          <>
+            <ReportPicker report={report} reports={reports} onSelect={(id) => { select(id); setOffset(0); setSelId(null); }} />
+            <button type="button" className="tb-btn" onClick={() => void exportFile(api.exportExceptionsUrl(reportId), `${report?.file_name.replace(/\.\w+$/, "") ?? "report"}_exceptions`, toast)}>
+              <DownloadSimple />
+              Export
+            </button>
+            <Link href={`/reports/${reportId}`} className="tb-btn tb-btn-primary">Health Check report</Link>
+          </>
+        }
+      />
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-0.5 rounded-[9px] p-[3px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }} role="tablist" aria-label="Severity">
+          {(["", ...SEVS] as const).map((k) => (
+            <button key={k || "all"} type="button" role="tab" aria-selected={severity === k} onClick={() => setFilter(() => setSeverity(k))} className="flex cursor-pointer items-center gap-[7px] rounded-[7px] px-3 py-1.5 text-[13px]" style={{ background: severity === k ? "var(--accentTint)" : "transparent", color: severity === k ? "var(--text)" : "var(--muted)" }}>
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: k ? SEV[k].c : "transparent" }} />
+              {k ? SEV[k].label : "All"}
+              <span className="tnum text-[11.5px]" style={{ color: "var(--faint)" }}>{counts.data ? formatNumber(k ? c[k] ?? 0 : c.all ?? 0) : "…"}</span>
             </button>
           ))}
         </div>
-
-        <div className={ds.toolbar}>
-          <div className={ds.searchWrap}><Icon name="search" />
-            <input className={ds.input} placeholder="Search claim reference" value={q} onChange={(e) => setFilter(() => setQ(e.target.value))} aria-label="Search claim reference" /></div>
-          <select className={ds.select} value={checkType} onChange={(e) => setFilter(() => setCheckType(e.target.value))} aria-label="Check">
-            {CHECKS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        <div className="grid w-full grid-cols-2 items-center gap-2 sm:flex sm:w-auto sm:flex-wrap">
+          <div className="col-span-2 flex items-center gap-2 rounded-lg px-2.5 sm:col-span-1" style={{ boxShadow: "inset 0 0 0 1px var(--line2)", background: "var(--surface)" }}>
+            <MagnifyingGlass size={14} style={{ color: "var(--faint)" }} />
+            <input value={q} onChange={(e) => setFilter(() => setQ(e.target.value))} placeholder="Claim reference" aria-label="Search claim reference" className="h-[34px] min-w-0 flex-1 bg-transparent text-[13px] outline-none sm:w-[150px] sm:flex-none" />
+          </div>
+          <select className="tb-input !min-h-[34px] col-span-2 !py-1 text-[13px] sm:!w-auto" value={checkType} onChange={(e) => setFilter(() => setCheckType(e.target.value))} aria-label="Check">
+            {CHECKS.map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
           </select>
-          <select className={ds.select} value={status} onChange={(e) => setFilter(() => setStatus(e.target.value))} aria-label="Outcome">
-            <option value="">All outcomes</option><option value="FAIL">Failed checks</option><option value="NOT_EVALUABLE">Could not be checked</option><option value="REVIEW">Needs review</option>
+          <select className="tb-input !min-h-[34px] !py-1 text-[13px] sm:!w-auto" value={status} onChange={(e) => setFilter(() => setStatus(e.target.value))} aria-label="Outcome">
+            <option value="">All outcomes</option>
+            <option value="FAIL">Failed checks</option>
+            <option value="NOT_EVALUABLE">Could not be checked</option>
+            <option value="REVIEW">Needs review</option>
           </select>
-          <select className={ds.select} value={sort} onChange={(e) => setFilter(() => setSort(e.target.value))} aria-label="Sort">
-            <option value="severity">Most severe first</option><option value="row">Source order</option>
+          <select className="tb-input !min-h-[34px] !py-1 text-[13px] sm:!w-auto" value={sort} onChange={(e) => setFilter(() => setSort(e.target.value))} aria-label="Sort">
+            <option value="severity">Most severe first</option>
+            <option value="row">Source order</option>
           </select>
-          <span className={ds.muted} style={{ marginLeft: "auto" }}>{page ? `${formatNumber(page.total)} finding(s)` : ""}</span>
+          <span className="hidden whitespace-nowrap text-[12.5px] xl:inline" style={{ color: "var(--faint)" }}>
+            {page ? `${reviewedOnPage} of ${items.length} on this page reviewed · J / K to move` : ""}
+          </span>
         </div>
+      </div>
 
-        <div>
-          <Panel flush>
-            {list.error ? <div style={{ padding: 20 }}><ErrorState message={list.error} onRetry={list.reload} /></div>
-              : !page ? <div style={{ padding: 20 }}><SkeletonRows rows={10} /></div>
-              : page.items.length === 0 ? <EmptyState icon="check" title="No findings match" body="Change the filters, or celebrate: this report has nothing here." /> : (
-              <div className={styles.tableWrap}>
-                <table className={styles.table}>
-                  <thead><tr><th scope="col">Severity</th><th scope="col">Finding</th><th scope="col">Claim</th><th scope="col">Source</th><th scope="col" className={styles.num}>Amount</th><th scope="col">Review</th></tr></thead>
-                  <tbody>
-                    {page.items.map((e) => {
-                      const g = findingGuide(e.rule, e.status);
-                      const active = selected?.validation_result_id === e.validation_result_id;
-                      return (
-                        <tr key={e.validation_result_id} className={active ? styles.activeRow : undefined} onClick={() => setSelected(e)}
-                            tabIndex={0} onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); setSelected(e); } }}
-                            aria-selected={active}>
-                          <td><Pill tone={severityTone(e.severity)}>{e.severity.toLowerCase()}</Pill></td>
-                          <td><strong className={styles.title}>{g.title}</strong><div className={styles.msg}>{e.message}</div></td>
-                          <td className={ds.mono}>{e.claim_reference ?? <span className={ds.muted}>none</span>}</td>
-                          <td className={styles.sub}>{e.sheet_name}<br />row {e.source_row_number ?? "—"}</td>
-                          <td className={styles.num}>{formatMoney(e.amount, e.currency ?? "")}</td>
-                          <td>{e.review_status ? <Pill tone={e.review_status === "resolved" || e.review_status === "false_positive" ? "good" : "brand"}>{REVIEW_LABEL[e.review_status]}</Pill> : <span className={ds.muted}>—</span>}
-                            {e.assignee && <div className={styles.sub}>{e.assignee}</div>}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            {page && page.total > PAGE && (
-              <div className={styles.pager}>
-                <Button size="sm" variant="secondary" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>Previous</Button>
-                <span className={ds.muted}>{offset + 1}–{Math.min(offset + PAGE, page.total)} of {formatNumber(page.total)}</span>
-                <Button size="sm" variant="secondary" disabled={offset + PAGE >= page.total} onClick={() => setOffset(offset + PAGE)}>Next</Button>
-              </div>
-            )}
-          </Panel>
+      <div className="flex min-h-[620px] flex-wrap overflow-hidden rounded-xl" style={{ background: "var(--surface)", boxShadow: "var(--shadow)" }}>
+        <div ref={listRef} className="flex max-h-[420px] min-w-[240px] flex-[1_1_260px] flex-col overflow-y-auto overflow-x-hidden lg:max-h-[760px]" style={{ boxShadow: "1px 0 0 var(--line)" }}>
+          {list.error ? (
+            <div className="p-4"><ErrorState title="Findings could not be loaded" message={list.error} onRetry={list.reload} /></div>
+          ) : !page ? (
+            <div className="p-4"><LoadingState label="Loading findings" rows={8} /></div>
+          ) : items.length === 0 ? (
+            <EmptyState icon={<CheckCircle />} title="No findings match" body="Change the filters — or this report has nothing here." />
+          ) : (
+            items.map((x) => {
+              const g = findingGuide(x.rule, x.status);
+              const on = x.validation_result_id === sel?.validation_result_id;
+              const reviewed = x.review_status && x.review_status !== "open";
+              return (
+                <button key={x.validation_result_id} type="button" onClick={() => pick(x.validation_result_id)} className="grid cursor-pointer grid-cols-[10px_minmax(0,1fr)] gap-3 px-4 py-3.5 text-left transition-colors hover:bg-[var(--accentTint)]" style={{ background: on ? "var(--accentTint)" : "transparent", boxShadow: on ? "inset 2px 0 0 var(--accent)" : "inset 0 -1px 0 var(--line)" }}>
+                  <span className="mt-[5px] h-2 w-2 rounded-full" style={{ background: SEV[x.severity].c }} />
+                  <span className="flex min-w-0 flex-col gap-1">
+                    <span className="text-[13px] font-medium leading-[1.35]">{g.title}</span>
+                    <span className="tnum text-[12px]" style={{ color: "var(--faint)" }}>{x.claim_reference ?? "no claim ref"} · {x.sheet_name} row {x.source_row_number ?? "—"}</span>
+                    <span className="text-[11.5px]" style={{ color: reviewed ? "var(--ok)" : "var(--faint)" }}>{x.review_status ? REVIEW_LABEL[x.review_status] : "Open"}{x.assignee ? ` · ${x.assignee}` : ""}</span>
+                  </span>
+                </button>
+              );
+            })
+          )}
+          {page && page.total > PAGE && (
+            <div className="mt-auto flex items-center justify-between gap-2 px-3 py-2.5 text-[12px]" style={{ boxShadow: "0 -1px 0 var(--line)", color: "var(--faint)" }}>
+              <button type="button" className="tb-btn !px-2 !py-1 text-[12px]" disabled={offset === 0} onClick={() => { setOffset(Math.max(0, offset - PAGE)); setSelId(null); }}>Previous</button>
+              <span className="tnum">{offset + 1}–{Math.min(offset + PAGE, page.total)} of {formatNumber(page.total)}</span>
+              <button type="button" className="tb-btn !px-2 !py-1 text-[12px]" disabled={offset + PAGE >= page.total} onClick={() => { setOffset(offset + PAGE); setSelId(null); }}>Next</button>
+            </div>
+          )}
         </div>
-        <Drawer open={!!selected} onClose={() => setSelected(null)} width={600}
-          eyebrow={selected ? `${selected.severity.toLowerCase()} · ${selected.check_type.toLowerCase().replace(/_/g, " ")}` : undefined}
-          title={selected ? findingGuide(selected.rule, selected.status).title : ""}>
-          {selected && <FindingDetail key={selected.validation_result_id} reportId={reportId} finding={selected}
-            onSaved={(patch) => { list.reload(); setSelected({ ...selected, ...patch }); }} />}
-        </Drawer>
+        {sel && reportId ? (
+          <FindingPanels key={sel.validation_result_id} reportId={reportId} fileName={report?.file_name ?? ""} f={sel} onAccept={() => setModal("accept")} onFollowup={() => setModal("followup")} onDismiss={() => void decide("false_positive")} onReopen={() => void decide("open", undefined, "Finding reopened")} onResolve={() => void decide("resolved")} prev={() => move(-1)} next={() => move(1)} />
+        ) : (
+          <div className="flex flex-[5_1_560px] items-center justify-center p-10 text-[13.5px]" style={{ color: "var(--faint)" }}>{page && !items.length ? "" : "Select a finding."}</div>
+        )}
+      </div>
 
-        <AiTriagePanel reportId={reportId} onFilterAction={(a) => setFilter(() => setCheckType(a.checkType ?? ""))} />
+      {reportId && <AiTriage reportId={reportId} onFilter={(ct) => setFilter(() => setCheckType(ct ?? ""))} />}
+
+      {sel && reportId && (
+        <>
+          <AcceptModal open={modal === "accept"} onClose={() => setModal(null)} onSave={(note) => { setModal(null); void decide("accepted", note); }} />
+          <FollowupModal open={modal === "followup"} onClose={() => setModal(null)} reportId={reportId} f={sel} onDone={() => { setModal(null); list.reload(); }} />
+        </>
+      )}
+    </div>
+  );
+}
+
+const FIELD_FOR_CHECK: Record<string, keyof ClaimRow> = { ARITHMETIC: "incurred_amount", DATE: "date_of_loss", CURRENCY: "currency", STATUS: "claim_status" };
+const COLS: [keyof ClaimRow, string, string][] = [
+  ["claim_reference", "claim_reference", "Claim ref"],
+  ["reporting_period", "reporting_period", "Period"],
+  ["insured_name", "insured_name", "Insured"],
+  ["date_of_loss", "date_of_loss", "DOL"],
+  ["claim_status", "claim_status", "Status"],
+  ["paid_amount", "paid_to_date", "Paid TD"],
+  ["reserve_amount", "reserve", "Reserve"],
+  ["fees_paid_to_date", "fees", "Fees"],
+  ["incurred_amount", "total_incurred", "Total inc."],
+];
+
+function FindingPanels({ reportId, fileName, f, onAccept, onFollowup, onDismiss, onReopen, onResolve, prev, next }: { reportId: string; fileName: string; f: ExceptionRow; onAccept: () => void; onFollowup: () => void; onDismiss: () => void; onReopen: () => void; onResolve: () => void; prev: () => void; next: () => void }) {
+  const g = findingGuide(f.rule, f.status);
+  const sv = SEV[f.severity];
+  const sheet = SHEET[f.severity];
+  const rows = useApi(() => (f.claim_reference ? api.listClaimsByRef(reportId, f.claim_reference) : Promise.resolve([] as ClaimRow[])), [reportId, f.claim_reference]);
+  const hitField = FIELD_FOR_CHECK[f.check_type] ?? (f.check_type === "MANDATORY_FIELD" ? COLS.find(([k]) => /insured/.test(f.message.toLowerCase()) && k === "insured_name")?.[0] : undefined);
+  const certainty = g.certainty === "certain" ? "Deterministic check — the evidence is conclusive for this row." : g.certainty === "signal" ? "A signal, not proof — confirm before acting." : "Undetermined — TrueBind doesn’t have enough evidence to decide.";
+  const fmt = (v: unknown, k: keyof ClaimRow, ccy?: string | null) => (v == null || v === "" ? "" : typeof v === "number" && /amount|fees/.test(String(k)) ? formatMoney(v, ccy ?? "").replace(/^[^\d-]+/, "") : String(v));
+  const decided = f.review_status && f.review_status !== "open";
+
+  return (
+    <>
+      <div className="anim-fade flex min-w-0 flex-[4_1_420px] flex-col gap-5 px-5 py-6 sm:px-7">
+        <div className="flex flex-col gap-2">
+          <div className="tnum flex flex-wrap items-center gap-2.5 text-[12px]" style={{ color: "var(--faint)" }}>
+            <span className="rounded-full px-[9px] py-[3px] text-[12px] font-medium" style={{ background: sv.bg, color: sv.c }}>{sv.label}</span>
+            <span>{f.check_type.toLowerCase().replace(/_/g, " ")}</span>
+            {f.rule && <><span>·</span><span>{f.rule}</span></>}
+          </div>
+          <h2 className="m-0 text-[24px] font-medium tracking-[-0.02em] [text-wrap:balance]">{g.title}</h2>
+          <p className="m-0 max-w-[640px] text-[14px] leading-[1.6]" style={{ color: "var(--text)" }}>{f.message}</p>
+          <p className="m-0 max-w-[640px] text-[13.5px] leading-[1.6] [text-wrap:pretty]" style={{ color: "var(--muted)" }}>{g.why}</p>
+        </div>
+        <div className="overflow-hidden rounded-lg" style={{ background: "#f7f8f6", color: "#2a2f36", boxShadow: "0 0 0 1px var(--line2)" }}>
+          <div className="flex h-[30px] items-center justify-between px-3 text-[11px]" style={{ background: "#edf0ec", borderBottom: "1px solid #dde1db", color: "#5e656d" }}>
+            <span className="truncate">{fileName} › {f.sheet_name}</span>
+            <span className="flex flex-none items-center gap-[5px]"><LockSimple />source · read-only</span>
+          </div>
+          <div className="overflow-x-auto">
+            {!f.claim_reference ? (
+              <p className="m-0 px-4 py-4 text-[12.5px]" style={{ color: "#5e656d" }}>This row has no claim reference, so its other periods can’t be shown. Source row {f.source_row_number ?? "—"} on sheet {f.sheet_name}.</p>
+            ) : rows.error ? (
+              <p className="m-0 px-4 py-4 text-[12.5px]" style={{ color: "#5e656d" }}>The source rows could not be loaded.</p>
+            ) : !rows.data ? (
+              <p className="m-0 px-4 py-4 text-[12.5px]" style={{ color: "#5e656d" }}>Loading the source rows…</p>
+            ) : (
+              <table className="w-full min-w-[720px] border-collapse text-[11px]">
+                <thead>
+                  <tr style={{ background: "oklch(0.96 0.02 150)" }}>
+                    <th className="w-10" style={{ borderRight: "1px solid #e1e4df", borderBottom: "1px solid #d5d9d3" }} />
+                    {COLS.map(([k, m, s]) => (
+                      <th key={k} className="px-2 py-1.5 text-left font-normal" style={{ borderRight: "1px solid #e1e4df", borderBottom: "1px solid #d5d9d3", background: k === hitField ? sheet.bg : "transparent" }}>
+                        <span className="block truncate text-[10.5px] font-semibold" style={{ color: "oklch(0.4 0.1 150)" }}>{m}</span>
+                        <span className="block whitespace-nowrap text-[9.5px]" style={{ color: "#7e858d" }}>{s}</span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.data.map((r) => {
+                    const target = r.id === f.claim_row_id;
+                    return (
+                      <tr key={r.id} style={{ borderBottom: "1px solid #e6e8e4", background: target ? "#fff" : "transparent" }}>
+                        <td className="tnum px-1 text-center text-[10.5px]" style={{ borderRight: "1px solid #e1e4df", background: "#eff1ee", color: target ? "#1c1e2a" : "#8a9098", fontWeight: target ? 600 : 400 }}>{r.source_row_number ?? "—"}</td>
+                        {COLS.map(([k]) => {
+                          const hit = target && k === hitField;
+                          const v = fmt(r[k], k, r.currency);
+                          return (
+                            <td key={k} className="tnum h-[30px] overflow-hidden whitespace-nowrap px-2" style={{ textAlign: /amount|fees/.test(String(k)) ? "right" : "left", borderRight: "1px solid #e6e8e4", color: hit ? sheet.fg : "#2a2f36", background: hit ? sheet.bg : "transparent", boxShadow: hit ? sheet.ring : "none", fontStyle: v ? "normal" : "italic" }}>
+                              {v || (target && f.check_type === "MANDATORY_FIELD" ? "blank" : "")}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg sm:grid-cols-3" style={{ background: "var(--line)", boxShadow: "0 0 0 1px var(--line)" }}>
+          {[
+            ["Outcome", f.status === "NOT_EVALUABLE" ? "Could not be checked" : f.status === "FAIL" ? "Failed the check" : "Needs review", sv.c],
+            ["Amount at stake", formatMoney(f.amount, f.currency ?? ""), "var(--text)"],
+            ["What to do next", g.next, "var(--text)"],
+          ].map(([l, v, c]) => (
+            <div key={l} className="flex flex-col gap-[5px] px-4 py-3.5" style={{ background: "var(--surface)" }}>
+              <span className="text-[11.5px]" style={{ color: "var(--faint)" }}>{l}</span>
+              <span className={`tnum font-medium ${l === "What to do next" ? "text-[13px] leading-[1.45]" : "text-[16px]"}`} style={{ color: c }}>{v}</span>
+            </div>
+          ))}
+        </div>
+        <span className="text-[12.5px]" style={{ color: "var(--faint)" }}>{certainty}</span>
+      </div>
+
+      <div className="flex min-w-0 flex-[1_1_300px] flex-col gap-5 px-[22px] py-6" style={{ boxShadow: "-1px 0 0 var(--line), 0 -1px 0 var(--line)", background: "var(--bg2)" }}>
+        <div className="grid grid-cols-[84px_1fr] gap-y-[9px] text-[13px]">
+          <span style={{ color: "var(--faint)" }}>Claim</span>
+          <span className="tnum font-medium">{f.claim_reference ?? "—"}</span>
+          <span style={{ color: "var(--faint)" }}>Worksheet</span>
+          <span className="truncate">{f.sheet_name ?? "—"}</span>
+          <span style={{ color: "var(--faint)" }}>Row</span>
+          <span className="tnum">{f.source_row_number ?? "—"}</span>
+          <span style={{ color: "var(--faint)" }}>Check</span>
+          <span>{f.check_type.toLowerCase().replace(/_/g, " ")}</span>
+          <span style={{ color: "var(--faint)" }}>Status</span>
+          <span style={{ color: decided ? "var(--ok)" : "var(--muted)" }}>{f.review_status ? REVIEW_LABEL[f.review_status] : "Open"}</span>
+          {f.assignee && (
+            <>
+              <span style={{ color: "var(--faint)" }}>Assignee</span>
+              <span>{f.assignee}</span>
+            </>
+          )}
+        </div>
+        <div className="flex flex-col gap-2 rounded-lg px-3.5 py-3 text-[12.5px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }}>
+          <span className="flex items-center gap-1.5 text-[12px]" style={{ color: "var(--muted)" }}>
+            <ShieldCheck style={{ color: "var(--ok)" }} />
+            Evidence
+          </span>
+          <Link href={`/reports/${reportId}#sheets`} style={{ color: "var(--accentText)" }}>How this sheet was mapped</Link>
+          <Link href={`/audit?reportId=${reportId}`} style={{ color: "var(--accentText)" }}>Audit trail for this report</Link>
+        </div>
+        {decided && (
+          <div className="anim-rise flex items-start gap-2 rounded-lg px-3 py-2.5 text-[12.5px] leading-[1.45]" style={{ background: "var(--okT)", color: "var(--ok)" }}>
+            <CheckCircle size={15} className="mt-px flex-none" />
+            <span className="flex-1">{REVIEW_LABEL[f.review_status!]}{f.note ? ` — “${f.note}”` : ""}. Recorded in the audit trail. Source value unchanged.</span>
+            <button type="button" title="Reopen" aria-label="Reopen this finding" className="tb-hit cursor-pointer" onClick={onReopen}>
+              <ArrowCounterClockwise size={14} />
+            </button>
+          </div>
+        )}
+        <div className="mt-auto flex flex-col gap-2">
+          <button type="button" onClick={onFollowup} className="tb-btn tb-btn-primary !justify-between !whitespace-normal !px-[13px] !py-[11px] text-left">
+            Create follow-up with sender<span className="hidden text-[11px] opacity-60 md:inline">F</span>
+          </button>
+          <button type="button" onClick={onAccept} className="tb-btn !justify-between !whitespace-normal !px-[13px] !py-[11px] text-left">
+            Accept as reported · note required<span className="hidden text-[11px] opacity-60 md:inline">A</span>
+          </button>
+          <button type="button" onClick={onDismiss} className="tb-btn !justify-between !whitespace-normal !px-[13px] !py-[11px] text-left">
+            Dismiss as not an issue<span className="hidden text-[11px] opacity-60 md:inline">D</span>
+          </button>
+          <button type="button" onClick={onResolve} className="tb-btn tb-btn-ghost !justify-start !px-[13px] !py-2 text-[13px]">
+            Mark resolved
+          </button>
+          <div className="flex justify-between pt-2 text-[12px]" style={{ color: "var(--faint)" }}>
+            <button type="button" className="tb-hit cursor-pointer py-1 hover:text-[var(--text)]" onClick={prev}>← Previous<span className="hidden md:inline"> · K</span></button>
+            <button type="button" className="tb-hit cursor-pointer py-1 hover:text-[var(--text)]" onClick={next}>Next<span className="hidden md:inline"> · J</span> →</button>
+          </div>
+        </div>
       </div>
     </>
   );
 }
 
-function FindingDetail({ reportId, finding, onSaved }: {
-  reportId: string; finding: ExceptionRow; onSaved: (patch: Partial<ExceptionRow>) => void;
-}) {
-  const [review, setReview] = useState(finding?.review_status ?? "in_review");
-  const [assignee, setAssignee] = useState(finding?.assignee ?? "");
+function AcceptModal({ open, onClose, onSave }: { open: boolean; onClose: () => void; onSave: (note: string) => void }) {
   const [note, setNote] = useState("");
-  const [deadline, setDeadline] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const g = findingGuide(finding.rule, finding.status);
-  const certainty = g.certainty === "certain" ? "Deterministic check — the evidence is conclusive for this row."
-    : g.certainty === "signal" ? "A signal, not proof — confirm before acting." : "Undetermined — TrueBind does not have enough evidence to decide.";
-
-  async function save() {
-    setBusy(true);
-    setMsg(null);
-    try {
-      await api.reviewException(reportId, finding!.validation_result_id, { review_status: review, assignee: assignee || null, note: note || null });
-      onSaved({ review_status: review, assignee: assignee || null });
-      setMsg("Saved to the audit trail.");
-    } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : "Could not save.");
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function followUp() {
-    setBusy(true);
-    try {
-      await api.createObligation(reportId, { claim_row_id: finding!.claim_row_id, owner: assignee || null,
-        deadline: deadline || null, note: `${g.title}: ${finding!.claim_reference ?? "row " + finding!.source_row_number}${note ? ` — ${note}` : ""}` });
-      setMsg("Follow-up created in the work queue.");
-    } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : "Could not create the follow-up.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
-    <div className={styles.detail}>
-      <SourceReference file={undefined} sheet={finding.sheet_name ?? undefined} row={finding.source_row_number ?? undefined}
-        column={finding.claim_reference ? `claim ${finding.claim_reference}` : undefined} />
-      <section><h3>What happened</h3><p>{finding.message}</p></section>
-      <section><h3>Where it came from</h3>
-        <p>Sheet <strong>{finding.sheet_name ?? "—"}</strong>, source row <strong>{finding.source_row_number ?? "—"}</strong>
-          {finding.claim_reference ? <> — claim <span className={ds.mono}>{finding.claim_reference}</span></> : " — no claim reference on this row"}.</p>
-        <p className={styles.sub}><Link href={`/reports/${reportId}#mapping`}>How this sheet was mapped</Link> · <Link href={`/audit?reportId=${reportId}`}>Audit trail</Link></p>
-      </section>
-      <EvidencePanel items={[
-        { label: "Claim reference", value: finding.claim_reference ?? "—" },
-        { label: "Amount", value: formatMoney(finding.amount, finding.currency ?? "") },
-        { label: "Check", value: `${finding.check_type} · ${finding.rule ?? ""}` },
-        { label: "Outcome", value: finding.status === "NOT_EVALUABLE" ? "could not be checked" : finding.status.toLowerCase(), emphasis: finding.status === "FAIL" },
-      ]} />
-      <section><h3>Why it matters</h3><p>{g.why}</p><p className={styles.certainty}>{certainty}</p></section>
-      <section><h3>What to do next</h3><p>{g.next}</p></section>
-      <section className={styles.form}>
-        <h3>Your decision</h3>
-        <label>Status<select className={ds.select} value={review} onChange={(e) => setReview(e.target.value)}>
-          {Object.entries(REVIEW_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
-        <label>Assignee<input className={ds.input} value={assignee} onChange={(e) => setAssignee(e.target.value)} maxLength={200} placeholder="Name" /></label>
-        <label>Note<textarea className={ds.input} value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} rows={2} style={{ paddingTop: 8 }} /></label>
-        <div className={styles.actions}>
-          <Button onClick={save} loading={busy}>Save decision</Button>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Accept as reported"
+      actions={
+        <>
+          <button className="tb-btn" onClick={onClose}>Cancel</button>
+          <button className="tb-btn tb-btn-solid" disabled={note.trim().length < 5} onClick={() => { onSave(note.trim()); setNote(""); }}>Accept with note</button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        The value stays as the sender reported it and the finding is closed. Your note is kept with the decision in the audit trail.
+        <textarea className="tb-input min-h-[96px]" value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} placeholder="e.g. Confirmed with the sender — fee posted after the total was run." aria-label="Note" />
+        <span className="text-[12px]" style={{ color: "var(--faint)" }}>At least 5 characters.</span>
+      </div>
+    </Modal>
+  );
+}
+
+function FollowupModal({ open, onClose, reportId, f, onDone }: { open: boolean; onClose: () => void; reportId: string; f: ExceptionRow; onDone: () => void }) {
+  const { toast } = useUi();
+  const g = findingGuide(f.rule, f.status);
+  const [owner, setOwner] = useState(f.assignee ?? "");
+  const [deadline, setDeadline] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const draft = `${g.title} — claim ${f.claim_reference ?? "(none)"}, sheet ${f.sheet_name}, row ${f.source_row_number ?? "—"}.\n\n${f.message}\n\nCould you confirm the correct value or send a corrected file?`;
+  const save = async () => {
+    setBusy(true);
+    try {
+      await api.createObligation(reportId, { claim_row_id: f.claim_row_id, owner: owner.trim() || null, deadline: deadline || null, note: `${g.title}: ${f.claim_reference ?? `row ${f.source_row_number}`}${note ? ` — ${note}` : ""}` });
+      await api.reviewException(reportId, f.validation_result_id, { review_status: "in_review", assignee: owner.trim() || f.assignee || null, note: note || null });
+      toast("Follow-up created in the work queue · recorded in the audit trail", "ok");
+      onDone();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "The follow-up could not be created.", "err");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      kicker="Follow-up with sender"
+      title={g.title}
+      width={560}
+      actions={
+        <>
+          <button className="tb-btn" onClick={onClose}>Cancel</button>
+          <button className="tb-btn" onClick={() => { void navigator.clipboard?.writeText(draft); toast("Message copied — paste it into your email to the sender", "info"); }}>Copy message</button>
+          <button className="tb-btn tb-btn-solid" onClick={() => void save()} disabled={busy}>{busy ? "Saving…" : "Create follow-up"}</button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        <span>Creates a tracked follow-up in the Work queue and marks the finding “In review”. TrueBind doesn’t email the sender for you — copy the message below into your own email.</span>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="tb-label" htmlFor="fu-owner">Owner</label>
+            <input id="fu-owner" className="tb-input" value={owner} onChange={(e) => setOwner(e.target.value)} maxLength={200} placeholder="Name" />
+          </div>
+          <div>
+            <label className="tb-label" htmlFor="fu-due">Due</label>
+            <input id="fu-due" type="date" className="tb-input" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+          </div>
         </div>
-        <label>Follow-up due<input className={ds.input} type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} /></label>
-        <Button variant="secondary" onClick={followUp} disabled={busy}>Create follow-up</Button>
-        {msg && <p role="status" className={styles.sub}>{msg}</p>}
-      </section>
-    </div>
+        <div>
+          <label className="tb-label" htmlFor="fu-note">Note (optional)</label>
+          <input id="fu-note" className="tb-input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} />
+        </div>
+        <pre className="m-0 whitespace-pre-wrap rounded-lg px-3 py-2.5 text-[12.5px]" style={{ background: "var(--bg2)", color: "var(--muted)", fontFamily: "inherit" }}>{draft}</pre>
+      </div>
+    </Modal>
+  );
+}
+
+const CAT_LABEL: Record<string, string> = { ingestion: "Ingestion / mapping", data_quality: "Data quality", duplicate: "Duplicate", other: "Other" };
+
+function AiTriage({ reportId, onFilter }: { reportId: string; onFilter: (checkType: string | null) => void }) {
+  const [s, setS] = useState<ExceptionSummary | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(true);
+  const [open, setOpen] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = async (initial: ExceptionSummary) => {
+      if (!alive) return;
+      setS(initial);
+      if (initial.narrative_status !== "GENERATING") return;
+      timer = setTimeout(async () => {
+        try {
+          const latest = await api.getExceptionSummary(reportId);
+          if (latest) void poll(latest);
+        } catch {
+          if (alive) timer = setTimeout(() => void poll(initial), 2000);
+        }
+      }, 2000);
+    };
+    (async () => {
+      try {
+        const existing = await api.getExceptionSummary(reportId);
+        const first = existing ?? (await api.generateExceptionSummary(reportId));
+        await poll(first);
+      } catch (e) {
+        if (alive) setErr(e instanceof ApiError ? e.message : "Could not load the AI summary.");
+      } finally {
+        if (alive) setBusy(false);
+      }
+    })();
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [reportId]);
+  const a = s?.aggregate;
+  const n = s?.narrative;
+  const st = s?.narrative_status;
+  return (
+    <section className="tb-card flex flex-col" aria-labelledby="ai-triage">
+      <button type="button" onClick={() => setOpen((v) => !v)} className="flex cursor-pointer items-center gap-3 px-5 py-4 text-left" aria-expanded={open}>
+        <Sparkle size={18} style={{ color: "var(--accentText)" }} />
+        <span id="ai-triage" className="flex-1 text-[15px] font-medium">Exception triage</span>
+        <StatusPill tone={st === "COMPLETE" ? "med" : st === "FAILED" ? "err" : "muted"}>{busy || st === "GENERATING" ? "Generating…" : st === "COMPLETE" ? "AI-generated summary" : st === "UNAVAILABLE" ? "AI not configured" : st === "FAILED" ? "AI summary failed" : "Summary"}</StatusPill>
+      </button>
+      {open && (
+        <div className="flex flex-col gap-4 px-5 pb-5">
+          {err && <ErrorState title="Triage could not be loaded" message={err} />}
+          {a && (
+            <div className="tnum grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                [formatNumber(a.total_exceptions), "total exceptions"],
+                [a.total_value_at_stake.map((m) => formatMoney(m.amount, m.currency)).join(" · ") || "—", "value at stake"],
+                [formatNumber(a.root_cause_split.ingestion.count), "likely ingestion issues"],
+                [formatNumber(a.root_cause_split.data_quality.count), "likely data issues"],
+              ].map(([v, l]) => (
+                <div key={l} className="flex flex-col gap-0.5">
+                  <span className="text-[20px] font-medium">{v}</span>
+                  <span className="text-[12px]" style={{ color: "var(--muted)" }}>{l}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {n && (
+            <div className="flex flex-col gap-3">
+              <p className="m-0 max-w-[820px] text-[14px] leading-[1.6]">{n.executive_summary}</p>
+              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                {n.actions.map((x, i) => (
+                  <li key={i} className="flex flex-wrap items-baseline gap-2 text-[13px]">
+                    <StatusPill tone="muted">{CAT_LABEL[x.category] ?? x.category}</StatusPill>
+                    <span className="font-medium">{x.title}</span>
+                    <span style={{ color: "var(--muted)" }}>{x.rationale}</span>
+                    {x.filter_check_type && (
+                      <button type="button" className="cursor-pointer text-[12.5px] underline" style={{ color: "var(--accentText)" }} onClick={() => onFilter(x.filter_check_type)}>
+                        Show these
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {st === "UNAVAILABLE" && <span className="text-[13px]" style={{ color: "var(--muted)" }}>The counts above are exact. A written AI summary needs an AI provider configured on the server.</span>}
+          {st === "FAILED" && <span className="text-[13px]" style={{ color: "var(--muted)" }}>{s?.narrative_error ?? "The AI summary could not be generated."} The counts above are exact.</span>}
+          {s?.narrative_warning && <span className="text-[12.5px]" style={{ color: "var(--warn)" }}>{s.narrative_warning}</span>}
+        </div>
+      )}
+    </section>
   );
 }

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ArrowCounterClockwise, ArrowRight } from "@phosphor-icons/react";
 import { HeroSheet, STAGES, useHeroStage } from "./hero-sheet";
 import { SiteFooter, SiteNav } from "./chrome";
+import { LeadButton } from "./lead-form";
 
 type Cell = { t: string; k?: "r" | "a" };
 const RED = { bg: "oklch(0.94 0.045 25)", fg: "oklch(0.48 0.17 25)" };
@@ -236,9 +237,9 @@ export function Landing() {
               What was checked, what was flagged, what couldn’t be mapped and what wasn’t assessed — with the evidence. Ready for your COO, Head of Claims, carrier or auditor.
             </p>
             <div className="flex flex-wrap gap-2.5">
-              <Link href="/onboarding" className="whitespace-nowrap rounded-lg px-[18px] py-[13px] text-[14.5px] font-medium transition-colors hover:bg-[rgba(245,244,255,.08)]" style={{ boxShadow: "inset 0 0 0 1px var(--accentText)" }}>
+              <LeadButton kind="health" className="whitespace-nowrap rounded-lg px-[18px] py-[13px] text-[14.5px] font-medium transition-colors hover:bg-[rgba(245,244,255,.08)]" style={{ boxShadow: "inset 0 0 0 1px var(--accentText)" }}>
                 Run a Bordereau Health Check
-              </Link>
+              </LeadButton>
               <Link href="/sample-report" className="whitespace-nowrap px-1.5 py-[13px] text-[14.5px]" style={{ color: "var(--accentText)" }}>
                 See a sample report →
               </Link>

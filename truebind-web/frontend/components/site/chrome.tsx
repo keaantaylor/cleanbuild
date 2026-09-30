@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { List, X } from "@phosphor-icons/react";
 import { Brand, Mark, ThemeToggle } from "@/components/nocturne/ui";
+import { LeadButton } from "./lead-form";
 
 const LINKS = [
   ["Why", "/#problem"],
@@ -44,13 +45,13 @@ export function SiteNav() {
           <Link href="/login" className="hidden h-9 items-center rounded-full px-3 text-[13.5px] transition-colors hover:text-[var(--chromeStrong)] sm:flex" style={{ color: "var(--chromeMuted)" }}>
             Sign in
           </Link>
-          <Link
-            href="/onboarding"
+          <LeadButton
+            kind="demo"
             className="flex h-9 items-center rounded-full px-4 text-[13.5px] font-medium transition-colors hover:bg-[rgba(145,132,217,.16)]"
             style={{ color: "var(--accentText)", boxShadow: "inset 0 0 0 1px var(--accent)" }}
           >
             Book a demo
-          </Link>
+          </LeadButton>
           <button type="button" className="grid h-9 w-9 place-items-center rounded-full lg:hidden" aria-label={open ? "Close menu" : "Open menu"} aria-expanded={open} onClick={() => setOpen((o) => !o)} style={{ color: "var(--chromeMuted)" }}>
             {open ? <X size={17} /> : <List size={17} />}
           </button>

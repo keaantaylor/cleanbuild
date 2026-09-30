@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { SiteFooter, SiteNav } from "./chrome";
+import { LeadButton } from "./lead-form";
 
 export function InfoPage({ kicker, title, intro, sections }: { kicker: string; title: string; intro: string; sections: { h: string; p: string[] }[] }) {
   return (
@@ -22,7 +22,7 @@ export function InfoPage({ kicker, title, intro, sections }: { kicker: string; t
           </section>
         ))}
         <div className="flex flex-wrap gap-3 pt-2">
-          <Link href="/onboarding" className="tb-btn tb-btn-primary">Book a demo</Link>
+          <LeadButton kind="demo" className="tb-btn tb-btn-primary">Book a demo</LeadButton>
           <a href="mailto:hello@truebind.ie" className="tb-btn">Email hello@truebind.ie</a>
         </div>
       </main>

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 import { Mark } from "@/components/nocturne/ui";
 import { SiteFooter, SiteNav } from "@/components/site/chrome";
+import { LeadButton } from "@/components/site/lead-form";
 
 export const metadata: Metadata = { title: "Sample Health Check · TrueBind" };
 
@@ -32,7 +33,7 @@ export default function SampleReportPage() {
           <span className="rounded-full px-3 py-1 text-[12px] font-medium" style={{ background: "var(--accentTint)", color: "var(--accentText)" }}>
             Sample report · illustrative data, not a customer file
           </span>
-          <Link href="/onboarding" className="tb-btn tb-btn-primary">Run a Health Check on your file</Link>
+          <LeadButton kind="health" className="tb-btn tb-btn-primary">Run a Health Check on your file</LeadButton>
         </div>
 
         <article className="flex w-full flex-col gap-9 rounded-md px-6 pb-[52px] pt-[60px] sm:px-[68px]" style={{ background: "#fbfbfd", color: "#1c1e2a", boxShadow: "0 0 0 1px rgba(28,30,42,.08), 0 20px 50px rgba(0,0,0,.25)" }}>

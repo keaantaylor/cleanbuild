@@ -1,3 +1,27 @@
+# Stress-test fix pass — progress (resume point)
+
+Branch `fix/stress-test-pass` (from `feat/nocturne-frontend` @ d264702). Locked Vercel preview only; never
+push to main or touch production data. Resume rule: read this section, continue from the first item not
+marked done. Evidence lives in `docs/stress-pass/`.
+
+Stress inputs (C:\Users\keala\Downloads): TrueBind_Stress_Test_500_rows / _2000_rows / _10000_rows / _HARD
+(30,347 rows). Answer keys: REVIEWED_Stress_Test_500_rows / _2000_rows (Issues sheet); 10k and 30k scored with
+an independent oracle and the generator's own keys (`truebind-web/backend/tests/fixtures/`).
+
+| Phase | State |
+|---|---|
+| 0 Setup: branch, endpoint reachability baseline (104/104 reachable) | done |
+| 1 Reliability and speed | in progress |
+| 2 Accuracy | remaining |
+| 3 Security of uploaded content | remaining |
+| 4 Front end (incl. logout bug, annotated workbook) | remaining |
+| 5 Forms + merge launch-readiness branch | remaining |
+| 6 Verify (stress runs, before/after, tests, preview) | remaining |
+
+Waiting on Kealan: (none yet)
+
+---
+
 # TrueBind Platform V1 — progress (source of truth)
 
 Branch: `feat/platform-v1`. Resume rule: read this file, BLOCKERS.md and HUMAN_TODO.md, then continue

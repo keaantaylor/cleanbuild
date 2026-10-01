@@ -88,7 +88,9 @@ class Settings(BaseSettings):
     max_cells: int = Field(default=60_000_000, ge=1, validation_alias="MAX_CELLS")
 
     # ---- storage (original files are write-once; the app has no delete path)
-    storage_backend: Literal["local", "s3"] = Field(default="local", validation_alias="STORAGE_BACKEND")
+    # Where uploaded originals live. Unset: "db" in production (durable on hosts
+    # whose local disk is wiped on restart), "local" in development and tests.
+    storage_backend: Literal["local", "s3", "db"] | None = Field(default=None, validation_alias="STORAGE_BACKEND")
     storage_dir: Path | None = Field(default=None, validation_alias="TRUEBIND_STORAGE_DIR")
     s3_bucket: str = Field(default="", validation_alias="S3_BUCKET")
     s3_endpoint_url: str = Field(default="", validation_alias="S3_ENDPOINT_URL")
@@ -98,7 +100,8 @@ class Settings(BaseSettings):
     s3_sse: Literal["AES256", "aws:kms", "none"] = Field(default="AES256", validation_alias="S3_SSE")
 
     # ---- jobs / workers
-    job_timeout_s: int = Field(default=1800, ge=10, validation_alias="JOB_TIMEOUT_S")
+    # A job that runs longer than this is stopped and marked failed with a clear message (10 minutes).
+    job_timeout_s: int = Field(default=600, ge=10, validation_alias="JOB_TIMEOUT_S")
     job_memory_mb: int = Field(default=4096, ge=256, validation_alias="JOB_MEMORY_MB")
     job_lease_s: int = Field(default=60, ge=5, validation_alias="JOB_LEASE_S")
     job_max_attempts: int = Field(default=2, ge=1, le=10, validation_alias="JOB_MAX_ATTEMPTS")
@@ -219,6 +222,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _resolve_and_check(self) -> Settings:
+        if self.storage_backend is None:
+            self.storage_backend = "db" if self.is_production else "local"
         if self.cookie_secure is None:
             self.cookie_secure = self.is_production
         if self.allow_signup is None:

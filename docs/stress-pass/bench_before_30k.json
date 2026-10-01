@@ -1,0 +1,92 @@
+[
+ {
+  "file": "TrueBind_Stress_Test_HARD.xlsx",
+  "label": "before",
+  "upload_s": 0.2,
+  "ingest_s": 14.61,
+  "sheets": [
+   {
+    "name": "Summary",
+    "status": "PENDING_CONFIRMATION"
+   },
+   {
+    "name": "Q3 Bordereau",
+    "status": "PENDING_CONFIRMATION"
+   },
+   {
+    "name": "Late Reported",
+    "status": "PENDING_CONFIRMATION"
+   },
+   {
+    "name": "Lookups",
+    "status": "PENDING_CONFIRMATION"
+   },
+   {
+    "name": "Notes",
+    "status": "SKIPPED"
+   }
+  ],
+  "confirm_s": 0.57,
+  "process_s": 40.79,
+  "total_s": 56.22,
+  "peak_rss_mb": 388,
+  "status": "COMPLETE",
+  "jobs": [
+   {
+    "kind": "INGEST",
+    "status": "SUCCEEDED",
+    "metrics": {
+     "progress": {
+      "sheets_found": 5,
+      "sheets_with_data": 4,
+      "rows_detected": 31829,
+      "sheets_skipped": 1,
+      "ai_calls": 0
+     },
+     "parse_s": 14.45,
+     "mapping_s": 0.04,
+     "sheets": 5,
+     "rows": 31829,
+     "peak_rss_mb": null,
+     "ai_calls": 0
+    }
+   },
+   {
+    "kind": "PROCESS",
+    "status": "SUCCEEDED",
+    "metrics": {
+     "progress": {
+      "sheets_found": 5,
+      "rows_detected": 31829,
+      "rows_mapped": 31829,
+      "row_findings": 11250,
+      "arithmetic_mismatches": 1989,
+      "duplicate_pairs": 128
+     },
+     "parse_s": 23.63,
+     "pipeline_s": 5.26,
+     "persist_s": 6.24,
+     "checks_s": 5.09,
+     "stage_timings": {
+      "mapping": 2.48,
+      "validation": 1.44,
+      "dedupe": 0.76,
+      "report": 0.52
+     },
+     "rows": 31829,
+     "peak_rss_mb": null
+    }
+   }
+  ],
+  "rows": 31829,
+  "counts": {
+   "missing_mandatory_rows": 40,
+   "arithmetic_mismatches": 1989,
+   "arithmetic_not_evaluable": 97,
+   "exact_duplicates": 128,
+   "probable_duplicates": null,
+   "development_pairs": 511,
+   "composite_score": 68.39
+  }
+ }
+]

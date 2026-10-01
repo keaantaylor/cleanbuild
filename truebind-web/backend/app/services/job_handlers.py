@@ -33,7 +33,7 @@ from ..ai.mapper import ProviderAIMapper
 from ..ai.masking import masked_samples
 from ..models.jobs import Job
 from ..models.reports import Report, Sheet
-from . import job_service, module_service, persistence_service, pipeline_service, report_state
+from . import job_service, module_service, parse_cache, persistence_service, pipeline_service, report_state
 from .storage import IntegrityError, get_store
 
 log = logging.getLogger("truebind.jobs")
@@ -87,10 +87,10 @@ def _load(db: Session, job: Job) -> Report:
     return report
 
 
-def _parse_original(report: Report):
+def _parse_original(db: Session, report: Report):
     """Read the immutable original, verifying its SHA-256 first."""
     try:
-        with get_store().local_copy(report.storage_key or "", report.source_sha256 or "") as path:
+        with get_store().local_copy(report.storage_key or "", report.source_sha256 or "", db=db) as path:
             return _parse(path, report)
     except IntegrityError as exc:
         raise JobFailure("source_tampered", "The stored file no longer matches the one uploaded, so it was not "
@@ -154,8 +154,10 @@ def run_ingest(db: Session, job: Job) -> dict:
     t0 = perf_counter()
     report = _load(db, job)
     job_service.set_stage(db, job, "inspecting")
-    sheets = _parse_original(report)
+    sheets = _parse_original(db, report)
     t_parse = perf_counter() - t0
+    # Parse once: PROCESS reuses these sheets instead of reading the workbook again.
+    parse_cache.save(db, report.tenant_id, report.source_sha256 or "", sheets)
     usable = [s for s in sheets if not s.skipped]
     facts = dict(sheets_found=len(sheets), sheets_with_data=len(usable),
                  rows_detected=sum(len(s.raw) for s in usable), sheets_skipped=len(sheets) - len(usable))
@@ -184,7 +186,10 @@ def run_process(db: Session, job: Job) -> dict:
     if any(s.status == "PENDING_CONFIRMATION" for s in db_sheets):
         raise JobFailure("mapping_not_confirmed", "Every sheet's mapping must be confirmed before processing.")
     job_service.set_stage(db, job, "parsing")
-    sheets = _parse_original(report)
+    sheets = parse_cache.load(db, report.tenant_id, report.source_sha256 or "")
+    parse_cached = sheets is not None
+    if sheets is None:
+        sheets = _parse_original(db, report)
     t_parse = perf_counter() - t0
     job_service.set_stage(db, job, "mapping", sheets_found=len(sheets),
                           rows_detected=sum(len(s.raw) for s in sheets if not s.skipped))
@@ -203,7 +208,8 @@ def run_process(db: Session, job: Job) -> dict:
     module_service.run_all(db, report)  # same transaction as the results: all or nothing
     t_checks = perf_counter() - t
     report_state.transition(db, report, "COMPLETE", reason="processed")
-    return {"parse_s": round(t_parse, 2), "pipeline_s": round(t_pipe, 2), "persist_s": round(t_persist, 2), "checks_s": round(t_checks, 2),
+    return {"parse_s": round(t_parse, 2), "parse_cached": parse_cached, "pipeline_s": round(t_pipe, 2),
+            "persist_s": round(t_persist, 2), "checks_s": round(t_checks, 2),
             "stage_timings": {k: round(v, 2) for k, v in result.stage_timings.items()},
             "rows": int(len(result.canonical)), "peak_rss_mb": _peak_rss_mb()}
 

@@ -301,8 +301,12 @@ class Worker:
             if outcome == "cancel":
                 job_service.finish(db, job, ok=False, code="cancelled")
             elif outcome == "timeout":
+                minutes = max(1, round(self.timeout_s / 60))
                 job_service.finish(db, job, ok=False, code="timeout",
-                                   message=f"Processing took longer than the {self.timeout_s}s limit and was stopped.",
+                                   message=(f"Processing took longer than {minutes} minute{'s' if minutes != 1 else ''} "
+                                            "and was stopped. Nothing was lost: the original file is kept, so you "
+                                            "can use Try again without uploading it again, or split a very large "
+                                            "file into smaller ones."),
                                    detail=f"killed after {self.timeout_s}s by {self.id}")
             else:
                 code, message = _exit_failure(exitcode)

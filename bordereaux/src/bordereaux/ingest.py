@@ -15,6 +15,7 @@ banner row's score is always far below the actual header row's.
 
 from __future__ import annotations
 
+import functools
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -404,11 +405,29 @@ def _normalize_cell(value: object) -> str:
     the same normalization already used for header-alias matching, so a
     repeated header row with different casing or stray whitespace is
     still caught as a match rather than slipping through as "different
-    text" (fix spec: a normalized compare, not an exact one)."""
+    text" (fix spec: a normalized compare, not an exact one).
+
+    Memoised: row classification normalises every cell several times (blank,
+    repeated-header, subtotal and title checks) and the header row once per
+    data row, which made this the hottest function on large sheets. The cache
+    is keyed by type as well as value, because 1, 1.0 and True compare equal
+    but render differently."""
     if value is None:
         return ""
+    try:
+        return _normalize_cached(type(value), value)
+    except TypeError:  # unhashable cell value: compute directly
+        return _normalize_uncached(value)
+
+
+def _normalize_uncached(value: object) -> str:
     text = unicodedata.normalize("NFKC", str(value))  # NBSP (U+00A0) etc. -> regular space
     return " ".join(text.split()).casefold()
+
+
+@functools.lru_cache(maxsize=1 << 17)
+def _normalize_cached(_kind: type, value: object) -> str:
+    return _normalize_uncached(value)
 
 
 _SUBTOTAL_PATTERN = re.compile(

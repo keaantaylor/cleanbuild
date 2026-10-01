@@ -11,14 +11,21 @@ an independent oracle and the generator's own keys (`truebind-web/backend/tests/
 | Phase | State |
 |---|---|
 | 0 Setup: branch, endpoint reachability baseline (104/104 reachable) | done |
-| 1 Reliability and speed | in progress |
-| 2 Accuracy | remaining |
+| 1 Reliability and speed | done (approvals pending: hosting size, region) |
+| 2 Accuracy | in progress |
 | 3 Security of uploaded content | remaining |
 | 4 Front end (incl. logout bug, annotated workbook) | remaining |
 | 5 Forms + merge launch-readiness branch | remaining |
 | 6 Verify (stress runs, before/after, tests, preview) | remaining |
 
-Waiting on Kealan: (none yet)
+Phase 1 notes: cause = workbook parsed twice + slow row classification + originals on ephemeral disk
+(restart -> source_missing) + 512 MB/0.1 CPU free instance. Fixed: parse cache (gzip JSON, parser-fingerprinted),
+memoised cell normalisation, lxml, originals and cache in PostgreSQL (STORAGE_BACKEND=db default in production,
+legacy disk fallback), 10-minute job timeout with plain message. Local timings 500/2k/10k/30k:
+3.8/5.5/23.1/56.2s -> 1.1/1.6/6.1/10.4s. Hosting map: docs/stress-pass/hosting-map.md.
+
+Waiting on Kealan: (1) Render instance size for 30k-row files (512 MB is tight), (2) EU wording vs move to
+Frankfurt (database is in Virginia, Vercel functions in iad1).
 
 ---
 

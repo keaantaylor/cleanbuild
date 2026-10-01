@@ -26,6 +26,9 @@ authlib>=1.8,<2
 boto3>=1.43,<2
 paramiko>=5,<6
 defusedxml>=0.7,<1
+# Faster XML for openpyxl (about 1.5x on large workbooks); openpyxl keeps entity
+# resolution off for lxml and still streams sheets through defusedxml.
+lxml>=5.3,<7
 redis>=8.1,<9
 sentry-sdk>=2.70,<3
 email-validator>=2.2,<3

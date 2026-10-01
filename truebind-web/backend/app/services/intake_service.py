@@ -75,7 +75,7 @@ def create_report(
     kind = verdict.kind
     if kind is None:  # an accepted verdict always names its kind
         raise ValueError("unsupported file type")
-    stored = get_store().put_original(tenant.id, kind, path)
+    stored = get_store().put_original(tenant.id, kind, path, db=db)
     report = Report(
         tenant_id=tenant.id,
         created_by=actor_user_id,

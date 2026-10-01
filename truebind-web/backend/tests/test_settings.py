@@ -40,7 +40,7 @@ def test_defaults_match_pre_p1_behaviour(monkeypatch: pytest.MonkeyPatch) -> Non
     assert s.max_upload_mb == 50 and s.max_upload_bytes == 50 * 1024 * 1024
     assert s.max_uncompressed_mb == 800 and s.max_compression_ratio == 150
     assert (s.max_sheets, s.max_rows, s.max_cells) == (200, 1_000_000, 60_000_000)
-    assert (s.job_timeout_s, s.job_memory_mb, s.job_lease_s) == (1800, 4096, 60)
+    assert (s.job_timeout_s, s.job_memory_mb, s.job_lease_s) == (600, 4096, 60)
     assert s.max_concurrent_jobs_per_tenant == 3
     assert (s.ai_max_calls_per_report, s.ai_time_budget_s) == (50, 30)
     assert s.embedded_worker is True and s.allow_signup is True and s.cookie_secure is False

@@ -236,6 +236,10 @@ export const api = {
     request<SheetMapping>(`/reports/${reportId}/sheets/${sheetId}/mapping`).then((m) => m.fields as MappingField[]),
   confirmSheetMapping: (reportId: string, sheetId: string, mappings: Record<string, string | null>) =>
     request<Sheet>(`/reports/${reportId}/sheets/${sheetId}/mapping`, { method: "POST", body: JSON.stringify({ mappings }) }),
+  includeSheet: (reportId: string, sheetId: string) =>
+    request<Sheet>(`/reports/${reportId}/sheets/${sheetId}/include`, { method: "POST" }),
+  skipSheet: (reportId: string, sheetId: string) =>
+    request<Sheet>(`/reports/${reportId}/sheets/${sheetId}/skip`, { method: "POST" }),
   processReport: (reportId: string) => request<Report>(`/reports/${reportId}/process`, { method: "POST" }),
 
   // ---- findings

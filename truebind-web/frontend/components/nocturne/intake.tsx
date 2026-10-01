@@ -454,6 +454,22 @@ export function MappingReview({ report, sheets, onSheetsChange, onProcess, proce
       setBusy(null);
     }
   }
+  async function setIncluded(sheetId: string, include: boolean) {
+    setBusy(`inc-${sheetId}`);
+    setActionErr(null);
+    try {
+      if (include) await api.includeSheet(report.id, sheetId);
+      else await api.skipSheet(report.id, sheetId);
+      const list = await api.listSheets(report.id);
+      onSheetsChange(list);
+      setMapping(null);
+      setActive(include ? sheetId : (list.find((s) => s.status === "PENDING_CONFIRMATION")?.id ?? null));
+    } catch (e) {
+      setActionErr(e instanceof ApiError ? e.message : include ? "Could not include this sheet." : "Could not skip this sheet.");
+    } finally {
+      setBusy(null);
+    }
+  }
   async function process() {
     setBusy("process");
     setActionErr(null);
@@ -483,15 +499,16 @@ export function MappingReview({ report, sheets, onSheetsChange, onProcess, proce
           const skipped = s.status === "SKIPPED";
           const tone = skipped ? "var(--faint)" : s.status === "CONFIRMED" ? "var(--ok)" : s.mapping_status === "unmapped" || s.mapping_status === "partial" ? "var(--warn)" : "var(--accentText)";
           const text = skipped ? s.skip_reason ?? "skipped" : s.status === "CONFIRMED" ? "confirmed" : `${s.fields_mapped}/${s.fields_total} fields${s.needs_review ? ` · ${s.needs_review} to check` : ""}`;
+          const includable = skipped && s.mapping_status === "non_claim_summary";
           return (
+            <div key={s.id} style={{ boxShadow: "inset 0 -1px 0 var(--line)" }}>
             <button
-              key={s.id}
               type="button"
               disabled={skipped}
               onClick={() => setActive(s.id)}
               aria-current={on ? "true" : undefined}
               className="grid grid-cols-[18px_1fr] gap-2.5 px-4 py-3 text-left transition-colors enabled:cursor-pointer enabled:hover:bg-[var(--accentTint)] disabled:opacity-60"
-              style={{ background: on ? "var(--accentTint)" : "transparent", boxShadow: on ? "inset 2px 0 0 var(--accent)" : "inset 0 -1px 0 var(--line)" }}
+              style={{ background: on ? "var(--accentTint)" : "transparent", boxShadow: on ? "inset 2px 0 0 var(--accent)" : undefined }}
             >
               <span className="mt-0.5" style={{ color: tone }}>{s.status === "CONFIRMED" ? <CheckCircle size={16} weight="fill" /> : skipped ? <X size={16} /> : <Warning size={16} />}</span>
               <span className="flex min-w-0 flex-col">
@@ -502,6 +519,14 @@ export function MappingReview({ report, sheets, onSheetsChange, onProcess, proce
                 </span>
               </span>
             </button>
+            {includable && (
+              <div className="px-4 pb-3 pl-[46px]">
+                <button type="button" className="tb-btn text-[12px]" onClick={() => setIncluded(s.id, true)} disabled={!!busy}>
+                  {busy === `inc-${s.id}` ? "Including…" : "Include anyway"}
+                </button>
+              </div>
+            )}
+            </div>
           );
         })}
         <div className="p-3">
@@ -638,6 +663,11 @@ export function MappingReview({ report, sheets, onSheetsChange, onProcess, proce
             )}
             <div className="sticky bottom-0 flex flex-wrap items-center gap-3 px-5 py-3" style={{ background: "var(--surface)", boxShadow: "0 -1px 0 var(--line)" }}>
               <span className="flex-1 text-[12.5px]" style={{ color: "var(--faint)" }}>Fields marked * are required. Unmapped source columns are kept on every row.</span>
+              {activeSheet && activeSheet.status !== "SKIPPED" && (
+                <button type="button" className="tb-btn" onClick={() => setIncluded(activeSheet.id, false)} disabled={!!busy} title="Leave this sheet out of the health report; you can include it again">
+                  {busy === `inc-${activeSheet.id}` ? "Skipping…" : "Skip sheet"}
+                </button>
+              )}
               <button type="button" className="tb-btn tb-btn-solid" onClick={confirmActive} disabled={busy === "confirm" || activeSheet?.status === "SKIPPED"}>
                 <Check size={14} />
                 {busy === "confirm" ? "Saving…" : activeSheet?.status === "CONFIRMED" ? "Save changes" : "Confirm sheet"}

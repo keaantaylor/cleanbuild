@@ -97,6 +97,37 @@ def confirm_sheet_mapping(report_id: str, sheet_id: str, body: MappingConfirmReq
     return _sheet_out(sheet, rows)
 
 
+def _set_included(report_id: str, sheet_id: str, include: bool, ctx: Context, db: Session) -> SheetOut:
+    report = get_report_or_404(db, ctx, report_id)
+    sheet = get_sheet_or_404(db, ctx, report, sheet_id)
+    if report.status not in EDITABLE_STATUSES or job_service.active_job(db, report.id) is not None:
+        raise HTTPException(status_code=409, detail="Sheets cannot be changed while the report is being processed.")
+    try:
+        persistence_service.set_sheet_included(db, report, sheet, include, actor=ctx.actor,
+                                               actor_user_id=ctx.user_id)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    db.commit()
+    rows = db.query(Mapping).filter(Mapping.sheet_id == sheet.id).all()
+    return _sheet_out(sheet, rows)
+
+
+@router.post("/{report_id}/sheets/{sheet_id}/include", response_model=SheetOut)
+def include_sheet(report_id: str, sheet_id: str, ctx: Context = Depends(require_writer),
+                  db: Session = Depends(get_db)) -> SheetOut:
+    """"Include anyway": bring back a sheet auto-skipped as a non-claims tab.
+    Its mapping then needs confirming like any other sheet."""
+    return _set_included(report_id, sheet_id, True, ctx, db)
+
+
+@router.post("/{report_id}/sheets/{sheet_id}/skip", response_model=SheetOut)
+def skip_sheet(report_id: str, sheet_id: str, ctx: Context = Depends(require_writer),
+               db: Session = Depends(get_db)) -> SheetOut:
+    """Leave a sheet out of the health report (it can be included again)."""
+    return _set_included(report_id, sheet_id, False, ctx, db)
+
+
 @router.post("/{report_id}/process", response_model=ReportOut, status_code=202)
 def process_report(report_id: str, idempotency_key: str | None = Header(default=None, alias=idempotency.HEADER),
                    ctx: Context = Depends(require_writer), db: Session = Depends(get_db)) -> ReportOut | JSONResponse:
@@ -117,6 +148,8 @@ def process_report(report_id: str, idempotency_key: str | None = Header(default=
     pending = [s.sheet_name for s in sheets if s.status == "PENDING_CONFIRMATION"]
     if pending:
         raise HTTPException(status_code=409, detail=f"{len(pending)} sheet(s) still need their mapping confirmed.")
+    if not any(s.status == "CONFIRMED" for s in sheets):
+        raise HTTPException(status_code=409, detail="Every sheet is skipped. Include at least one claims sheet.")
     tenant = db.get(Tenant, ctx.tenant_id)
     if tenant is not None:
         try:

@@ -8,6 +8,8 @@ same mapping-outcome objects, never two separately-derived ones)."""
 
 from __future__ import annotations
 
+import re
+
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -15,7 +17,7 @@ from time import perf_counter
 
 import pandas as pd
 
-from . import dedupe, export, ingest, report, validation
+from . import dedupe, export, ingest, report, schema, validation
 from .ingest import SheetData
 from .mapping import AIMapper, MappingBatchResult, MappingSuggestion, build_mapping, derive_field_state
 import pandera.errors as pa_errors
@@ -130,6 +132,44 @@ def propose_mapping_for_workbook(
     ]
 
 
+_NON_CLAIMS_NAME = re.compile(
+    r"summary|lookup|look-up|look up|\bnotes?\b|read[ _-]?me|instruction|\blogs?\b|change[ _-]?log|\baudit\b|"
+    r"pivot|dashboard|\bcover\b|contents|\bindex\b|legend|reference data|\bconfig|\bsettings\b|\bfx\b|"
+    r"\brates?\b|\btotals?\b|\bcontrols?\b|reconciliation|checklist|\bguide\b|\bhelp\b|^sheet\d*$", re.I)
+NON_CLAIMS_PREFIX = "Looks like a non-claims tab"
+
+
+def non_claims_reason(sheet: SheetData, mapping) -> str | None:
+    """Stress-test finding: summary, lookup and log tabs were read as claims (a
+    log tab produced 371 false exact duplicates). A sheet is pre-selected as
+    SKIPPED -- never silently: the reason is shown and the user can include it
+    anyway -- when it reads as reference material rather than a claims register:
+
+    - its name says so (Summary, Lookups, Notes, Log, Pivot...) and it maps few
+      fields or no claim reference; or
+    - it has no claim reference and no insured name, and is small; or
+    - at most one field is recognised and it is not a large table.
+
+    A large table with unrecognisable (coded) headers is NOT skipped: it may be
+    a genuine claims register that simply needs mapping by hand."""
+    codes = {sg.field_code for sg in mapping.suggestions if sg.field_code}
+    n = len(codes)
+    rows = len(sheet.raw)
+    has_ref = schema.CLAIM_REF_CODE in codes
+    has_name = schema.INSURED_NAME_CODE in codes
+    named = bool(_NON_CLAIMS_NAME.search(sheet.sheet_name.strip()))
+    if named and (n < 6 or not has_ref):
+        why = f"its name ({sheet.sheet_name!r}) suggests reference material"
+    elif not has_ref and not has_name and rows < 20:
+        why = "it has no claim reference or insured name column"
+    elif n <= 1 and rows < 50:
+        why = "almost none of its columns match claim fields"
+    else:
+        return None
+    return (f"{NON_CLAIMS_PREFIX}: {why}, and {n} of {len(FIELDS)} claim fields were recognised. "
+            "Skipped so it never counts in findings or the score; include it anyway if it holds claims.")
+
+
 def _source_column_count(s: SheetData) -> int:
     return sum(1 for c in s.raw.columns if not str(c).startswith("__blank_col_"))
 
@@ -176,7 +216,7 @@ def _build_reconciliation(
 
     mapped_rows = sum(rec.rows_processed for rec in sheet_audit if rec.status in ("mapped", "partial"))
     unmapped_rows = sum(rec.rows_processed for rec in sheet_audit if rec.status == "unmapped")
-    rejected_rows = sum(rec.rows_rejected for rec in sheet_audit)
+    rejected_rows = sum(rec.rows_rejected for rec in sheet_audit if rec.status not in ("empty", "error"))
     non_claim_summary_rows = sum(rec.rows_processed for rec in sheet_audit if rec.status == "non_claim_summary")
 
     dup_row_positions: set = set()

@@ -191,6 +191,12 @@ def run_process(db: Session, job: Job) -> dict:
     if sheets is None:
         sheets = _parse_original(db, report)
     t_parse = perf_counter() - t0
+    # A sheet the reviewer skipped (or left auto-skipped as a non-claims tab)
+    # never reaches validation, the findings or the score.
+    skipped_in_review = {s.sheet_name: s.skip_reason for s in db_sheets if s.status == "SKIPPED"}
+    for s in sheets:
+        if not s.skipped and s.sheet_name in skipped_in_review:
+            s.skipped, s.skip_reason = True, skipped_in_review[s.sheet_name] or "skipped in review"
     job_service.set_stage(db, job, "mapping", sheets_found=len(sheets),
                           rows_detected=sum(len(s.raw) for s in sheets if not s.skipped))
     proposals = persistence_service.proposals_from_db(db, report, sheets)

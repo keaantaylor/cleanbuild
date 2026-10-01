@@ -28,6 +28,7 @@ from . import alert_service, audit_service, pipeline_service
 from .pipeline_service import FIELDS, FIELDS_BY_CODE, REQUIRED_CODES as _REQUIRED, classify_sheet_status, mapping_mod
 from bordereaux.rules import RULES
 from bordereaux.rules import rule as catalogue_rule
+from bordereaux.pipeline import NON_CLAIMS_PREFIX, non_claims_reason
 
 FIELD_TO_COLUMN = {
     "CR0104M": "claim_reference", "CR0105CM": "claim_status", "CR0119CM": "date_of_loss",
@@ -98,13 +99,20 @@ def persist_ingest(db: Session, report: Report, sheets, proposals, ai_meta: dict
     for i, s in enumerate(sheets):
         sheet_id = new_uuid()
         headers = [c for c in s.raw.columns] if not s.skipped else []
+        proposal = proposal_by_sheet.get(s.sheet_name)
+        # Non-claims tabs (Summary, Lookups, Log...) are pre-selected as skipped,
+        # with the reason shown; headers, samples and the proposal are kept so
+        # "Include anyway" can bring the sheet back without re-reading the file.
+        auto_skip = non_claims_reason(s, proposal.mapping) if proposal is not None and not s.skipped else None
+        status = "SKIPPED" if s.skipped or auto_skip else "PENDING_CONFIRMATION"
+        reason = auto_skip or s.skip_reason or None
         db.add(Sheet(
             id=sheet_id, tenant_id=tid, report_id=report.id, sheet_name=s.sheet_name[:255], sheet_index=i,
             header_row_index=s.header_row_index if not s.skipped else None,
             row_count=len(s.raw) if not s.skipped else 0,
             source_column_count=sum(1 for c in headers if not str(c).startswith("__blank_col_")),
-            headers=[str(h)[:255] for h in headers], status="SKIPPED" if s.skipped else "PENDING_CONFIRMATION",
-            skip_reason=(s.skip_reason or None) and s.skip_reason[:500], hidden=s.hidden, notes=list(s.notes),
+            headers=[str(h)[:255] for h in headers], status=status,
+            skip_reason=reason and reason[:500], hidden=s.hidden, notes=list(s.notes),
             trailing_blank_rows=s.trailing_blank_rows, samples=_samples(s.raw) if not s.skipped else None,
         ))
         for er in s.excluded_rows:
@@ -112,7 +120,6 @@ def persist_ingest(db: Session, report: Report, sheets, proposals, ai_meta: dict
                              "sheet_name": er.sheet_name[:255], "row_number": er.row_number, "row_count": er.count,
                              "reason": er.reason, "detail": er.detail[:500],
                              "values": {str(k)[:255]: str(v)[:500] for k, v in er.values.items()}})
-        proposal = proposal_by_sheet.get(s.sheet_name)
         if proposal is None:
             continue
         by_field = {sg.field_code: sg for sg in proposal.mapping.suggestions if sg.field_code}
@@ -219,7 +226,41 @@ def proposals_from_db(db: Session, report: Report, sheets):
     return out
 
 
+def is_non_claims_skip(sheet: Sheet) -> bool:
+    """Skipped because it looked like reference material (it has data and a
+    stored proposal), as opposed to empty or unreadable."""
+    return bool(sheet.skip_reason and sheet.skip_reason.startswith(NON_CLAIMS_PREFIX))
+
+
+def set_sheet_included(db: Session, report: Report, sheet: Sheet, include: bool, *, actor: str,
+                       actor_user_id: str | None) -> None:
+    """Include anyway / skip a sheet. Only sheets that hold data can be
+    included; including resets the sheet to PENDING_CONFIRMATION so its mapping
+    is reviewed like any other. Skipping clears any confirmation."""
+    before = {"status": sheet.status, "skip_reason": sheet.skip_reason}
+    if include:
+        if sheet.status != "SKIPPED":
+            return
+        if not is_non_claims_skip(sheet):
+            raise ValueError("This sheet has no readable claims table, so it cannot be included.")
+        sheet.status = "PENDING_CONFIRMATION"
+        sheet.skip_reason = None
+    else:
+        if sheet.status == "SKIPPED":
+            return
+        sheet.status = "SKIPPED"
+        sheet.skip_reason = (f"{NON_CLAIMS_PREFIX}: skipped by the reviewer. "
+                             "Include it again if it holds claims.")
+        db.query(Mapping).filter(Mapping.sheet_id == sheet.id).update({Mapping.confirmed_at: None})
+    audit_service.log_action(db, report.tenant_id, report.id, "SHEET_INCLUDED" if include else "SHEET_SKIPPED",
+                             "SHEET", sheet.id, before=before,
+                             after={"sheet": sheet.sheet_name, "status": sheet.status}, actor=actor,
+                             actor_user_id=actor_user_id)
+
+
 def sheet_mapping_status(sheet: Sheet, mapping_rows: list[Mapping]) -> tuple[str, int, int]:
+    if sheet.status == "SKIPPED" and is_non_claims_skip(sheet):
+        return "non_claim_summary", 0, len(FIELDS)
     if sheet.status == "SKIPPED":
         is_crash = bool(sheet.skip_reason and sheet.skip_reason.startswith("error while reading"))
         return ("error" if is_crash else "empty"), 0, len(FIELDS)

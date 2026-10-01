@@ -119,6 +119,11 @@ def test_every_state_change_is_audited_and_the_chain_holds(monkeypatch: pytest.M
     up = trail.step("POST", "/api/v1/reports/upload", lambda: owner.upload("a.xlsx", xlsx_bytes(dup_rows)))
     rid = up.json()["id"]
     run_jobs()
+    sid = owner.get(f"/api/v1/reports/{rid}/sheets").json()[0]["id"]
+    trail.step("POST", "/api/v1/reports/{report_id}/sheets/{sheet_id}/skip",
+               lambda: owner.post(f"/api/v1/reports/{rid}/sheets/{sid}/skip"))
+    trail.step("POST", "/api/v1/reports/{report_id}/sheets/{sheet_id}/include",
+               lambda: owner.post(f"/api/v1/reports/{rid}/sheets/{sid}/include"))
     for s in owner.get(f"/api/v1/reports/{rid}/sheets").json():
         m = owner.get(f"/api/v1/reports/{rid}/sheets/{s['id']}/mapping").json()
         choices = {f["field_code"]: f["source_column"] for f in m["fields"]}

@@ -10,8 +10,8 @@ Running unattended: approval items are listed under "Waiting for Kealan" and ski
 | 0 Strategy docs (strategy.md, customer-discovery.md) | done |
 | 1 Reliability (10k rows < 2 min, no hangs, durable originals, timeout, hosting map) | done |
 | 2 Trust in the findings | done (app screens for the catalogue and 'Not mapped' land with the Phase 3 report rewrite) |
-| 3 Health report redesign | in progress |
-| 4 Deliverables: annotated workbook, corrected copy, query letter, month-on-month | remaining |
+| 3 Health report redesign | done |
+| 4 Deliverables: annotated workbook, corrected copy, query letter, month-on-month | in progress |
 | 5 Adoption and trust: anonymise option, 30-day deletion, true security page, DPA draft, logout bug | remaining |
 | 6 Sales path: home wording, demo page, pricing, Health Check upload form (reuse launch-readiness branch) | remaining |
 | 7 Design docs: docs/next-products.md | remaining |
@@ -28,6 +28,10 @@ checked; dates as text/serials amber; one rule catalogue (bordereaux/rules.py) d
 finding has a sentence + cell (e.g. H8); counts agree across summary, exceptions CSV and duplicates (tests);
 hostile text inert in API/CSV/AI prompts (tests/test_injection_inert.py). Reachability 106/106. OpenAPI: additive
 only (2 operations, 7 optional fields; scripts/openapi_compat.py). Backend 366 passed, engine 94 passed.
+
+Phase 3 evidence: report page 1 = verdict, Errors / Warnings / Couldn't check (with reasons + Fix mapping), top 5
+fixes by severity and money; tabs for who must fix, duplicates, money by currency, mapping, other checks. Same
+structure in the PDF (lib/pdf.ts callout + tones). Build OK, e2e 6/6.
 
 ## Waiting for Kealan
 1. Render instance size: 512 MB is tight for 30,000-row files (peak ~430 MB in one process). Cheapest safe

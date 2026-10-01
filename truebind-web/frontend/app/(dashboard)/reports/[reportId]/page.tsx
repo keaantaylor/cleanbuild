@@ -4,49 +4,20 @@ import Link from "next/link";
 import { use, useEffect, useRef, useState } from "react";
 import { ArrowLeft, DownloadSimple, EnvelopeSimple, FileArchive, FilePdf, Printer } from "@phosphor-icons/react";
 import { api, ApiError, IN_PROGRESS } from "@/lib/api";
-import type { Report, ReportSummary } from "@/lib/types";
+import type { HealthRule, HealthView, Report, ReportSummary } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
 import { useUi } from "@/lib/ui";
 import { useShell } from "@/components/layout/ShellContext";
 import { describeAudit } from "@/lib/audit";
-import { probableDuplicatesValue, provisionalReason } from "@/lib/findings";
+import { provisionalReason } from "@/lib/findings";
+import { TONE, severityLabel } from "@/lib/severity";
 import { formatBytes, formatDateTime, formatDuration, formatMoney, formatNumber, timeAgo } from "@/lib/formatters";
 import { EmptyState, ErrorState, LoadingState, Mark, Modal, StatusPill } from "@/components/nocturne/ui";
 import { ProcessingPanel } from "@/components/nocturne/intake";
-import { Recommendations } from "@/components/nocturne/ops";
 import { reportStatus } from "@/components/nocturne/status";
 import { ChecksPanel } from "@/components/nocturne/checks";
 import { exportFile } from "@/lib/exports";
 import { downloadPdf, type PdfBlock } from "@/lib/pdf";
-
-const RULE_LABEL: Record<string, string> = {
-  missing_mandatory_field: "Required field missing",
-  arithmetic_mismatch: "Total incurred does not reconcile",
-  date_order: "Dates out of order",
-  date_in_future: "Date in the future",
-  invalid_currency: "Unrecognised currency code",
-  currency_inconsistency: "Claim reported in several currencies",
-  invalid_status: "Unrecognised claim status",
-  schema_violation: "Value could not be read",
-};
-const RULE_SEV: Record<string, ["Critical" | "High" | "Medium" | "Info", string]> = {
-  missing_mandatory_field: ["Critical", "oklch(0.54 0.17 25)"],
-  arithmetic_mismatch: ["High", "oklch(0.54 0.12 65)"],
-  date_order: ["Medium", "oklch(0.5 0.1 255)"],
-  date_in_future: ["Medium", "oklch(0.5 0.1 255)"],
-  invalid_currency: ["Medium", "oklch(0.5 0.1 255)"],
-  currency_inconsistency: ["Medium", "oklch(0.5 0.1 255)"],
-  invalid_status: ["Medium", "oklch(0.5 0.1 255)"],
-  schema_violation: ["Info", "#676b7e"],
-};
-
-/** A factual headline built only from computed numbers. */
-function headline(r: Report, s: ReportSummary) {
-  const rows = s.total_claims ?? r.rows_processed;
-  const flagged = s.reconciliation.rows_requiring_review;
-  const na = s.not_assessed_checks?.length ?? 0;
-  return `${formatNumber(rows)} rows checked. ${flagged ? `${formatNumber(flagged)} need attention before submission.` : "None need attention."}${na ? ` ${na} check${na === 1 ? "" : "s"} could not be assessed.` : ""}`;
-}
 
 export default function ReportPage({ params }: { params: Promise<{ reportId: string }> }) {
   const { reportId } = use(params);
@@ -114,74 +85,114 @@ export default function ReportPage({ params }: { params: Promise<{ reportId: str
   );
 }
 
+const PAPER = { text: "#1c1e2a", muted: "#3f424d", faint: "#555a69", line: "rgba(28,30,42,.12)" };
+
+function moneyList(items: { currency: string; amount: number }[]) {
+  return items.map((m) => (m.currency === "UNKNOWN" ? `${formatNumber(Math.round(m.amount))} (currency not stated)` : formatMoney(m.amount, m.currency))).join(" · ");
+}
+
+function plural(n: number, one: string, many = `${one}s`) {
+  return `${formatNumber(n)} ${n === 1 ? one : many}`;
+}
+
+/** The PDF follows the page: verdict, three counts, top fixes, couldn't check, then the sections. */
+function healthPdf(report: Report, s: ReportSummary, hv: HealthView): PdfBlock[] {
+  const W3 = [0.34, 0.33, 0.33];
+  const rule = (r: HealthRule): PdfBlock[] => [
+    { kind: "row", cells: [r.outcome === "FAIL" ? "Error" : "Warning", `${severityLabel(r.severity)} · ${r.label}`, plural(r.findings, "finding")], widths: [0.14, 0.66, 0.2], tones: [r.outcome === "FAIL" ? "err" : "warn"] },
+    ...r.examples.slice(0, 1).map((e) => ({ kind: "muted" as const, text: `${e.where}: ${e.sentence}` })),
+    ...(r.money_at_risk.length ? [{ kind: "muted" as const, text: `Money on these rows: ${moneyList(r.money_at_risk)}` }] : []),
+    { kind: "muted", text: `Fix: ${r.fix}` },
+    { kind: "space", h: 4 },
+  ];
+  const byOwner = (owner: "sender" | "us") => hv.rules.filter((r) => r.owner === owner);
+  return [
+    { kind: "kicker", text: `TRUEBIND · BORDEREAU HEALTH CHECK · ${report.id.slice(0, 8).toUpperCase()}` },
+    { kind: "muted", text: `${report.file_name} · received ${formatDateTime(report.created_at)}${report.sender ? ` · from ${report.sender}` : ""}` },
+    { kind: "space", h: 8 },
+    { kind: "callout", text: hv.verdict_label, sub: hv.verdict_reason, tone: hv.verdict === "ready" ? "ok" : "err" },
+    { kind: "row", cells: ["Errors", "Warnings", "Couldn't check"], widths: W3, bold: true },
+    { kind: "row", cells: [`${formatNumber(hv.counts.errors)} on ${plural(hv.counts.error_rows, "row")}`, formatNumber(hv.counts.warnings), plural(hv.counts.couldnt_check, "check")], widths: W3, tones: ["err", "warn", "muted"] },
+    { kind: "rule" },
+    { kind: "heading", text: hv.top_fixes.length ? `Top ${hv.top_fixes.length} fixes` : "Nothing to fix" },
+    ...hv.top_fixes.flatMap(rule),
+    ...(hv.couldnt_check.length
+      ? [{ kind: "rule" as const }, { kind: "heading" as const, text: "Couldn't check" }, ...hv.couldnt_check.map((c) => ({ kind: "text" as const, text: `${c.label}${c.rows ? ` (${plural(c.rows, "row")})` : ""}: ${c.reason}${c.fix === "mapping" ? " Fix: map the column." : ""}` }))]
+      : []),
+    { kind: "rule" },
+    { kind: "heading", text: "Findings by who must fix them" },
+    { kind: "text", text: "The sender (query them):" },
+    ...(byOwner("sender").length ? byOwner("sender").map((r) => ({ kind: "row" as const, cells: [r.outcome === "FAIL" ? "Error" : "Warning", r.label, plural(r.findings, "finding")], widths: [0.14, 0.66, 0.2], tones: [r.outcome === "FAIL" ? ("err" as const) : ("warn" as const)] })) : [{ kind: "muted" as const, text: "Nothing." }]),
+    { kind: "text", text: "Us (safe fixes in the corrected copy, or a mapping change):" },
+    ...(byOwner("us").length ? byOwner("us").map((r) => ({ kind: "row" as const, cells: [r.outcome === "FAIL" ? "Error" : "Warning", r.label, plural(r.findings, "finding")], widths: [0.14, 0.66, 0.2], tones: [r.outcome === "FAIL" ? ("err" as const) : ("warn" as const)] })) : [{ kind: "muted" as const, text: "Nothing." }]),
+    { kind: "rule" },
+    { kind: "heading", text: "Duplicates" },
+    { kind: "row", cells: ["Exact duplicates", "Probable (confidence 60+)", "Of which 80+", "Claim development"], widths: [0.25, 0.25, 0.25, 0.25], bold: true },
+    { kind: "row", cells: [formatNumber(hv.duplicates.exact_pairs), hv.duplicates.probable_pairs == null ? "not run" : formatNumber(hv.duplicates.probable_pairs), formatNumber(hv.duplicates.probable_high_confidence), formatNumber(hv.duplicates.development_pairs)], widths: [0.25, 0.25, 0.25, 0.25] },
+    { kind: "rule" },
+    { kind: "heading", text: "Money by currency (never added together)" },
+    { kind: "row", cells: ["Currency", "Rows", "Paid to date", "Reserve", "Total incurred"], widths: [0.16, 0.12, 0.24, 0.24, 0.24], bold: true },
+    ...hv.money_by_currency.map((t) => ({ kind: "row" as const, cells: [t.currency === "UNKNOWN" ? "Not stated" : t.currency, formatNumber(t.rows), formatMoney(t.paid_to_date, t.currency), formatMoney(t.reserve, t.currency), formatMoney(t.incurred, t.currency)], widths: [0.16, 0.12, 0.24, 0.24, 0.24] })),
+    { kind: "rule" },
+    { kind: "heading", text: "Mapping" },
+    ...(s.sheet_audit ?? []).map((a) => ({ kind: "row" as const, cells: [a.sheet_name, a.status.replace(/_/g, " "), `${formatNumber(a.rows_processed)} rows`, `${a.fields_mapped} fields`], widths: [0.34, 0.26, 0.2, 0.2] })),
+    ...s.field_completeness.filter((f) => f.never_mapped).slice(0, 1).map(() => ({ kind: "muted" as const, text: `Not mapped: ${s.field_completeness.filter((f) => f.never_mapped).map((f) => f.field_name).join(", ")}.` })),
+    { kind: "rule" },
+    { kind: "row", cells: ["Source file", `sha256 ${report.source_sha256 ?? "—"}`], widths: [0.2, 0.8] },
+    { kind: "row", cells: ["Rows", rec(s)], widths: [0.2, 0.8] },
+    { kind: "row", cells: ["Source values", "Unchanged. TrueBind never edits the file it was sent."], widths: [0.2, 0.8] },
+  ];
+}
+
+function rec(s: ReportSummary) {
+  const r = s.reconciliation;
+  return `${formatNumber(r.exported_rows)} claim rows from ${formatNumber(r.source_data_rows)} source rows${r.reconciles ? "; every row accounted for" : "; rows do not reconcile"}`;
+}
+
 function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
   const { toast } = useUi();
   const [send, setSend] = useState(false);
-  const rec = s.reconciliation;
-  const flagged = rec.rows_requiring_review;
-  const excluded = rec.rejected_rows + rec.non_claim_summary_rows;
-  const base = Math.max(1, rec.source_data_rows);
-  const clean = Math.max(0, rec.exported_rows - flagged);
-  const unmappedCols = (s.unmapped_source_columns ?? []).reduce((a, u) => a + u.columns.length, 0);
-  const na = s.not_assessed_checks ?? [];
-  const pct = (n: number) => `${Math.max(0, (n / base) * 100)}%`;
-  const rules = Object.entries(s.exception_counts_by_rule ?? {}).sort((a, b) => b[1] - a[1]);
-  const periods = Object.entries(s.reporting_periods ?? {}).sort((a, b) => a[0].localeCompare(b[0]));
-  const totals = s.totals_by_currency ?? [];
-  const impact = totals.map((t) => formatMoney(t.incurred, t.currency)).join(" · ") || "—";
+  const [tab, setTab] = useState<"owner" | "duplicates" | "money" | "mapping" | "more">("owner");
+  const [reprocessing, setReprocessing] = useState(false);
   const name = report.file_name.replace(/\.\w+$/, "");
+  const hv = s.health_view;
+
+  if (!hv)
+    return (
+      <div className="tb-card flex w-full max-w-[1100px] flex-col items-start gap-3 p-6">
+        <span className="text-[15px] font-medium">This report was produced before the new health report.</span>
+        <span className="text-[13.5px]" style={{ color: "var(--muted)" }}>Process it again to see the verdict, the top fixes and every finding with its cell. The source file is unchanged; this takes a few seconds.</span>
+        <button type="button" className="tb-btn tb-btn-solid" disabled={reprocessing} onClick={() => { setReprocessing(true); void api.processReport(report.id).then(() => window.location.reload()).catch((e) => { setReprocessing(false); toast(e instanceof ApiError ? e.message : "Could not start processing.", "err"); }); }}>
+          {reprocessing ? "Starting…" : "Process again"}
+        </button>
+      </div>
+    );
 
   const pdf = () => {
-    const blocks: PdfBlock[] = [
-      { kind: "kicker", text: `TRUEBIND · BORDEREAU HEALTH CHECK · ${report.id.slice(0, 8).toUpperCase()}` },
-      { kind: "muted", text: `${report.file_name} · received ${formatDateTime(report.created_at)}${report.sender ? ` · from ${report.sender}` : ""}` },
-      { kind: "space", h: 8 },
-      { kind: "title", text: headline(report, s) },
-      { kind: "rule" },
-      { kind: "heading", text: "Coverage" },
-      { kind: "row", cells: ["Checked", "Flagged", "Unmapped", "Not assessed"], widths: [0.25, 0.25, 0.25, 0.25], bold: true },
-      { kind: "row", cells: [`${formatNumber(clean)} rows`, `${formatNumber(flagged)} rows`, `${unmappedCols} column${unmappedCols === 1 ? "" : "s"}`, `${na.length} check${na.length === 1 ? "" : "s"}`], widths: [0.25, 0.25, 0.25, 0.25] },
-      { kind: "space", h: 6 },
-      { kind: "row", cells: ["Sheets", "Source rows", "Findings", "Health score"], widths: [0.25, 0.25, 0.25, 0.25], bold: true },
-      { kind: "row", cells: [`${s.sheets_processed} of ${s.sheets_total}`, formatNumber(rec.source_data_rows), formatNumber(report.issues_found ?? 0), s.composite_score != null ? `${Math.round(s.composite_score)}/100 · grade ${report.grade ?? s.grade ?? "—"}` : "—"], widths: [0.25, 0.25, 0.25, 0.25] },
-      { kind: "rule" },
-      { kind: "heading", text: "Findings" },
-      { kind: "row", cells: ["Severity", "Check", "Rows"], widths: [0.2, 0.6, 0.2], bold: true },
-      ...rules.map(([k, v]) => ({ kind: "row" as const, cells: [RULE_SEV[k]?.[0] ?? "Medium", RULE_LABEL[k] ?? k.replace(/_/g, " "), formatNumber(v)], widths: [0.2, 0.6, 0.2] })),
-      { kind: "row", cells: ["Medium", "Exact resubmissions", formatNumber(s.exact_duplicates)], widths: [0.2, 0.6, 0.2] },
-      { kind: "row", cells: ["Info", "Claim development (not duplicates)", formatNumber(s.development_pairs ?? 0)], widths: [0.2, 0.6, 0.2] },
-      { kind: "rule" },
-      { kind: "heading", text: "What was not checked" },
-      ...(s.unmapped_source_columns ?? []).flatMap((u) => u.columns.map((c) => ({ kind: "text" as const, text: `“${c}” (${u.sheet_name}) — unmapped. Kept on every row; not validated.` }))),
-      ...na.map((c) => ({ kind: "text" as const, text: `${c.label} — not assessed. ${c.reason}` })),
-      ...(unmappedCols === 0 && na.length === 0 ? [{ kind: "text" as const, text: "Every column was mapped and every check was assessed." }] : []),
-      { kind: "rule" },
-      { kind: "heading", text: "Evidence" },
-      { kind: "row", cells: ["Source hash", `sha256 ${report.source_sha256 ?? "—"}`], widths: [0.25, 0.75] },
-      { kind: "row", cells: ["Ruleset", "Lloyd’s CRS v5.2"], widths: [0.25, 0.75] },
-      { kind: "row", cells: ["Rows reconcile", rec.reconciles ? "Yes — every source row accounted for" : "No — see the reconciliation"], widths: [0.25, 0.75] },
-      { kind: "row", cells: ["Source values", "Unchanged"], widths: [0.25, 0.75] },
-    ];
-    downloadPdf(`${name}_Health_Check.pdf`, blocks, `TrueBind Health Check · ${report.file_name}`);
+    downloadPdf(`${name}_Health_Check.pdf`, healthPdf(report, s, hv), `TrueBind Health Check · ${report.file_name}`);
     toast(`Downloaded ${name}_Health_Check.pdf`, "ok");
   };
+  const ready = hv.verdict === "ready";
+  const verdictTone = TONE[ready ? "ok" : "err"];
+  const mappingFixes = hv.couldnt_check.filter((c) => c.fix === "mapping");
+  const fixMapping = `/upload?reportId=${report.id}`;
 
   return (
     <>
       <div className="no-print grid w-full max-w-[1100px] grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
-        <Link href={`/exceptions?reportId=${report.id}`} className="tb-btn">Exceptions</Link>
+        <Link href={`/exceptions?reportId=${report.id}`} className="tb-btn">All findings</Link>
         <Link href={`/duplicates?reportId=${report.id}`} className="tb-btn">Duplicates</Link>
         <button type="button" className="tb-btn" onClick={() => window.print()} title="Print" aria-label="Print"><Printer /><span className="sm:hidden">Print</span></button>
         <button type="button" className="tb-btn" onClick={pdf}><FilePdf />PDF</button>
-        <button type="button" className="tb-btn !whitespace-normal text-center" onClick={() => void exportFile(api.exportExceptionsUrl(report.id), `${name}_exceptions`, toast)}><DownloadSimple className="flex-none" />Export exceptions</button>
+        <button type="button" className="tb-btn !whitespace-normal text-center" onClick={() => void exportFile(api.exportExceptionsUrl(report.id), `${name}_findings`, toast)}><DownloadSimple className="flex-none" />Export findings</button>
         <button type="button" className="tb-btn" onClick={() => void exportFile(api.auditPackUrl(report.id), `${name}_audit_pack`, toast)}><FileArchive />Audit pack</button>
-        <button type="button" className="tb-btn tb-btn-primary col-span-2" onClick={() => setSend(true)}><EnvelopeSimple />Send</button>
+        <button type="button" className="tb-btn tb-btn-primary" onClick={() => setSend(true)}><EnvelopeSimple />Send</button>
       </div>
 
-      <article className="flex w-full max-w-[1100px] flex-col gap-9 rounded-md px-6 pb-[52px] pt-[60px] sm:px-[68px]" style={{ background: "#fbfbfd", color: "#1c1e2a", boxShadow: "0 0 0 1px rgba(28,30,42,.08), 0 20px 50px rgba(0,0,0,.25)" }}>
+      <article className="flex w-full max-w-[1100px] flex-col gap-8 rounded-md px-6 pb-[48px] pt-[52px] sm:px-[60px]" style={{ background: "#fbfbfd", color: PAPER.text, boxShadow: "0 0 0 1px rgba(28,30,42,.08), 0 20px 50px rgba(0,0,0,.25)" }}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-[9px] text-[15px] font-semibold"><Mark size={24} radius={6} />TrueBind</div>
-          <div className="tnum text-right text-[11px] leading-[1.6]" style={{ color: "#595d6c" }}>
+          <div className="tnum text-right text-[12px] leading-[1.6]" style={{ color: PAPER.faint }}>
             {report.id.slice(0, 8).toUpperCase()}
             <br />
             {report.sender ? `From ${report.sender}` : "Sender not recorded"}
@@ -189,215 +200,245 @@ function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
             {new Date(report.created_at).toLocaleDateString("en-IE", { day: "numeric", month: "long", year: "numeric" })}
           </div>
         </div>
-        <div className="flex flex-col gap-3">
-          <span className="text-[11.5px] font-medium uppercase tracking-[.1em]" style={{ color: "#5d5294" }}>Bordereau Health Check</span>
-          <h1 className="m-0 text-[26px] font-medium leading-[1.15] tracking-[-0.025em] [text-wrap:balance] sm:text-[32px]">{headline(report, s)}</h1>
-          <p className="m-0 text-[14px] leading-[1.6]" style={{ color: "#3f424d" }}>
-            {[report.sender, report.programme, report.file_name, `${s.sheets_total} sheet${s.sheets_total === 1 ? "" : "s"}`, `received ${formatDateTime(report.created_at)}`].filter(Boolean).join(" · ")}
+
+        <div className="flex flex-col gap-2">
+          <span className="text-[12px] font-semibold uppercase tracking-[.1em]" style={{ color: "#4a3f85" }}>Bordereau Health Check</span>
+          <p className="m-0 text-[14px] leading-[1.6]" style={{ color: PAPER.muted }}>
+            {[report.file_name, `${s.sheets_processed} of ${s.sheets_total} sheet${s.sheets_total === 1 ? "" : "s"}`, `${formatNumber(s.reconciliation.exported_rows)} claim rows`, `received ${formatDateTime(report.created_at)}`].join(" · ")}
           </p>
-          {provisionalReason(s) && <p className="m-0 text-[13px]" style={{ color: "#9d5d03" }}>{provisionalReason(s)}</p>}
         </div>
-        <div className="flex flex-col gap-3">
-          <div className="flex h-3 gap-0.5 overflow-hidden rounded-[3px]" style={{ background: "rgba(28,30,42,.06)" }}>
-            <div style={{ width: pct(clean), background: "oklch(0.58 0.12 155)" }} />
-            <div style={{ width: pct(flagged), background: "oklch(0.75 0.14 75)" }} />
-            <div style={{ width: pct(rec.unmapped_rows), boxShadow: "inset 0 0 0 1px #676b7e", background: "repeating-linear-gradient(45deg,#676b7e 0 2px,transparent 2px 4px)" }} />
-            <div style={{ width: pct(excluded), background: "#b2b6ca" }} />
-          </div>
-          <div className="grid grid-cols-2 gap-4 text-[12.5px] sm:grid-cols-4">
-            {[
-              ["oklch(0.58 0.12 155)", "Checked", `${formatNumber(clean)} rows`],
-              ["oklch(0.75 0.14 75)", "Flagged", `${formatNumber(flagged)} rows`],
-              ["hatch", "Unmapped", `${unmappedCols} column${unmappedCols === 1 ? "" : "s"}${rec.unmapped_rows ? ` · ${formatNumber(rec.unmapped_rows)} rows` : ""}`],
-              ["#b2b6ca", "Not assessed", `${na.length} check${na.length === 1 ? "" : "s"} · ${formatNumber(excluded)} rows excluded`],
-            ].map(([c, l, v]) => (
-              <div key={l} className="flex flex-col gap-[3px]">
-                <span className="flex items-center gap-[7px]" style={{ color: "#595d6c" }}>
-                  <span className="h-2 w-2 rounded-[2px]" style={c === "hatch" ? { boxShadow: "inset 0 0 0 1px #676b7e", background: "repeating-linear-gradient(45deg,#676b7e 0 2px,transparent 2px 4px)" } : { background: c }} />
-                  {l}
-                </span>
-                <span className="text-[15px] font-medium">{v}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4" style={{ boxShadow: "0 -1px 0 rgba(28,30,42,.12), 0 1px 0 rgba(28,30,42,.12)" }}>
-          {[
-            ["Sheets processed", `${s.sheets_processed} of ${s.sheets_total}`],
-            ["Source rows", formatNumber(rec.source_data_rows)],
-            ["Findings", formatNumber(report.issues_found ?? 0)],
-            ["Health score", s.composite_score != null ? `${Math.round(s.composite_score)}/100` : "—", [s.grade_label, s.score_reliable === false ? "provisional" : null].filter(Boolean).join(" · ")],
-          ].map(([l, v, note], i) => (
-            <div key={l} className="flex flex-col gap-1 py-4" style={{ paddingLeft: i ? 14 : 0, paddingRight: 14, boxShadow: i ? "-1px 0 0 rgba(28,30,42,.08)" : "none" }}>
-              <span className="text-[12px]" style={{ color: "#595d6c" }}>{l}</span>
-              <span className="tnum text-[24px] font-medium">{v}</span>
-              {note && <span className="text-[12px]" style={{ color: "#595d6c" }}>{note}</span>}
+
+        <section aria-label="Verdict" className="flex flex-col gap-1.5 rounded-md px-5 py-4" style={{ background: verdictTone.bg, color: verdictTone.fg }}>
+          <h1 className="m-0 text-[28px] font-semibold leading-[1.15] tracking-[-0.02em] sm:text-[32px]">{hv.verdict_label}</h1>
+          <p className="m-0 text-[14.5px] font-medium">{hv.verdict_reason}</p>
+          {provisionalReason(s) && <p className="m-0 text-[13px]">{provisionalReason(s)}</p>}
+        </section>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {([
+            ["err", "Errors", formatNumber(hv.counts.errors), `on ${plural(hv.counts.error_rows, "row")} · must be fixed`, `/exceptions?reportId=${report.id}&status=FAIL`],
+            ["warn", "Warnings", formatNumber(hv.counts.warnings), "unusual, or read but not in a checkable form", `/exceptions?reportId=${report.id}&status=REVIEW`],
+            ["muted", "Couldn’t check", formatNumber(hv.counts.couldnt_check), hv.counts.couldnt_check ? "checks that could not run; see why below" : "every check ran", null],
+          ] as const).map(([tone, label, n, sub, href]) => (
+            <div key={label} className="flex flex-col gap-1 rounded-md p-4" style={{ background: TONE[tone].bg, color: TONE[tone].fg }}>
+              <span className="text-[13px] font-semibold">{label}</span>
+              <span className="tnum text-[30px] font-semibold leading-none">{n}</span>
+              <span className="text-[12.5px]">{sub}</span>
+              {href ? (
+                <Link href={href} className="no-print mt-1 self-start text-[12.5px] font-semibold underline underline-offset-2">Show them</Link>
+              ) : mappingFixes.length ? (
+                <Link href={fixMapping} className="no-print mt-1 self-start rounded px-2 py-1 text-[12.5px] font-semibold" style={{ background: "#3A3A3A", color: "#fff" }}>Fix mapping</Link>
+              ) : null}
             </div>
           ))}
         </div>
-        <div className="flex flex-col gap-2.5">
-          <span className="text-[15px] font-semibold">Findings</span>
-          <div className="overflow-x-auto">
-            <div>
-              <div className="grid gap-x-3.5 pb-2 text-[11px] font-medium uppercase tracking-[.06em]" style={{ gridTemplateColumns: "76px minmax(0,1fr) 56px", boxShadow: "0 1px 0 rgba(28,30,42,.12)", color: "#676b7e" }}>
-                <span>Severity</span>
-                <span>Check</span>
-                <span className="text-right">Rows</span>
-              </div>
-              {[
-                ...rules.map(([k, v]) => ({ k, sev: RULE_SEV[k] ?? (["Medium", "oklch(0.5 0.1 255)"] as const), label: RULE_LABEL[k] ?? k.replace(/_/g, " "), n: formatNumber(v), href: `/exceptions?reportId=${report.id}` })),
-                { k: "exact", sev: ["Medium", "oklch(0.5 0.1 255)"] as const, label: "Exact resubmission", n: formatNumber(s.exact_duplicates), href: `/duplicates?reportId=${report.id}` },
-                { k: "probable", sev: ["Medium", "oklch(0.5 0.1 255)"] as const, label: "Probable duplicate", n: probableDuplicatesValue(s), href: `/duplicates?reportId=${report.id}` },
-                { k: "dev", sev: ["Info", "#676b7e"] as const, label: "Claim development (not duplicates)", n: formatNumber(s.development_pairs ?? 0), href: `/duplicates?reportId=${report.id}` },
-              ].map((f) => (
-                <Link key={f.k} href={f.href} className="tnum grid items-baseline gap-x-3.5 py-2.5 text-[13px] hover:bg-[rgba(121,108,191,.06)]" style={{ gridTemplateColumns: "76px minmax(0,1fr) 56px", boxShadow: "0 1px 0 rgba(28,30,42,.06)" }}>
-                  <span className="flex items-center gap-[7px] text-[12px]" style={{ color: f.sev[1] }}>
-                    <span className="h-[7px] w-[7px] rounded-full" style={{ background: f.sev[1] }} />
-                    {f.sev[0]}
-                  </span>
-                  <span>{f.label}</span>
-                  <span className="text-right">{f.n}</span>
-                </Link>
+
+        <section className="flex flex-col gap-3" aria-labelledby="top-fixes">
+          <h2 id="top-fixes" className="m-0 text-[17px] font-semibold">{hv.top_fixes.length ? `Top ${hv.top_fixes.length} fix${hv.top_fixes.length === 1 ? "" : "es"}` : "Nothing to fix"}</h2>
+          {hv.top_fixes.length > 0 && <p className="m-0 text-[13px]" style={{ color: PAPER.muted }}>Ranked by severity and the money on the affected rows.</p>}
+          <ol className="m-0 flex list-none flex-col p-0">
+            {hv.top_fixes.map((r, i) => {
+              const t = TONE[r.outcome === "FAIL" ? "err" : "warn"];
+              const ex = r.examples[0];
+              return (
+                <li key={r.rule} className="grid grid-cols-[28px_minmax(0,1fr)] gap-x-3 py-3.5" style={{ boxShadow: `0 1px 0 ${PAPER.line}` }}>
+                  <span className="tnum text-[15px] font-semibold" style={{ color: PAPER.faint }}>{i + 1}</span>
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded px-1.5 py-0.5 text-[11.5px] font-semibold" style={{ background: t.bg, color: t.fg }}>{t.label} · {severityLabel(r.severity)}</span>
+                      <span className="text-[14.5px] font-semibold">{r.label}</span>
+                      <span className="tnum text-[13px]" style={{ color: PAPER.muted }}>{plural(r.findings, "finding")} on {plural(r.rows, "row")}</span>
+                      <span className="rounded px-1.5 py-0.5 text-[11.5px] font-medium" style={{ boxShadow: `inset 0 0 0 1px ${PAPER.line}`, color: PAPER.muted }}>{r.owner === "sender" ? "Sender fixes" : "We fix"}</span>
+                    </div>
+                    {ex && <span className="text-[13.5px]"><b className="tnum font-semibold">{ex.where}</b>{ex.claim_ref ? ` (${ex.claim_ref})` : ""}: {ex.sentence}</span>}
+                    {r.money_at_risk.length > 0 && <span className="tnum text-[13px]" style={{ color: PAPER.muted }}>Money on these rows: {moneyList(r.money_at_risk)}</span>}
+                    <span className="text-[13px]" style={{ color: PAPER.muted }}>Fix: {r.fix}</span>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+
+        {hv.couldnt_check.length > 0 && (
+          <section className="flex flex-col gap-2" aria-labelledby="couldnt">
+            <h2 id="couldnt" className="m-0 text-[17px] font-semibold">Couldn’t check</h2>
+            <ul className="m-0 flex list-none flex-col p-0">
+              {hv.couldnt_check.map((c) => (
+                <li key={c.key} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2.5 text-[13.5px]" style={{ boxShadow: `0 1px 0 ${PAPER.line}` }}>
+                  <span className="min-w-0 flex-1"><b className="font-semibold">{c.label}</b>{c.rows ? <span className="tnum" style={{ color: PAPER.muted }}> · {plural(c.rows, "row")}</span> : null}<br /><span style={{ color: PAPER.muted }}>{c.reason}</span></span>
+                  {c.fix === "mapping" ? <Link href={fixMapping} className="no-print rounded px-2 py-1 text-[12.5px] font-semibold" style={{ background: "#3A3A3A", color: "#fff" }}>Fix mapping</Link> : <span className="text-[12.5px]" style={{ color: PAPER.muted }}>Ask the sender</span>}
+                </li>
               ))}
-            </div>
-          </div>
-        </div>
-        <div className="grid gap-9" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))" }}>
-          <div className="flex flex-col gap-2.5">
-            <span className="text-[15px] font-semibold">What was not checked</span>
-            <div className="flex flex-col gap-2 text-[13px] leading-[1.5]" style={{ color: "#3f424d" }}>
-              {(s.unmapped_source_columns ?? []).flatMap((u) => u.columns.map((c) => <span key={`${u.sheet_name}-${c}`}>“{c}” ({u.sheet_name}) — unmapped. Kept on every row; not validated.</span>))}
-              {na.map((c) => <span key={c.check}>{c.label} — not assessed. {c.reason}</span>)}
-              {[...s.skipped_sheets, ...s.unmapped_sheets].map((x) => <span key={x.sheet_name}>Sheet “{x.sheet_name}” — {x.reason}</span>)}
-              {unmappedCols === 0 && na.length === 0 && s.skipped_sheets.length === 0 && s.unmapped_sheets.length === 0 && <span>Every column was mapped and every check was assessed.</span>}
-            </div>
-          </div>
-          <div className="flex flex-col gap-2.5">
-            <span className="text-[15px] font-semibold">Evidence</span>
-            <div className="tnum grid grid-cols-[minmax(84px,110px)_minmax(0,1fr)] [overflow-wrap:anywhere] gap-y-1.5 text-[12.5px]">
-              <span style={{ color: "#595d6c" }}>Source hash</span>
-              <span className="truncate" title={report.source_sha256 ?? ""}>sha256 {report.source_sha256 ? `${report.source_sha256.slice(0, 10)}…${report.source_sha256.slice(-6)}` : "—"}</span>
-              <span style={{ color: "#595d6c" }}>Ruleset</span>
-              <span>Lloyd’s CRS v5.2</span>
-              <span style={{ color: "#595d6c" }}>Reconciliation</span>
-              <span>{rec.reconciles ? "Every source row accounted for" : "Rows do not reconcile"}</span>
-              <span style={{ color: "#595d6c" }}>Audit chain</span>
-              <Link href={`/audit?reportId=${report.id}`} className="underline decoration-[#b2b6ca] underline-offset-2">View and verify</Link>
-              <span style={{ color: "#595d6c" }}>Retained until</span>
-              <span>{formatDateTime(report.expires_at)}</span>
-              <span style={{ color: "#595d6c" }}>Source values</span>
-              <span>Unchanged</span>
-            </div>
-          </div>
-        </div>
-        {s.coverage_statement && (
-          <div className="pt-4 text-[11px]" style={{ boxShadow: "0 -1px 0 rgba(28,30,42,.12)", color: "#676b7e" }}>{s.coverage_statement}</div>
+            </ul>
+          </section>
         )}
+
+        <div className="pt-3 text-[12px]" style={{ boxShadow: `0 -1px 0 ${PAPER.line}`, color: PAPER.faint }}>
+          {rec(s)}. Source values unchanged. sha256 {report.source_sha256 ? `${report.source_sha256.slice(0, 12)}…` : "—"}
+        </div>
       </article>
 
-      <div className="no-print flex w-full max-w-[1100px] flex-col gap-8">
-        <Section id="financial" kicker="Financial" title="Money by currency" sub="Sums of the values reported in the file. Currencies are never added together; blanks are not treated as zero.">
-          <div className="tb-card overflow-x-auto">
-            <table className="w-full min-w-[640px] border-collapse text-[13px]">
-              <thead>
-                <tr className="text-left text-[11px] uppercase tracking-[.06em]" style={{ color: "var(--faint)" }}>
-                  {["Currency", "Rows", "Paid to date", "Paid expenses / ALAE", "Reserve", "Total incurred"].map((h, i) => <th key={h} className={`px-4 py-2.5 font-medium ${i ? "text-right" : ""}`}>{h}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {totals.map((t) => (
-                  <tr key={t.currency} className="tnum" style={{ boxShadow: "0 -1px 0 var(--line)" }}>
-                    <td className="px-4 py-2.5 font-medium">{t.currency === "UNKNOWN" ? "Not stated" : t.currency}</td>
-                    <td className="px-4 py-2.5 text-right">{formatNumber(t.rows)}</td>
-                    <td className="px-4 py-2.5 text-right">{formatMoney(t.paid_to_date, t.currency)}</td>
-                    <td className="px-4 py-2.5 text-right">{t.fees_rows ? formatMoney(t.fees_paid_to_date ?? 0, t.currency) : "—"}</td>
-                    <td className="px-4 py-2.5 text-right">{formatMoney(t.reserve, t.currency)}</td>
-                    <td className="px-4 py-2.5 text-right">
-                      <div className="font-medium">{formatMoney(t.incurred, t.currency)}</div>
-                      <div className="text-[11.5px]" style={{ color: "var(--faint)" }}>{formatNumber(t.incurred_rows ?? t.rows)} of {formatNumber(t.rows)} rows report a value</div>
-                    </td>
-                  </tr>
-                ))}
-                {!totals.length && <tr><td colSpan={6} className="px-4 py-4" style={{ color: "var(--faint)" }}>No monetary columns were mapped in this file.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-          <span className="text-[12px]" style={{ color: "var(--faint)" }}>Total incurred across currencies: {impact}</span>
-        </Section>
-
-        <Section id="claims" kicker="Claims" title="What the file contains">
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
-            <div className="tb-card flex flex-col gap-3 p-5">
-              <span className="text-[14px] font-medium">Claims by status</span>
-              <Bars items={Object.entries(s.claim_status_counts ?? {}).map(([k, v]) => [k.charAt(0).toUpperCase() + k.slice(1), v])} empty="No claim-status column was mapped." />
-            </div>
-            <div className="tb-card flex flex-col gap-3 p-5">
-              <span className="flex items-center justify-between text-[14px] font-medium">Row reconciliation <StatusPill tone={rec.reconciles ? "ok" : "err"}>{rec.reconciles ? "Reconciles" : "Does not reconcile"}</StatusPill></span>
-              <dl className="tnum m-0 grid grid-cols-[1fr_auto] gap-y-1.5 text-[13px]">
-                {[
-                  ["Source data rows", rec.source_data_rows],
-                  ["Claim rows exported", rec.exported_rows],
-                  ["Structural rows excluded", rec.rejected_rows],
-                  ["Rows on unmapped sheets", rec.unmapped_rows],
-                  ["Summary-sheet rows (not claims)", rec.non_claim_summary_rows],
-                  ["Duplicate rows (kept, flagged)", rec.duplicate_rows],
-                  ["Rows requiring review", rec.rows_requiring_review],
-                ].map(([l, v]) => (
-                  <div key={l as string} className="contents">
-                    <dt style={{ color: "var(--muted)" }}>{l}</dt>
-                    <dd className="m-0 text-right">{formatNumber(v as number)}</dd>
-                  </div>
-                ))}
-              </dl>
-              <span className="text-[12px]" style={{ color: "var(--faint)" }}>Every source row is either a claim or a recorded exclusion with a reason; nothing is silently dropped.</span>
-            </div>
-          </div>
-        </Section>
-
-        <Section id="quality" kicker="Data quality" title="Completeness and structure">
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
-            <div className="tb-card flex flex-col gap-3 p-5">
-              <span className="text-[14px] font-medium">Field completeness</span>
-              <Bars pct items={[...s.field_completeness].sort((a, b) => a.present / Math.max(a.denominator, 1) - b.present / Math.max(b.denominator, 1)).map((f) => [f.never_mapped ? `${f.field_name} (not in file)` : f.field_name, f.never_mapped ? 0 : (100 * f.present) / Math.max(f.denominator, 1)])} empty="No fields assessed." />
-              {s.arithmetic_not_evaluable > 0 && (
-                <span className="text-[12.5px]" style={{ color: "var(--warn)" }}>
-                  {formatNumber(s.arithmetic_not_evaluable)} row{s.arithmetic_not_evaluable === 1 ? "" : "s"} could not be checked for arithmetic: {Object.entries(s.not_evaluable_by_reason ?? {}).map(([k, v]) => `${k.replace(/_/g, " ")} (${v})`).join(", ")}.
-                </span>
-              )}
-            </div>
-            <div className="tb-card flex flex-col gap-3 p-4 sm:p-6 lg:col-start-1" id="period">
-              <span className="text-[14px] font-medium">Periods in this file</span>
-              <span className="text-[12.5px]" style={{ color: "var(--muted)" }}>Rows per reporting period as stated in the file.</span>
-              {periods.length ? (
-                <Bars items={periods} empty="" />
-              ) : (
-                <span className="text-[12.5px]" style={{ color: "var(--faint)" }}>{Object.keys(s).includes("reporting_periods") ? "No reporting-period column was mapped in this file." : "Reprocess this file to see its reporting periods."}</span>
-              )}
-              {(s.period_unknown_repeats ?? 0) > 0 && (
-                <span className="text-[12.5px]" style={{ color: "var(--warn)" }}>{formatNumber(s.period_unknown_repeats ?? 0)} repeated reference(s) could not be classified because the period is missing.</span>
-              )}
-            </div>
-            <div className="flex flex-col gap-4">
-              <div className="tb-card flex flex-col gap-3 p-5">
-                <span className="text-[14px] font-medium">Recommended next actions</span>
-                <Recommendations items={s.recommendations ?? []} reportId={report.id} />
-              </div>
-              <ExcludedRows reportId={report.id} />
-            </div>
-          </div>
-        </Section>
-
-        <Section id="checks" kicker="Checks" title="Binder, leakage and sanctions checks" sub="Each check says what it assessed and what it could not. Findings point to the sheet, row and column; confirm or dismiss each one.">
-          <ChecksPanel report={report} />
-        </Section>
-
-        <Sheets reportId={report.id} s={s} />
-        <Lineage report={report} />
-        <Outputs report={report} name={name} />
+      <div className="no-print flex w-full max-w-[1100px] flex-col gap-5">
+        <div role="tablist" aria-label="Report sections" className="flex flex-wrap gap-1 rounded-[9px] p-1" style={{ background: "var(--surface)", boxShadow: "inset 0 0 0 1px var(--line)" }}>
+          {([["owner", "Who must fix"], ["duplicates", "Duplicates"], ["money", "Money by currency"], ["mapping", "Mapping"], ["more", "Other checks & evidence"]] as const).map(([k, l]) => (
+            <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className="cursor-pointer rounded-[7px] px-3 py-1.5 text-[13.5px]" style={{ background: tab === k ? "var(--accentTint)" : "transparent", color: tab === k ? "var(--text)" : "var(--muted)", fontWeight: tab === k ? 500 : 400 }}>{l}</button>
+          ))}
+        </div>
+        {tab === "owner" && <OwnerTab hv={hv} reportId={report.id} />}
+        {tab === "duplicates" && <DuplicatesTab hv={hv} reportId={report.id} />}
+        {tab === "money" && <MoneyTab hv={hv} />}
+        {tab === "mapping" && <MappingTab report={report} s={s} />}
+        {tab === "more" && (
+          <>
+            <Section id="checks" kicker="Checks" title="Binder, leakage and sanctions checks" sub="Each check says what it assessed and what it could not.">
+              <ChecksPanel report={report} />
+            </Section>
+            <Lineage report={report} />
+            <Outputs report={report} name={name} />
+          </>
+        )}
       </div>
 
       <SendModal open={send} onClose={() => setSend(false)} report={report} />
     </>
+  );
+}
+
+function OwnerTab({ hv, reportId }: { hv: HealthView; reportId: string }) {
+  const col = (owner: "sender" | "us", title: string, sub: string) => {
+    const rules = hv.rules.filter((r) => r.owner === owner);
+    return (
+      <div className="tb-card flex flex-col gap-2 p-5">
+        <span className="text-[15px] font-medium">{title}</span>
+        <span className="text-[13px]" style={{ color: "var(--muted)" }}>{sub}</span>
+        {rules.length === 0 && <span className="text-[13px]" style={{ color: "var(--faint)" }}>Nothing.</span>}
+        <ul className="m-0 flex list-none flex-col p-0">
+          {rules.map((r) => (
+            <li key={r.rule} className="flex flex-col gap-1 py-3" style={{ boxShadow: "0 1px 0 var(--line)" }}>
+              <span className="flex flex-wrap items-center gap-2">
+                <StatusPill tone={r.outcome === "FAIL" ? "err" : "warn"}>{r.outcome === "FAIL" ? "Error" : "Warning"} · {severityLabel(r.severity)}</StatusPill>
+                <span className="text-[14px] font-medium">{r.label}</span>
+                <span className="tnum text-[12.5px]" style={{ color: "var(--muted)" }}>{plural(r.findings, "finding")}</span>
+              </span>
+              {r.examples.map((e, i) => (
+                <span key={i} className="text-[13px]"><b className="tnum font-medium">{e.where}</b>: {e.sentence}</span>
+              ))}
+              {r.findings > r.examples.length && <Link href={`/exceptions?reportId=${reportId}&checkType=${r.check_type}`} className="text-[12.5px]" style={{ color: "var(--accentText)" }}>See all {formatNumber(r.findings)} →</Link>}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  };
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
+      {col("sender", "The sender must fix", "Only the sender can supply or correct these values. The query letter lists them by row.")}
+      {col("us", "We can fix", "Formatting only: the corrected copy fixes these safely and logs every change. Mapping gaps are fixed on the Mapping tab.")}
+    </div>
+  );
+}
+
+function DuplicatesTab({ hv, reportId }: { hv: HealthView; reportId: string }) {
+  const d = hv.duplicates;
+  return (
+    <div className="tb-card flex flex-col gap-4 p-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {([
+          ["Exact duplicates", d.exact_pairs, "Same claim, same period, identical figures: an error."],
+          ["Probable duplicates", d.probable_pairs, "Different reference, but the same loss on corroborating evidence (policy, amounts, currency). Confidence 60 or more."],
+          ["Of which confidence 80+", d.probable_high_confidence, "Check these first."],
+          ["Claim development", d.development_pairs, "The same claim reported again with movement: normal, never a duplicate."],
+        ] as const).map(([l, v, sub]) => (
+          <div key={l} className="flex flex-col gap-1">
+            <span className="text-[12.5px]" style={{ color: "var(--muted)" }}>{l}</span>
+            <span className="tnum text-[24px] font-medium">{v == null ? "not run" : formatNumber(v)}</span>
+            <span className="text-[12px]" style={{ color: "var(--faint)" }}>{sub}</span>
+          </div>
+        ))}
+      </div>
+      {d.repeat_period_unknown > 0 && <span className="text-[13px]" style={{ color: "var(--warn)" }}>{plural(d.repeat_period_unknown, "repeat")} could be duplicates or development: no reporting period is mapped.</span>}
+      <Link href={`/duplicates?reportId=${reportId}`} className="tb-btn self-start">Review pairs side by side</Link>
+    </div>
+  );
+}
+
+function MoneyTab({ hv }: { hv: HealthView }) {
+  const totals = hv.money_by_currency;
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="tb-card overflow-x-auto">
+        <table className="w-full min-w-[640px] border-collapse text-[13px]">
+          <thead>
+            <tr className="text-left text-[11.5px] uppercase tracking-[.06em]" style={{ color: "var(--muted)" }}>
+              {["Currency", "Rows", "Paid to date", "Paid expenses / ALAE", "Reserve", "Total incurred"].map((h, i) => <th key={h} className={`px-4 py-2.5 font-medium ${i ? "text-right" : ""}`}>{h}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {totals.map((t) => (
+              <tr key={t.currency} className="tnum" style={{ boxShadow: "0 -1px 0 var(--line)" }}>
+                <td className="px-4 py-2.5 font-medium">{t.currency === "UNKNOWN" ? "Not stated" : t.currency}</td>
+                <td className="px-4 py-2.5 text-right">{formatNumber(t.rows)}</td>
+                <td className="px-4 py-2.5 text-right">{formatMoney(t.paid_to_date, t.currency)}</td>
+                <td className="px-4 py-2.5 text-right">{t.fees_rows ? formatMoney(t.fees_paid_to_date ?? 0, t.currency) : "—"}</td>
+                <td className="px-4 py-2.5 text-right">{formatMoney(t.reserve, t.currency)}</td>
+                <td className="px-4 py-2.5 text-right font-medium">{formatMoney(t.incurred, t.currency)}</td>
+              </tr>
+            ))}
+            {!totals.length && <tr><td colSpan={6} className="px-4 py-4" style={{ color: "var(--muted)" }}>No amount columns were mapped in this file.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      <span className="text-[12.5px]" style={{ color: "var(--muted)" }}>Currencies are never added together. Variants such as “€”, “Euro” and “eur” are read as EUR (each is listed as a warning so the sender can standardise). Blanks are not treated as zero.</span>
+    </div>
+  );
+}
+
+function MappingTab({ report, s }: { report: Report; s: ReportSummary }) {
+  const fields = [...s.field_completeness].sort((a, b) => Number(a.never_mapped) - Number(b.never_mapped) || a.present / Math.max(a.denominator, 1) - b.present / Math.max(b.denominator, 1));
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
+        <div className="tb-card flex flex-col gap-3 p-5">
+          <span className="text-[14px] font-medium">Field completeness</span>
+          <ul className="m-0 flex list-none flex-col gap-2 p-0">
+            {fields.map((f) => {
+              const pct = f.never_mapped ? null : (100 * f.present) / Math.max(f.denominator, 1);
+              return (
+                <li key={f.field_code} className="grid grid-cols-[minmax(0,1fr)_minmax(80px,1.2fr)_84px] items-center gap-3 text-[12.5px]">
+                  <span className="truncate" style={{ color: "var(--muted)" }}>{f.field_name}</span>
+                  <span className="h-1.5 rounded-full" style={{ background: "var(--line)" }}>
+                    {pct != null && <span className="block h-1.5 rounded-full" style={{ width: `${pct}%`, background: pct >= 99.5 ? "var(--ok)" : "var(--warn)" }} />}
+                  </span>
+                  <span className="tnum text-right" style={{ color: pct == null ? "var(--faint)" : undefined }}>{pct == null ? "Not mapped" : `${pct.toFixed(0)}%`}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+        <div className="flex flex-col gap-4">
+          <div className="tb-card flex flex-col gap-3 p-5">
+            <span className="flex items-center justify-between text-[14px] font-medium">Row reconciliation <StatusPill tone={s.reconciliation.reconciles ? "ok" : "err"}>{s.reconciliation.reconciles ? "Reconciles" : "Does not reconcile"}</StatusPill></span>
+            <dl className="tnum m-0 grid grid-cols-[1fr_auto] gap-y-1.5 text-[13px]">
+              {([
+                ["Source data rows", s.reconciliation.source_data_rows],
+                ["Claim rows checked", s.reconciliation.exported_rows],
+                ["Structural rows excluded", s.reconciliation.rejected_rows],
+                ["Rows on unmapped sheets", s.reconciliation.unmapped_rows],
+                ["Summary-sheet rows (not claims)", s.reconciliation.non_claim_summary_rows],
+              ] as const).map(([l, v]) => (
+                <div key={l} className="contents">
+                  <dt style={{ color: "var(--muted)" }}>{l}</dt>
+                  <dd className="m-0 text-right">{formatNumber(v)}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+          <ExcludedRows reportId={report.id} />
+        </div>
+      </div>
+      <Sheets reportId={report.id} s={s} />
+    </div>
   );
 }
 
@@ -411,24 +452,6 @@ function Section({ id, kicker, title, sub, children }: { id: string; kicker: str
       </div>
       {children}
     </section>
-  );
-}
-
-function Bars({ items, pct, empty }: { items: [string, number][]; pct?: boolean; empty: string }) {
-  if (!items.length) return <span className="text-[13px]" style={{ color: "var(--faint)" }}>{empty}</span>;
-  const max = pct ? 100 : Math.max(1, ...items.map(([, v]) => v));
-  return (
-    <ul className="m-0 flex list-none flex-col gap-2 p-0">
-      {items.map(([l, v]) => (
-        <li key={l} className="grid grid-cols-[minmax(0,1fr)_minmax(80px,1.2fr)_56px] items-center gap-3 text-[12.5px]">
-          <span className="truncate" style={{ color: "var(--muted)" }}>{l}</span>
-          <span className="h-1.5 rounded-full" style={{ background: "var(--line)" }}>
-            <span className="block h-1.5 rounded-full" style={{ width: `${(v / max) * 100}%`, background: pct ? (v >= 99.5 ? "var(--ok)" : "var(--warn)") : "var(--accent)" }} />
-          </span>
-          <span className="tnum text-right">{pct ? `${v.toFixed(0)}%` : formatNumber(v)}</span>
-        </li>
-      ))}
-    </ul>
   );
 }
 

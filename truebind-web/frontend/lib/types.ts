@@ -149,6 +149,58 @@ export interface ExceptionRow {
   severity: Severity;
   message: string;
   validation_result_id: string;
+  /** Additive (reports processed after the strategy pass): where and what, in plain English. */
+  field_code?: string | null;
+  cell?: string | null;
+  source_column?: string | null;
+  sentence?: string | null;
+  owner?: "sender" | "us" | null;
+}
+
+export interface HealthExample {
+  sheet: string | null;
+  cell: string | null;
+  column: string | null;
+  claim_ref: string | null;
+  where: string;
+  sentence: string;
+}
+
+export interface HealthRule {
+  rule: string;
+  label: string;
+  severity: Severity;
+  outcome: "FAIL" | "REVIEW";
+  owner: "sender" | "us";
+  check_type: string;
+  fix: string;
+  findings: number;
+  rows: number;
+  money_at_risk: { currency: string; amount: number }[];
+  examples: HealthExample[];
+}
+
+export interface CouldntCheck {
+  key: string;
+  label: string;
+  reason: string;
+  rows: number | null;
+  fix: "mapping" | "data";
+}
+
+/** The health report's single view (backend app/services/health_view.py). */
+export interface HealthView {
+  version: number;
+  verdict: "ready" | "fix";
+  verdict_label: string;
+  verdict_reason: string;
+  counts: { errors: number; error_rows: number; warnings: number; couldnt_check: number; couldnt_check_rows: number };
+  top_fixes: HealthRule[];
+  rules: HealthRule[];
+  by_owner: { sender: string[]; us: string[] };
+  couldnt_check: CouldntCheck[];
+  duplicates: { exact_pairs: number; probable_pairs: number | null; probable_high_confidence: number; repeat_period_unknown: number; development_pairs: number };
+  money_by_currency: NonNullable<ReportSummary["totals_by_currency"]>;
 }
 
 export type ExcludedRowReason = "blank" | "blank_run" | "subtotal" | "repeated_header" | "title";
@@ -246,6 +298,7 @@ export interface ReportSummary {
   coverage_statement?: string;
   field_completeness: FieldCompleteness[];
   missing_mandatory_by_sheet?: Record<string, number>;
+  health_view?: HealthView;
   totals_by_currency?: { currency: string; rows: number; paid_to_date: number; reserve: number; incurred: number; fees_paid_to_date?: number; fees_rows?: number; paid_rows?: number; reserve_rows?: number; incurred_rows?: number }[];
   score_reliable?: boolean;
   unmapped_source_columns?: { sheet_name: string; columns: string[] }[];

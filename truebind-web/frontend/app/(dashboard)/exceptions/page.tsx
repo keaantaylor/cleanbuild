@@ -14,8 +14,10 @@ import { EmptyState, ErrorState, LoadingState, Modal, PageHeader, StatusPill } f
 import { ReportPicker, useSelectedReport } from "@/components/nocturne/select-report";
 import { SEV, SHEET } from "@/components/nocturne/status";
 import { exportFile } from "@/lib/exports";
+import { resultTone, TONE, type ResultTone } from "@/lib/severity";
 
 const PAGE = 50;
+const OUTCOME_DOT: Record<ResultTone, string> = { err: "var(--err)", warn: "var(--warn)", muted: "var(--muted)", ok: "var(--ok)" };
 const REVIEW_LABEL: Record<string, string> = { open: "Open", in_review: "In review", resolved: "Resolved", accepted: "Accepted as reported", false_positive: "Dismissed · not an issue" };
 const CHECKS = [
   ["", "All checks"],
@@ -24,6 +26,9 @@ const CHECKS = [
   ["DATE", "Dates"],
   ["CURRENCY", "Currency"],
   ["STATUS", "Status"],
+  ["POLICY", "Policy period, limit and number"],
+  ["AMOUNT", "Amounts"],
+  ["REFERENCE", "Claim reference format"],
   ["MAPPING_COMPLETENESS", "Mapping gaps"],
   ["OTHER", "Unreadable values"],
 ];
@@ -43,7 +48,7 @@ function Exceptions() {
   const { reportId, report, reports, loading: rl, error: rerr, reload: rreload, select } = useSelectedReport();
   const [severity, setSeverity] = useState(params.get("severity") ?? "");
   const [checkType, setCheckType] = useState(params.get("checkType") ?? "");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(params.get("status") ?? "");
   const [q, setQ] = useState("");
   const [sort, setSort] = useState("severity");
   const [offset, setOffset] = useState(0);
@@ -179,10 +184,10 @@ function Exceptions() {
             ))}
           </select>
           <select className="tb-input !min-h-[34px] !py-1 text-[13px] sm:!w-auto" value={status} onChange={(e) => setFilter(() => setStatus(e.target.value))} aria-label="Outcome">
-            <option value="">All outcomes</option>
-            <option value="FAIL">Failed checks</option>
-            <option value="NOT_EVALUABLE">Could not be checked</option>
-            <option value="REVIEW">Needs review</option>
+            <option value="">Errors, warnings and couldn’t check</option>
+            <option value="FAIL">Errors</option>
+            <option value="REVIEW">Warnings</option>
+            <option value="NOT_EVALUABLE">Couldn’t check</option>
           </select>
           <select className="tb-input !min-h-[34px] !py-1 text-[13px] sm:!w-auto" value={sort} onChange={(e) => setFilter(() => setSort(e.target.value))} aria-label="Sort">
             <option value="severity">Most severe first</option>
@@ -209,10 +214,10 @@ function Exceptions() {
               const reviewed = x.review_status && x.review_status !== "open";
               return (
                 <button key={x.validation_result_id} type="button" onClick={() => pick(x.validation_result_id)} className="grid cursor-pointer grid-cols-[10px_minmax(0,1fr)] gap-3 px-4 py-3.5 text-left transition-colors hover:bg-[var(--accentTint)]" style={{ background: on ? "var(--accentTint)" : "transparent", boxShadow: on ? "inset 2px 0 0 var(--accent)" : "inset 0 -1px 0 var(--line)" }}>
-                  <span className="mt-[5px] h-2 w-2 rounded-full" style={{ background: SEV[x.severity].c }} />
+                  <span className="mt-[5px] h-2 w-2 rounded-full" style={{ background: OUTCOME_DOT[resultTone(x.status)] }} title={TONE[resultTone(x.status)].label} />
                   <span className="flex min-w-0 flex-col gap-1">
                     <span className="text-[13px] font-medium leading-[1.35]">{g.title}</span>
-                    <span className="tnum text-[12px]" style={{ color: "var(--faint)" }}>{x.claim_reference ?? "no claim ref"} · {x.sheet_name} row {x.source_row_number ?? "—"}</span>
+                    <span className="tnum text-[12px]" style={{ color: "var(--faint)" }}>{x.claim_reference ?? "no claim ref"} · {x.cell && !x.cell.startsWith("row ") ? `${x.sheet_name}!${x.cell}` : `${x.sheet_name} row ${x.source_row_number ?? "—"}`}</span>
                     <span className="text-[11.5px]" style={{ color: reviewed ? "var(--ok)" : "var(--faint)" }}>{x.review_status ? REVIEW_LABEL[x.review_status] : "Open"}{x.assignee ? ` · ${x.assignee}` : ""}</span>
                   </span>
                 </button>
@@ -279,7 +284,12 @@ function FindingPanels({ reportId, fileName, f, onAccept, onFollowup, onDismiss,
             {f.rule && <><span>·</span><span>{f.rule}</span></>}
           </div>
           <h2 className="m-0 text-[24px] font-medium tracking-[-0.02em] [text-wrap:balance]">{g.title}</h2>
-          <p className="m-0 max-w-[640px] text-[14px] leading-[1.6]" style={{ color: "var(--text)" }}>{f.message}</p>
+          <p className="m-0 max-w-[640px] text-[14px] leading-[1.6]" style={{ color: "var(--text)" }}>{f.sentence ?? f.message}</p>
+          {f.cell && (
+            <p className="tnum m-0 text-[13px]" style={{ color: "var(--muted)" }}>
+              {f.cell.startsWith("row ") ? `Sheet ${f.sheet_name}, ${f.cell}` : `Cell ${f.sheet_name}!${f.cell}`}{f.source_column ? ` · column “${f.source_column}”` : ""}{f.owner ? ` · ${f.owner === "sender" ? "the sender must fix this" : "we can fix this"}` : ""}
+            </p>
+          )}
           <p className="m-0 max-w-[640px] text-[13.5px] leading-[1.6] [text-wrap:pretty]" style={{ color: "var(--muted)" }}>{g.why}</p>
         </div>
         <div className="overflow-hidden rounded-lg" style={{ background: "#f7f8f6", color: "#2a2f36", boxShadow: "0 0 0 1px var(--line2)" }}>

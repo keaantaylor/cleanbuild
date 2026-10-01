@@ -9,13 +9,23 @@ function save(blob: Blob, filename: string) {
   saveBlob(blob, filename);
 }
 
+/** Result colours, shared with the screen and the annotated workbook (see lib/severity.ts). */
+export type PdfTone = "err" | "warn" | "ok" | "muted";
+const TONE_RGB: Record<PdfTone, { fill: string; text: string }> = {
+  err: { fill: "1 0.78 0.808", text: "0.612 0 0.024" }, // FFC7CE / 9C0006
+  warn: { fill: "1 0.949 0.8", text: "0.498 0.376 0" }, // FFF2CC / 7F6000
+  ok: { fill: "0.886 0.941 0.851", text: "0.216 0.337 0.137" }, // E2F0D9 / 375623
+  muted: { fill: "0.906 0.902 0.902", text: "0.227 0.227 0.227" }, // E7E6E6 / 3A3A3A
+};
+
 export type PdfBlock =
+  | { kind: "callout"; text: string; sub?: string; tone: PdfTone }
   | { kind: "title"; text: string }
   | { kind: "kicker"; text: string }
   | { kind: "heading"; text: string }
   | { kind: "text"; text: string }
   | { kind: "muted"; text: string }
-  | { kind: "row"; cells: string[]; widths: number[]; bold?: boolean }
+  | { kind: "row"; cells: string[]; widths: number[]; bold?: boolean; tones?: (PdfTone | undefined)[] }
   | { kind: "rule" }
   | { kind: "space"; h?: number };
 
@@ -49,8 +59,9 @@ export function downloadPdf(filename: string, blocks: PdfBlock[], footer: string
       y = H - M;
     }
   };
-  const text = (x: number, size: number, font: "F1" | "F2", s: string, gray = 0.1) => {
-    cur().push(`${gray} g BT /${font} ${size} Tf ${x} ${y} Td (${enc(s)}) Tj ET`);
+  const text = (x: number, size: number, font: "F1" | "F2", s: string, gray: number | string = 0.1) => {
+    const colour = typeof gray === "number" ? `${gray} g` : `${gray} rg`;
+    cur().push(`${colour} BT /${font} ${size} Tf ${x} ${y} Td (${enc(s)}) Tj ET`);
   };
   const wrap = (s: string, size: number, width: number) => {
     const max = Math.floor(width / (size * 0.5));
@@ -78,13 +89,33 @@ export function downloadPdf(filename: string, blocks: PdfBlock[], footer: string
       y -= 18;
       continue;
     }
+    if (b.kind === "callout") {
+      const lines = wrap(b.text, 15, W - 2 * M - 24);
+      const sub = b.sub ? wrap(b.sub, 9.5, W - 2 * M - 24) : [];
+      const h = 18 + lines.length * 19 + sub.length * 13;
+      need(h + 8);
+      const c = TONE_RGB[b.tone];
+      cur().push(`${c.fill} rg ${M} ${y - h + 12} ${W - 2 * M} ${h} re f`);
+      y -= 8;
+      for (const line of lines) {
+        text(M + 12, 15, "F2", line, c.text);
+        y -= 19;
+      }
+      for (const line of sub) {
+        text(M + 12, 9.5, "F1", line, c.text);
+        y -= 13;
+      }
+      y -= 14;
+      continue;
+    }
     if (b.kind === "row") {
       need(16);
       let x = M;
       b.cells.forEach((c, i) => {
         const w = b.widths[i] * (W - 2 * M);
         const max = Math.floor(w / (9 * 0.5)) - 1;
-        text(x, 9, b.bold ? "F2" : "F1", c.length > max ? c.slice(0, max - 1) + "..." : c, b.bold ? 0.4 : 0.1);
+        const tone = b.tones?.[i];
+        text(x, 9, b.bold || tone ? "F2" : "F1", c.length > max ? c.slice(0, max - 1) + "..." : c, tone ? TONE_RGB[tone].text : b.bold ? 0.4 : 0.1);
         x += w;
       });
       y -= 16;

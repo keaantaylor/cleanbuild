@@ -39,6 +39,16 @@ test("sign up, upload the golden workbook, confirm mapping, read the report, sig
   expect(s.arithmetic_mismatches).toBe(38);
   expect(s.arithmetic_not_evaluable).toBe(0);
 
+  // Page 1: a verdict, three separate counts and the top fixes, from the same health view the PDF uses.
+  const hv = s.health_view;
+  await expect(page.getByRole("heading", { level: 1, name: hv.verdict_label })).toBeVisible();
+  await expect(page.getByText("Errors", { exact: true })).toBeVisible();
+  await expect(page.getByText("Warnings", { exact: true })).toBeVisible();
+  await expect(page.getByText("Couldn’t check", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Top \d fix/ })).toBeVisible();
+  await page.getByRole("tab", { name: "Mapping" }).click();
+  await expect(page.getByText("Field completeness")).toBeVisible();
+
   await page.goto(`/exceptions?reportId=${reportId}`);
   await expect(page.locator("main")).toContainText(/arithmetic/i);
 

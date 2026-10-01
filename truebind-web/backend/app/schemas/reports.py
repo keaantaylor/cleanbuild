@@ -188,6 +188,12 @@ class ExceptionRowOut(BaseModel):
     review_status: str | None = None
     assignee: str | None = None
     note: str | None = None
+    # Where and what, in plain English (additive; absent on reports processed before these existed).
+    field_code: str | None = None
+    cell: str | None = None
+    source_column: str | None = None
+    sentence: str | None = None
+    owner: str | None = None
 
 
 class ExcludedRowOut(BaseModel):
@@ -229,6 +235,8 @@ class DuplicatePairOut(BaseModel):
     row_b: dict
     detail: str
     review_status: str | None = None
+    confidence: int | None = None  # probable pairs: 60-100, from the corroborating signals
+    sentence: str | None = None
 
 
 class DuplicateReviewRequest(_Req):

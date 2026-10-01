@@ -1,0 +1,744 @@
+[
+ {
+  "method": "GET",
+  "path": "/api/v1/alerts",
+  "status": 200,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/alerts/{alert_id}/acknowledge",
+  "status": 404,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/audit",
+  "status": 200,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/audit/verify",
+  "status": 200,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/auth/2fa",
+  "status": 200,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/auth/2fa/disable",
+  "status": 422,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/auth/2fa/enable",
+  "status": 422,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/auth/2fa/setup",
+  "status": 200,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/auth/2fa/verify",
+  "status": 422,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/auth/invitations/accept",
+  "status": 422,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/auth/login",
+  "status": 422,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/auth/logout",
+  "status": 204,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/auth/me",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/auth/signup",
+  "status": 422,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/auth/sso/callback",
+  "status": 303,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/auth/sso/start",
+  "status": 422,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/billing",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/billing/checkout",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/billing/portal",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/billing/webhook",
+  "status": 400,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/binders",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/binders",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "DELETE",
+  "path": "/api/v1/binders/{binder_id}",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/channels",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/deliveries",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/fx/convert",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/fx/rates",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/fx/refresh",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/inbound/email/postmark",
+  "status": 503,
+  "reachable": true,
+  "note": "not configured on this server"
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/inbound/email/ses",
+  "status": 503,
+  "reachable": true,
+  "note": "not configured on this server"
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/obligations",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "PATCH",
+  "path": "/api/v1/obligations/{obligation_id}",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/org",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "PATCH",
+  "path": "/api/v1/org",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/org/inbound",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/org/inbound/rotate",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/org/invitations",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/org/invitations",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "DELETE",
+  "path": "/api/v1/org/invitations/{invitation_id}",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/org/members",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "PATCH",
+  "path": "/api/v1/org/members/{membership_id}",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "DELETE",
+  "path": "/api/v1/org/members/{membership_id}",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/org/sftp",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "PUT",
+  "path": "/api/v1/org/sftp",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "DELETE",
+  "path": "/api/v1/org/sftp",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/org/sftp/test",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/org/sso",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "DELETE",
+  "path": "/api/v1/org/sso",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "PATCH",
+  "path": "/api/v1/org/sso",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/org/webhooks",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/org/webhooks",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/org/webhooks/deliveries/{delivery_id}/replay",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "DELETE",
+  "path": "/api/v1/org/webhooks/{endpoint_id}",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/org/webhooks/{endpoint_id}/deliveries",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/org/webhooks/{endpoint_id}/test",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/overview",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/reports",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/reports/upload",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/reports/{report_id}",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "DELETE",
+  "path": "/api/v1/reports/{report_id}",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/reports/{report_id}/audit",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/reports/{report_id}/audit-pack.zip",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "PUT",
+  "path": "/api/v1/reports/{report_id}/binder",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/reports/{report_id}/cancel",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/reports/{report_id}/checks",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/reports/{report_id}/checks/findings",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "PATCH",
+  "path": "/api/v1/reports/{report_id}/checks/findings/{finding_id}",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/reports/{report_id}/checks/{module}/run",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/reports/{report_id}/claims",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/reports/{report_id}/deliveries",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/reports/{report_id}/duplicates",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "PATCH",
+  "path": "/api/v1/reports/{report_id}/duplicates/{validation_result_id}/review",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/reports/{report_id}/exceptions",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/reports/{report_id}/exceptions/summary",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/reports/{report_id}/exceptions/summary",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "PATCH",
+  "path": "/api/v1/reports/{report_id}/exceptions/{validation_result_id}",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/reports/{report_id}/excluded-rows",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/reports/{report_id}/export/audit.csv",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/reports/{report_id}/export/claims.csv",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/reports/{report_id}/export/exceptions.csv",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/reports/{report_id}/jobs",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/reports/{report_id}/obligations",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/reports/{report_id}/process",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/reports/{report_id}/retry",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/reports/{report_id}/sheets",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/reports/{report_id}/sheets/{sheet_id}/include",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/reports/{report_id}/sheets/{sheet_id}/mapping",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/reports/{report_id}/sheets/{sheet_id}/mapping",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/reports/{report_id}/sheets/{sheet_id}/skip",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/reports/{report_id}/summary",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/sanctions/lists",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/sanctions/lists",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "DELETE",
+  "path": "/api/v1/sanctions/lists/{list_id}",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/scorecard",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/sender/preflight",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/sender/submissions",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/sender/submissions",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/system/status",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/templates",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "POST",
+  "path": "/api/v1/templates",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/templates/{template_id}",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/api/v1/work-queue",
+  "status": 401,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/health",
+  "status": 200,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/health/ready",
+  "status": 200,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/healthz",
+  "status": 200,
+  "reachable": true,
+  "note": ""
+ },
+ {
+  "method": "GET",
+  "path": "/readyz",
+  "status": 200,
+  "reachable": true,
+  "note": ""
+ }
+]

@@ -6,6 +6,11 @@ This is the single source of truth for severity and wording. The engine's
 score, the API (and through it the app, the PDF and every export) all read
 it, so a finding can never be "Medium" on one screen and "High" in a file.
 
+owner (who must act):
+  "sender" -- only the sender can supply or correct the value: query them.
+  "us"     -- the reviewer can resolve it without the sender: a safe fix the
+              corrected copy applies (formatting only), or a mapping choice.
+
 outcome:
   "FAIL"   -- red: the data is wrong, missing or contradictory. Counts against
               the health score.
@@ -26,6 +31,7 @@ class Rule:
     severity: str  # CRITICAL | HIGH | MEDIUM | INFO
     outcome: str  # FAIL | REVIEW
     fix: str
+    owner: str = "sender"  # sender | us
 
 
 _RULES = [
@@ -42,7 +48,7 @@ _RULES = [
     Rule("negative_reserve", "Negative reserve", "AMOUNT", "HIGH", "FAIL",
          "Reserves cannot be negative. Ask the sender for the correct outstanding amount."),
     Rule("amount_stored_as_text", "Amount stored as text", "AMOUNT", "INFO", "REVIEW",
-         "Read correctly, but the cell holds text. Ask the sender to send numbers, not formatted text."),
+         "Read correctly, but the cell holds text. The corrected copy converts it to a number.", "us"),
     # Dates
     Rule("date_order", "Notified before the loss date", "DATE", "MEDIUM", "FAIL",
          "The claim was notified before it happened. Check both dates with the sender."),
@@ -51,7 +57,8 @@ _RULES = [
     Rule("date_unreadable", "Cannot be validated as a date", "DATE", "MEDIUM", "REVIEW",
          "The cell is not a recognisable date, so the date checks could not run. Ask for a real date."),
     Rule("date_stored_as_text", "Date stored as text or a number", "DATE", "INFO", "REVIEW",
-         "Read correctly, but stored as text or an Excel serial number. Ask for real date cells."),
+         "Read correctly, but stored as text or an Excel serial number. The corrected copy converts it to a "
+         "real date.", "us"),
     # Policy
     Rule("loss_outside_policy_period", "Loss outside the policy period", "POLICY", "HIGH", "FAIL",
          "The date of loss is before inception or after expiry. Check the dates and the policy."),
@@ -65,19 +72,23 @@ _RULES = [
          "This policy number does not follow the format of the others in the file. Check it is right."),
     # References
     Rule("claim_ref_format", "Claim reference formatting", "REFERENCE", "INFO", "REVIEW",
-         "The reference has spaces, hidden characters or different capitalisation. Standardise it."),
+         "The reference has extra spaces or hidden characters. The corrected copy trims them; check any "
+         "capitalisation difference with the sender.", "us"),
     # Currency
     Rule("invalid_currency", "Currency code not recognised", "CURRENCY", "HIGH", "FAIL",
          "Use a valid ISO currency code (EUR, GBP, USD...). Confirm which currency the amounts are in."),
     Rule("currency_inconsistency", "Claim reported in several currencies", "CURRENCY", "HIGH", "FAIL",
          "The same claim appears in more than one currency. Confirm the settlement currency."),
     Rule("currency_normalised", "Currency written non-standardly", "CURRENCY", "INFO", "REVIEW",
-         "Read as the ISO code shown. Ask the sender to use ISO codes."),
+         "Read as the ISO code shown. The corrected copy writes the ISO code.", "us"),
     # Status
     Rule("invalid_status", "Status not recognised", "STATUS", "MEDIUM", "FAIL",
          "Use one of the agreed statuses (Open, Closed, Reopened...), or add it to the accepted list."),
     Rule("closed_with_reserve", "Closed claim still holds a reserve", "STATUS", "MEDIUM", "REVIEW",
          "A closed or settled claim should hold no reserve. Ask the sender to release it or reopen the claim."),
+    # Mapping
+    Rule("mapping_completeness", "Sheet only partly understood", "MAPPING_COMPLETENESS", "HIGH", "REVIEW",
+         "Few columns on this sheet matched a claim field. Check the mapping.", "us"),
     # Other
     Rule("schema_violation", "Value has the wrong type", "OTHER", "HIGH", "FAIL",
          "The value does not fit the field. Ask the sender to correct it."),
@@ -93,6 +104,9 @@ _RULES = [
 RULES: dict[str, Rule] = {r.code: r for r in _RULES}
 FAIL_RULES = frozenset(r.code for r in _RULES if r.outcome == "FAIL")
 REVIEW_RULES = frozenset(r.code for r in _RULES if r.outcome == "REVIEW")
+
+
+SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "INFO": 3}
 
 
 def rule(code: str) -> Rule:

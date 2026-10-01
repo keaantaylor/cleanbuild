@@ -1061,6 +1061,17 @@
    },
    "DuplicatePairOut": {
     "properties": {
+     "confidence": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Confidence"
+     },
      "detail": {
       "title": "Detail",
       "type": "string"
@@ -1089,6 +1100,17 @@
       "additionalProperties": true,
       "title": "Row B",
       "type": "object"
+     },
+     "sentence": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Sentence"
      },
      "status": {
       "title": "Status",
@@ -1358,6 +1380,17 @@
       ],
       "title": "Assignee"
      },
+     "cell": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cell"
+     },
      "check_type": {
       "title": "Check Type",
       "type": "string"
@@ -1388,6 +1421,17 @@
       ],
       "title": "Currency"
      },
+     "field_code": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Field Code"
+     },
      "message": {
       "title": "Message",
       "type": "string"
@@ -1402,6 +1446,17 @@
        }
       ],
       "title": "Note"
+     },
+     "owner": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Owner"
      },
      "review_status": {
       "anyOf": [
@@ -1429,6 +1484,17 @@
       ],
       "title": "Rule"
      },
+     "sentence": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Sentence"
+     },
      "severity": {
       "title": "Severity",
       "type": "string"
@@ -1443,6 +1509,17 @@
        }
       ],
       "title": "Sheet Name"
+     },
+     "source_column": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Source Column"
      },
      "source_row_number": {
       "anyOf": [
@@ -8502,6 +8579,58 @@
     ]
    }
   },
+  "/api/v1/reports/{report_id}/sheets/{sheet_id}/include": {
+   "post": {
+    "description": "\"Include anyway\": bring back a sheet auto-skipped as a non-claims tab.\nIts mapping then needs confirming like any other sheet.",
+    "operationId": "include_sheet_api_v1_reports__report_id__sheets__sheet_id__include_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "sheet_id",
+      "required": true,
+      "schema": {
+       "title": "Sheet Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SheetOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Include Sheet",
+    "tags": [
+     "mapping"
+    ]
+   }
+  },
   "/api/v1/reports/{report_id}/sheets/{sheet_id}/mapping": {
    "get": {
     "operationId": "get_sheet_mapping_api_v1_reports__report_id__sheets__sheet_id__mapping_get",
@@ -8607,6 +8736,58 @@
      }
     },
     "summary": "Confirm Sheet Mapping",
+    "tags": [
+     "mapping"
+    ]
+   }
+  },
+  "/api/v1/reports/{report_id}/sheets/{sheet_id}/skip": {
+   "post": {
+    "description": "Leave a sheet out of the health report (it can be included again).",
+    "operationId": "skip_sheet_api_v1_reports__report_id__sheets__sheet_id__skip_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "sheet_id",
+      "required": true,
+      "schema": {
+       "title": "Sheet Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SheetOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Skip Sheet",
     "tags": [
      "mapping"
     ]

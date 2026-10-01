@@ -15,7 +15,8 @@ import pandas as pd
 from . import ingest, schema
 from .iso4217 import VALID_CURRENCY_CODES
 
-EXCEPTION_COLUMNS = ["row_index", "claim_ref", "rule", "detail"]
+# field_code: the field (and so the source cell) the finding is about, when there is one.
+EXCEPTION_COLUMNS = ["row_index", "claim_ref", "rule", "detail", "field_code"]
 
 # sheet_field_state: {sheet_name: {field_code: "alias" | "ai" | "unmapped"}}.
 # A field UNMAPPED on a given sheet must never be treated as "present on
@@ -48,7 +49,8 @@ def add_row_findings(result: "ValidationResult", findings: list[tuple[int, str, 
     ValidationResult without touching its arithmetic counts."""
     if not findings:
         return result
-    extra = pd.DataFrame([{"row_index": i, "claim_ref": None, "rule": r, "detail": d} for i, r, d in findings])
+    extra = pd.DataFrame([{"row_index": i, "claim_ref": None, "rule": r, "detail": d, "field_code": None}
+                          for i, r, d in findings])
     exc = pd.concat([result.exceptions, extra], ignore_index=True) if not result.exceptions.empty else extra
     return dataclasses.replace(result, exceptions=exc)
 
@@ -60,13 +62,14 @@ def validate(df: pd.DataFrame, sheet_field_state: SheetFieldState | None = None)
     sheet_field_state = sheet_field_state or {}
     exceptions: list[dict] = []
 
-    def flag(idx, rule: str, detail: str) -> None:
+    def flag(idx, rule: str, detail: str, field: str | None = None) -> None:
         claim_ref = df.at[idx, schema.CLAIM_REF_CODE] if schema.CLAIM_REF_CODE in df.columns else None
         exceptions.append({
             "row_index": idx,
             "claim_ref": claim_ref if pd.notna(claim_ref) else None,
             "rule": rule,
             "detail": detail,
+            "field_code": field,
         })
 
     _check_mandatory_fields(df, flag, sheet_field_state)
@@ -119,7 +122,7 @@ def _check_mandatory_fields(df: pd.DataFrame, flag, sheet_field_state: SheetFiel
         spec = schema.FIELDS_BY_CODE[code]
         missing = df[code].isna() & ~_field_unmapped_mask(df, code, sheet_field_state)
         for idx in df.index[missing]:
-            flag(idx, "missing_mandatory_field", f"{code} ({spec.name}) is missing")
+            flag(idx, "missing_mandatory_field", f"{code} ({spec.name}) is missing", code)
 
     # Conditional pair: at least one paid component or the reserve must be present.
     pair_codes = (*schema.PAID_COMPONENT_CODES, schema.RESERVE_CODE)
@@ -130,7 +133,8 @@ def _check_mandatory_fields(df: pd.DataFrame, flag, sheet_field_state: SheetFiel
         all_unmapped &= ~_mapped_mask(df, code, sheet_field_state)
     for idx in df.index[all_missing & ~all_unmapped]:
         flag(idx, "missing_mandatory_field",
-             "no indemnity paid figure and no indemnity reserve present; at least one is required")
+             "no indemnity paid figure and no indemnity reserve present; at least one is required",
+             schema.RESERVE_CODE)
 
 
 _SHORT = {
@@ -269,7 +273,7 @@ def _check_arithmetic(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState
                 else:
                     fee_note = " (no fee columns in this file: checked as nil fees; if the total includes fees the difference may be fees)"
             flag(i, "arithmetic_mismatch",
-                 f"{label}={_fmt(tgt.at[i])} but " + " + ".join(parts) + f" = {_fmt(exp.at[i])}{fee_note}")
+                 f"{label}={_fmt(tgt.at[i])} but " + " + ".join(parts) + f" = {_fmt(exp.at[i])}{fee_note}", code)
         # Combine per row: any mismatch wins; else match if evaluated; else keep first NE reason.
         status = status.mask(mism, "MISMATCH")
         status = status.mask(computable & ~mism & (status == ""), "MATCH")
@@ -294,7 +298,7 @@ def _check_arithmetic(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState
         flag(i, "arithmetic_mismatch",
              f"paid to date={_fmt(val[S.PAID_TD_CODE].at[i])} but paid this month "
              f"{_fmt(val[S.PAID_MONTH_CODE].at[i])} + previously paid {_fmt(val[S.PREV_PAID_CODE].at[i])} "
-             f"= {_fmt(comp_sum.at[i])}")
+             f"= {_fmt(comp_sum.at[i])}", S.PAID_TD_CODE)
 
     claim_ref_col = schema.CLAIM_REF_CODE
     rows = []
@@ -323,13 +327,15 @@ def _check_dates(df: pd.DataFrame, flag) -> None:
     order_bad = both_present & (loss > notified)
     for idx in df.index[order_bad]:
         flag(idx, "date_order",
-             f"date of loss {loss.at[idx].date()} is after date first notified {notified.at[idx].date()}")
+             f"date of loss {loss.at[idx].date()} is after date first notified {notified.at[idx].date()}",
+             schema.NOTIFIED_DATE_CODE)
 
     for idx in df.index[loss.notna() & (loss > today)]:
-        flag(idx, "date_in_future", f"date of loss {loss.at[idx].date()} is in the future")
+        flag(idx, "date_in_future", f"date of loss {loss.at[idx].date()} is in the future", schema.LOSS_DATE_CODE)
 
     for idx in df.index[notified.notna() & (notified > today)]:
-        flag(idx, "date_in_future", f"date first notified {notified.at[idx].date()} is in the future")
+        flag(idx, "date_in_future", f"date first notified {notified.at[idx].date()} is in the future",
+                 schema.NOTIFIED_DATE_CODE)
 
     for code in (f.code for f in schema.FIELDS if f.dtype == "date"):
         col = ingest.date_issue_column(code)
@@ -338,10 +344,10 @@ def _check_dates(df: pd.DataFrame, flag) -> None:
         name = schema.FIELDS_BY_CODE[code].name.lower()
         issue = df[col].fillna("")
         for idx in df.index[issue == "unreadable"]:
-            flag(idx, "date_unreadable", f"{name} is not a recognisable date, so it cannot be validated")
+            flag(idx, "date_unreadable", f"{name} is not a recognisable date, so it cannot be validated", code)
         for idx in df.index[issue == "text"]:
             flag(idx, "date_stored_as_text", f"{name} {df.at[idx, code].date()} was read from text or an Excel "
-                 "serial number, not a date cell")
+                 "serial number, not a date cell", code)
 
 
 def _check_currency(df: pd.DataFrame, flag) -> None:
@@ -349,11 +355,11 @@ def _check_currency(df: pd.DataFrame, flag) -> None:
     if ingest.CURRENCY_NORMALISED_COLUMN in df.columns:
         orig = df[ingest.CURRENCY_NORMALISED_COLUMN]
         for idx in df.index[orig.notna()]:
-            flag(idx, "currency_normalised", f"{orig.at[idx]!r} read as {currency.at[idx]}")
+            flag(idx, "currency_normalised", f"{orig.at[idx]!r} read as {currency.at[idx]}", schema.CURRENCY_CODE)
 
     invalid = currency.notna() & ~currency.isin(VALID_CURRENCY_CODES)
     for idx in df.index[invalid]:
-        flag(idx, "invalid_currency", f"{currency.at[idx]!r} is not a valid ISO 4217 code")
+        flag(idx, "invalid_currency", f"{currency.at[idx]!r} is not a valid ISO 4217 code", schema.CURRENCY_CODE)
 
     ref = df[schema.CLAIM_REF_CODE]
     has_ref = ref.notna()
@@ -363,7 +369,7 @@ def _check_currency(df: pd.DataFrame, flag) -> None:
         if inconsistent_refs:
             for idx in df.index[has_ref & ref.isin(inconsistent_refs)]:
                 flag(idx, "currency_inconsistency",
-                     f"claim {ref.at[idx]} reported with more than one settlement currency")
+                     f"claim {ref.at[idx]} reported with more than one settlement currency", schema.CURRENCY_CODE)
 
 
 def _check_status_enum(df: pd.DataFrame, flag) -> None:
@@ -371,7 +377,7 @@ def _check_status_enum(df: pd.DataFrame, flag) -> None:
     valid = set(schema.FIELDS_BY_CODE[schema.STATUS_CODE].enum_values)
     bad = status.notna() & ~status.isin(valid)
     for idx in df.index[bad]:
-        flag(idx, "invalid_status", f"{status.at[idx]!r} is not one of {sorted(valid)}")
+        flag(idx, "invalid_status", f"{status.at[idx]!r} is not one of {sorted(valid)}", schema.STATUS_CODE)
 
 
 def _explicitly_mapped(df: pd.DataFrame, code: str, sheet_field_state: SheetFieldState) -> pd.Series:
@@ -401,26 +407,27 @@ def _check_amounts(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState) -
     S = schema
     reserve = _num(df, S.RESERVE_CODE)
     for idx in df.index[reserve < -S.ARITHMETIC_TOLERANCE]:
-        flag(idx, "negative_reserve", f"reserve is {_fmt(reserve.at[idx])}; a reserve cannot be negative")
+        flag(idx, "negative_reserve", f"reserve is {_fmt(reserve.at[idx])}; a reserve cannot be negative", S.RESERVE_CODE)
 
     paid = _num(df, S.PAID_TD_CODE)
     incurred = _num(df, S.INCURRED_CODE)
     over = paid.notna() & incurred.notna() & (incurred >= 0) & (paid - incurred > S.ARITHMETIC_TOLERANCE)
     for idx in df.index[over]:
         flag(idx, "paid_exceeds_incurred",
-             f"paid to date {_fmt(paid.at[idx])} is more than total incurred {_fmt(incurred.at[idx])}")
+             f"paid to date {_fmt(paid.at[idx])} is more than total incurred {_fmt(incurred.at[idx])}", S.PAID_TD_CODE)
 
     status = df[S.STATUS_CODE] if S.STATUS_CODE in df.columns else pd.Series(pd.NA, index=df.index)
     closed = status.fillna("").astype(str).str.lower().eq("closed")
     for idx in df.index[closed & (reserve > S.ARITHMETIC_TOLERANCE)]:
-        flag(idx, "closed_with_reserve", f"claim is closed but still holds a reserve of {_fmt(reserve.at[idx])}")
+        flag(idx, "closed_with_reserve", f"claim is closed but still holds a reserve of {_fmt(reserve.at[idx])}",
+             S.RESERVE_CODE)
 
     for code in S.MONETARY_CODES:
         col = ingest.amount_text_column(code)
         if col in df.columns:
             for idx in df.index[df[col].astype(bool)]:
                 flag(idx, "amount_stored_as_text",
-                     f"{S.FIELDS_BY_CODE[code].name.lower()} {_fmt(df.at[idx, code])} was read from text")
+                     f"{S.FIELDS_BY_CODE[code].name.lower()} {_fmt(df.at[idx, code])} was read from text", code)
 
 
 def _check_policy(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState) -> None:
@@ -432,30 +439,33 @@ def _check_policy(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState) ->
     inverted = inception.notna() & expiry.notna() & (expiry < inception)
     for idx in df.index[inverted]:
         flag(idx, "expiry_before_inception",
-             f"policy expiry {expiry.at[idx].date()} is before inception {inception.at[idx].date()}")
+             f"policy expiry {expiry.at[idx].date()} is before inception {inception.at[idx].date()}", S.EXPIRY_CODE)
     before = loss.notna() & inception.notna() & (loss < inception) & ~inverted
     after = loss.notna() & expiry.notna() & (loss > expiry) & ~inverted
     for idx in df.index[before]:
         flag(idx, "loss_outside_policy_period",
-             f"date of loss {loss.at[idx].date()} is before policy inception {inception.at[idx].date()}")
+             f"date of loss {loss.at[idx].date()} is before policy inception {inception.at[idx].date()}",
+             S.LOSS_DATE_CODE)
     for idx in df.index[after & ~before]:
         flag(idx, "loss_outside_policy_period",
-             f"date of loss {loss.at[idx].date()} is after policy expiry {expiry.at[idx].date()}")
+             f"date of loss {loss.at[idx].date()} is after policy expiry {expiry.at[idx].date()}", S.LOSS_DATE_CODE)
 
     limit_mapped = _explicitly_mapped(df, S.POLICY_LIMIT_CODE, sheet_field_state)
     limit = _num(df, S.POLICY_LIMIT_CODE)
     incurred = _num(df, S.INCURRED_CODE)
     for idx in df.index[limit_mapped & limit.notna() & (limit > 0) & incurred.notna() & (incurred - limit > S.ARITHMETIC_TOLERANCE)]:
         flag(idx, "incurred_over_limit",
-             f"total incurred {_fmt(incurred.at[idx])} is above the policy limit {_fmt(limit.at[idx])}")
+             f"total incurred {_fmt(incurred.at[idx])} is above the policy limit {_fmt(limit.at[idx])}",
+             S.INCURRED_CODE)
     unparse = ingest.unparseable_flag_column(S.POLICY_LIMIT_CODE)
     unreadable_limit = df[unparse].astype(bool) if unparse in df.columns else pd.Series(False, index=df.index)
     for idx in df.index[limit_mapped & ~unreadable_limit & (limit.isna() | (limit <= 0))]:
-        flag(idx, "policy_limit_missing", "policy limit is blank or zero, so the limit check cannot run")
+        flag(idx, "policy_limit_missing", "policy limit is blank or zero, so the limit check cannot run",
+             S.POLICY_LIMIT_CODE)
 
     policy_mapped = _explicitly_mapped(df, S.POLICY_REF_CODE, sheet_field_state)
     for idx in df.index[policy_mapped & df[S.POLICY_REF_CODE].isna()]:
-        flag(idx, "missing_policy_reference", "policy number is blank")
+        flag(idx, "missing_policy_reference", "policy number is blank", S.POLICY_REF_CODE)
 
 
 _HIDDEN_CHARS = ("\u200b", "\u200c", "\u200d", "\ufeff", "\u00a0", "\t", "\r", "\n")
@@ -486,7 +496,7 @@ def _check_formats(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState) -
             if upper_share >= 0.9 and v != v.upper():
                 problems.append("lower-case letters")
             if problems:
-                flag(idx, "claim_ref_format", f"claim reference {v!r} contains " + " and ".join(problems))
+                flag(idx, "claim_ref_format", f"claim reference {v!r} contains " + " and ".join(problems), S.CLAIM_REF_CODE)
 
     pol = df[S.POLICY_REF_CODE].dropna().astype(str) if S.POLICY_REF_CODE in df.columns else pd.Series(dtype=str)
     if len(pol) >= 20:
@@ -497,4 +507,4 @@ def _check_formats(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState) -
             for idx in shapes.index[shapes != dominant]:
                 flag(idx, "policy_ref_format",
                      f"policy number {pol.at[idx]!r} does not match the usual format ({dominant!r}, "
-                     f"{share:.0%} of rows)")
+                     f"{share:.0%} of rows)", S.POLICY_REF_CODE)

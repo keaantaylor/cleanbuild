@@ -18,17 +18,25 @@ import math
 from collections import Counter, defaultdict
 
 import pandas as pd
+from bordereaux.pipeline import NON_CLAIMS_PREFIX, non_claims_reason
+from bordereaux.rules import RULES
+from bordereaux.rules import rule as catalogue_rule
 from sqlalchemy import delete, func, insert
 from sqlalchemy.orm import Session
 
 from ..models._util import new_uuid, utcnow
 from ..models.alerts import Alert
-from ..models.reports import ClaimRow, ExcludedRow, Mapping, Report, Sheet, ValidationResult
-from . import alert_service, audit_service, pipeline_service
-from .pipeline_service import FIELDS, FIELDS_BY_CODE, REQUIRED_CODES as _REQUIRED, classify_sheet_status, mapping_mod
-from bordereaux.rules import RULES
-from bordereaux.rules import rule as catalogue_rule
-from bordereaux.pipeline import NON_CLAIMS_PREFIX, non_claims_reason
+from ..models.reports import (
+    ClaimRow,
+    ExcludedRow,
+    Mapping,
+    Report,
+    Sheet,
+    ValidationResult,
+)
+from . import alert_service, audit_service, health_view, pipeline_service
+from .pipeline_service import FIELDS, FIELDS_BY_CODE, classify_sheet_status, mapping_mod
+from .pipeline_service import REQUIRED_CODES as _REQUIRED
 
 FIELD_TO_COLUMN = {
     "CR0104M": "claim_reference", "CR0105CM": "claim_status", "CR0119CM": "date_of_loss",
@@ -305,21 +313,30 @@ def persist_pipeline_result(db: Session, report: Report, sheets, result, sheet_i
     _bulk(db, ClaimRow, rows)
 
     vrs: list[dict] = []
+    locator = _cell_locator(db, report)
 
-    def vr(pos, check_type, status, severity, message, rule, extra=None):
+    def vr(pos, check_type, status, severity, message, rule, extra=None, field_code=None):
         if pos >= n:
             raise RuntimeError(f"finding references row {pos} but only {n} rows were persisted (integrity bug)")
+        extra = dict(extra or {"rule": rule})
+        cell, column = locator.locate(sheets_col[pos], field_code, src_rows[pos])
+        sentence = (health_view.sentence(rule, str(message)) if status in ("FAIL", "REVIEW")
+                    else f"Couldn't check: {str(message).rstrip('.')}.")
+        extra.update(field_code=field_code, cell=cell, column=column, sentence=sentence[:2000],
+                     owner=catalogue_rule(rule).owner if status in ("FAIL", "REVIEW") else "us")
         vrs.append({"id": new_uuid(), "tenant_id": tid, "report_id": report.id, "claim_row_id": ids[pos],
                     "check_type": check_type, "rule": rule, "status": status, "severity": severity,
-                    "message": str(message)[:2000], "delta": None, "extra": extra or {"rule": rule}})
+                    "message": str(message)[:2000], "delta": None, "extra": extra})
 
     exc = result.validation_result.exceptions
-    for pos, rule, detail in zip(exc["row_index"].tolist(), exc["rule"].tolist(), exc["detail"].tolist()):
+    fields = exc["field_code"].tolist() if "field_code" in exc.columns else [None] * len(exc)
+    for pos, rule, detail, field in zip(exc["row_index"].tolist(), exc["rule"].tolist(), exc["detail"].tolist(),
+                                        fields):
         rr = catalogue_rule(rule)
-        vr(int(pos), rr.check_type, rr.outcome, rr.severity, detail, rule)
+        vr(int(pos), rr.check_type, rr.outcome, rr.severity, detail, rule, field_code=field)
     ne = result.validation_result.not_evaluable_detail
     for pos, reason, detail in zip(ne["row_index"].tolist(), ne["reason"].tolist(), ne["detail"].tolist()):
-        vr(int(pos), "ARITHMETIC", "NOT_EVALUABLE", "MEDIUM", detail, reason)
+        vr(int(pos), "ARITHMETIC", "NOT_EVALUABLE", "MEDIUM", detail, reason, field_code="CR0155CM")
     dups = result.duplicates
     confidences = dups["confidence"].tolist() if "confidence" in dups.columns else [None] * len(dups)
     for a, b, mt, detail, conf in zip(dups["row_index_a"].tolist(), dups["row_index_b"].tolist(),
@@ -328,9 +345,9 @@ def persist_pipeline_result(db: Session, report: Report, sheets, result, sheet_i
             raise RuntimeError("duplicate pair references a missing row (integrity bug)")
         rr = catalogue_rule(mt)
         extra = {"rule": mt, "match_type": mt, "match_claim_row_id": ids[int(b)]}
-        if conf is not None and conf == conf:
+        if conf is not None and not pd.isna(conf):
             extra["confidence"] = int(conf)
-        vr(int(a), "DUPLICATE", rr.outcome, rr.severity, detail, mt, extra)
+        vr(int(a), "DUPLICATE", rr.outcome, rr.severity, detail, mt, extra, field_code="CR0104M")
     alerts = _mapping_completeness(result, canonical, ids, vr, tid, report.id)
     _bulk(db, ValidationResult, vrs)
 
@@ -349,7 +366,11 @@ def persist_pipeline_result(db: Session, report: Report, sheets, result, sheet_i
     report.grade = str(health.grade)
     report.score = health.composite_score
     report.arithmetic_not_evaluable = health.arithmetic_not_evaluable
-    report.summary = build_summary(result, canonical)
+    summary = build_summary(result, canonical)
+    summary["health_view"] = health_view.build(
+        result, canonical, summary, locator,
+        partly_mapped=[{"sheet_name": a["_sheet"], "message": a["message"]} for a in alerts if "_sheet" in a])
+    report.summary = summary
     # Reverse mapping audit: every source column no canonical field claimed
     # gets its own entry (mirror of the per-field UNMAPPED mapping rows).
     for sheet_name, cols in (cov.unmapped_source_columns or {}).items():
@@ -359,7 +380,17 @@ def persist_pipeline_result(db: Session, report: Report, sheets, result, sheet_i
                                      after={"sheet": sheet_name, "field_code": None, "source_column": col,
                                             "mapping_state": "UNMAPPED", "data_retained": True})
     for a in alerts + _report_alerts(health, cov):
-        db.add(Alert(tenant_id=tid, report_id=report.id, **a))
+        db.add(Alert(tenant_id=tid, report_id=report.id, **{k: v for k, v in a.items() if not k.startswith("_")}))
+
+
+def _cell_locator(db: Session, report: Report) -> health_view.CellLocator:
+    sheets = db.query(Sheet).filter_by(report_id=report.id).all()
+    by_id = {s.id: s.sheet_name for s in sheets}
+    mapping: dict[str, dict[str, str]] = defaultdict(dict)
+    for m in db.query(Mapping).filter(Mapping.report_id == report.id, Mapping.source_column.isnot(None)):
+        if m.sheet_id in by_id:
+            mapping[by_id[m.sheet_id]][m.field_code] = m.source_column
+    return health_view.CellLocator({s.sheet_name: list(s.headers or []) for s in sheets}, mapping)
 
 
 def _mapping_completeness(result, canonical, ids, vr, tid, report_id) -> list[dict]:
@@ -381,9 +412,10 @@ def _mapping_completeness(result, canonical, ids, vr, tid, report_id) -> list[di
         msg = (f"Sheet {name!r}: {mapped} of {len(FIELDS)} canonical fields mapped -- "
                + ("no columns matched a known field; needs manual review." if mapped == 0
                   else "well below the rest of this file; needs manual review."))
-        alerts.append({"severity": severity, "source": "MAPPING_COMPLETENESS", "message": msg})
+        alerts.append({"severity": severity, "source": "MAPPING_COMPLETENESS", "message": msg, "_sheet": name})
         if name in first_pos:
-            vr(first_pos[name], "MAPPING_COMPLETENESS", "FAIL", severity, msg, "mapping_completeness",
+            # Couldn't check (not an error in the data): the fix is the mapping.
+            vr(first_pos[name], "MAPPING_COMPLETENESS", "NOT_EVALUABLE", severity, msg, "mapping_completeness",
                {"rule": "mapping_completeness", "sheet_name": name, "mapped": mapped})
     return alerts
 

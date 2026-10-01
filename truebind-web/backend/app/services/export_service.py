@@ -8,6 +8,7 @@ import csv
 import io
 import json
 
+from bordereaux.rules import rule as catalogue_rule
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -16,6 +17,7 @@ from ..models.audit import AuditLogEntry
 from ..models.reports import ClaimRow, Report, Sheet, ValidationResult
 
 KINDS = {"claims_csv": "claims", "exceptions_csv": "exceptions", "audit_csv": "audit"}
+OUTCOME_LABEL = {"FAIL": "Error", "REVIEW": "Warning", "NOT_EVALUABLE": "Couldn't check"}
 _FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n")
 
 
@@ -105,16 +107,23 @@ def export_rows(db: Session, tenant_id: str, report: Report, kind: str):
     if kind == "exceptions_csv":
         stmt = (select(ClaimRow.sheet_id, ClaimRow.source_row_number, ClaimRow.claim_reference,
                        ValidationResult.check_type, ValidationResult.rule, ValidationResult.status,
-                       ValidationResult.severity, ValidationResult.message)
+                       ValidationResult.severity, ValidationResult.message, ValidationResult.extra)
                 .join(ClaimRow, ClaimRow.id == ValidationResult.claim_row_id)
                 .where(ValidationResult.report_id == report.id)
                 .order_by(ClaimRow.sheet_id, ClaimRow.row_index))
 
         def rows():
             for r in _stream_query(tenant_id, stmt):
-                yield [sheet_names.get(r[0]), *r[1:]]
+                extra = r[-1] or {}
+                rr = catalogue_rule(r[4] or "")
+                yield [sheet_names.get(r[0]), *r[1:-1], extra.get("cell"), extra.get("column"),
+                       extra.get("sentence"), extra.get("owner"),
+                       rr.label if r[5] in ("FAIL", "REVIEW") else "Couldn't check",
+                       OUTCOME_LABEL.get(r[5], r[5]), extra.get("confidence")]
+        # Columns after "message" are additive: existing readers keep their positions.
         return (["sheet_name", "source_row_number", "claim_reference", "check_type", "rule", "status", "severity",
-                 "message"], rows())
+                 "message", "cell", "source_column", "plain_english", "who_fixes", "check", "result",
+                 "duplicate_confidence"], rows())
     if kind == "audit_csv":
         entries = (db.query(AuditLogEntry).filter(AuditLogEntry.tenant_id == tenant_id,
                                                   AuditLogEntry.report_id == report.id)

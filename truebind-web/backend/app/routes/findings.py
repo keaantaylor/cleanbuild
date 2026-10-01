@@ -4,6 +4,7 @@ rows and the extracted claim rows. Every list is paginated server-side
 
 from __future__ import annotations
 
+from bordereaux.rules import RULES
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
@@ -11,7 +12,12 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.reports import ClaimRow, ExcludedRow, Sheet, ValidationResult
 from ..schemas.reports import (
-    ClaimRowOut, DuplicatePairOut, DuplicateReviewRequest, ExceptionRowOut, ExcludedRowOut, Page,
+    ClaimRowOut,
+    DuplicatePairOut,
+    DuplicateReviewRequest,
+    ExceptionRowOut,
+    ExcludedRowOut,
+    Page,
 )
 from ..security.auth import Context, require_reader, require_writer
 from ..services import audit_service
@@ -21,7 +27,8 @@ router = APIRouter(prefix="/api/v1/reports", tags=["findings"])
 
 _SEVERITY_RANK = case((ValidationResult.severity == "CRITICAL", 0), (ValidationResult.severity == "HIGH", 1),
                       (ValidationResult.severity == "MEDIUM", 2), else_=3)
-CHECK_TYPES = ("MANDATORY_FIELD", "ARITHMETIC", "MAPPING_COMPLETENESS", "DATE", "CURRENCY", "STATUS", "OTHER")
+CHECK_TYPES = tuple(dict.fromkeys(["MANDATORY_FIELD", "ARITHMETIC", "MAPPING_COMPLETENESS", "DATE", "CURRENCY",
+                                   "STATUS", "OTHER", *(r.check_type for r in RULES.values())]))
 
 
 @router.get("/{report_id}/exceptions", response_model=Page[ExceptionRowOut])
@@ -62,7 +69,9 @@ def list_exceptions(
         amount=row.incurred_amount if row.incurred_amount is not None else row.paid_amount,
         check_type=vr.check_type, rule=vr.rule, status=vr.status, severity=vr.severity, message=vr.message,
         review_status=(vr.extra or {}).get("review_status"), assignee=(vr.extra or {}).get("assignee"),
-        note=(vr.extra or {}).get("note"),
+        note=(vr.extra or {}).get("note"), field_code=(vr.extra or {}).get("field_code"),
+        cell=(vr.extra or {}).get("cell"), source_column=(vr.extra or {}).get("column"),
+        sentence=(vr.extra or {}).get("sentence"), owner=(vr.extra or {}).get("owner"),
     ) for vr, row, sheet_name in rows]
     return Page(items=items, total=total, limit=paging.limit, offset=paging.offset)
 
@@ -82,7 +91,8 @@ def _pair(vr: ValidationResult, a: ClaimRow, b: ClaimRow | None, sheet_names) ->
     extra = vr.extra or {}
     return DuplicatePairOut(validation_result_id=vr.id, match_type=extra.get("match_type", vr.rule or "probable"),
                             status=vr.status, row_a=_row_dict(a, sheet_names), row_b=_row_dict(b, sheet_names),
-                            detail=vr.message, review_status=extra.get("review_status"))
+                            detail=vr.message, review_status=extra.get("review_status"),
+                            confidence=extra.get("confidence"), sentence=extra.get("sentence"))
 
 
 @router.get("/{report_id}/duplicates", response_model=Page[DuplicatePairOut])

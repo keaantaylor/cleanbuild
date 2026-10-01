@@ -9,8 +9,8 @@ Running unattended: approval items are listed under "Waiting for Kealan" and ski
 |---|---|
 | 0 Strategy docs (strategy.md, customer-discovery.md) | done |
 | 1 Reliability (10k rows < 2 min, no hangs, durable originals, timeout, hosting map) | done |
-| 2 Trust in the findings | in progress (engine + backend done; remaining: non-claims auto-skip + Include anyway, catalogue in API/app/PDF/exports, count agreement, injection tests) |
-| 3 Health report redesign | remaining |
+| 2 Trust in the findings | done (app screens for the catalogue and 'Not mapped' land with the Phase 3 report rewrite) |
+| 3 Health report redesign | in progress |
 | 4 Deliverables: annotated workbook, corrected copy, query letter, month-on-month | remaining |
 | 5 Adoption and trust: anonymise option, 30-day deletion, true security page, DPA draft, logout bug | remaining |
 | 6 Sales path: home wording, demo page, pricing, Health Check upload form (reuse launch-readiness branch) | remaining |
@@ -20,6 +20,14 @@ Running unattended: approval items are listed under "Waiting for Kealan" and ski
 Phase 1 evidence: local timings 500/2k/10k/30k rows 3.8/5.5/23.1/56.2s -> 1.1/1.6/6.1/10.4s (parse once,
 memoised normalisation, lxml, originals + parse cache in PostgreSQL, 10-minute timeout). Hosting map:
 docs/stress-pass/hosting-map.md. Endpoint reachability baseline 104/104.
+
+Phase 2 evidence: probable duplicates need corroboration (policy ref / amounts / currency) with a 60-100 confidence;
+Settled = Closed (TRUEBIND_CLAIM_STATUS_SYNONYMS); paid unmapped = couldn't check; non-claims tabs pre-skipped with a
+reason + Include anyway / Skip sheet (audited); Pol No./Date Rptd aliases; inception/expiry/limit/binder mapped and
+checked; dates as text/serials amber; one rule catalogue (bordereaux/rules.py) drives severity everywhere; every
+finding has a sentence + cell (e.g. H8); counts agree across summary, exceptions CSV and duplicates (tests);
+hostile text inert in API/CSV/AI prompts (tests/test_injection_inert.py). Reachability 106/106. OpenAPI: additive
+only (2 operations, 7 optional fields; scripts/openapi_compat.py). Backend 366 passed, engine 94 passed.
 
 ## Waiting for Kealan
 1. Render instance size: 512 MB is tight for 30,000-row files (peak ~430 MB in one process). Cheapest safe

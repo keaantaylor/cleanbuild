@@ -88,6 +88,8 @@ FIELDS: list[FieldSpec] = [
             "first notified date", "date first advised", "notified date",
             "reported on", "date reported", "advised date", "first notified",
             "date claim notified",
+            "date rptd", "rptd", "reported", "reported date", "report date", "date advised",
+            "notification", "date of notification",
         ),
     ),
     FieldSpec(
@@ -113,6 +115,7 @@ FIELDS: list[FieldSpec] = [
             "risk reference", "riskreference", "policyref", "policynumber",
             "contract ref", "contract reference", "contract no",
             "policy reference no", "policy identifier",
+            "pol no", "pol no.", "pol ref", "pol number", "policy", "pol",
         ),
     ),
     # --- Monetary fields, per Lloyd's Coverholder Reporting Standards v5.2
@@ -134,6 +137,7 @@ FIELDS: list[FieldSpec] = [
             "paid to date", "paid ytd", "cash paid ytd", "amount paid to date",
             "paid todate", "indemnity paid to date", "total paid", "cumulative paid",
             "paid", "amount paid", "paid amount", "paid amt", "indemnity paid", "indemnitypaid",
+            "settled", "settled amount", "amount settled", "settled to date", "total settled",
         ),
         ambiguous_aliases=("paid", "amount paid", "paid amount", "paid amt", "indemnity paid", "indemnitypaid"),
     ),
@@ -245,6 +249,49 @@ FIELDS: list[FieldSpec] = [
                  "as at", "as at date", "as of", "as of date", "statement date", "reporting date",
                  "bordereau date", "valuation date"),
     ),
+    # --- Policy context (not v5.2 claims fields, but carried on most real
+    # bordereaux). Mapping them lets per-row checks run: loss outside the
+    # policy period, incurred over the policy limit and unknown binder.
+    FieldSpec(
+        code="TB_INCEPTION",
+        name="Policy inception date",
+        dtype="date",
+        requirement="optional",
+        notes="Start of the policy period. With expiry, the date of loss is checked against it.",
+        aliases=("inception", "inception date", "policy inception", "policy start", "policy start date",
+                 "start date", "cover start", "period from", "risk inception", "effective date",
+                 "risk inception date"),
+    ),
+    FieldSpec(
+        code="TB_EXPIRY",
+        name="Policy expiry date",
+        dtype="date",
+        requirement="optional",
+        notes="End of the policy period (inclusive).",
+        aliases=("expiry", "expiry date", "policy expiry", "policy end", "policy end date", "end date",
+                 "cover end", "period to", "risk expiry", "expiration date", "expiration"),
+    ),
+    FieldSpec(
+        code="TB_POLICY_LIMIT",
+        name="Policy limit",
+        dtype="decimal",
+        requirement="optional",
+        notes="Sum insured / limit of indemnity for the policy. Never part of the money totals or the "
+              "incurred arithmetic; total incurred above it is flagged.",
+        aliases=("policy limit", "limit", "limit of indemnity", "sum insured", "limit of liability",
+                 "policy limit amount", "indemnity limit", "aggregate limit"),
+    ),
+    FieldSpec(
+        code="TB_BINDER_REF",
+        name="Binder / UMR",
+        dtype="string",
+        requirement="optional",
+        notes="The binding authority the risk was written under (binder reference or Unique Market "
+              "Reference). Checked against the binders set up in Settings.",
+        aliases=("binder", "binder / umr", "binder/umr", "umr", "binder ref", "binder reference",
+                 "binding authority", "binder no", "binder number", "unique market reference",
+                 "contract umr", "agreement number"),
+    ),
     FieldSpec(
         code="CR0110CM",
         name="Settlement currency",
@@ -262,7 +309,12 @@ FIELDS_BY_CODE: dict[str, FieldSpec] = {f.code: f for f in FIELDS}
 
 REQUIRED_CODES = [f.code for f in FIELDS if f.requirement == "required"]
 CONDITIONAL_PAIR_CODES = tuple(f.code for f in FIELDS if f.requirement == "conditional_pair")
-MONETARY_CODES = tuple(f.code for f in FIELDS if f.dtype == "decimal")
+# Decimal fields that are reference values about the policy, not claim money:
+# never summed into currency totals, never part of the incurred arithmetic or
+# of the "same values" comparison behind exact-duplicate detection.
+POLICY_LIMIT_CODE = "TB_POLICY_LIMIT"
+NON_MOVEMENT_DECIMAL_CODES = (POLICY_LIMIT_CODE,)
+MONETARY_CODES = tuple(f.code for f in FIELDS if f.dtype == "decimal" and f.code not in NON_MOVEMENT_DECIMAL_CODES)
 RECONCILED_CODES = tuple(f.code for f in FIELDS if f.requirement == "reconciled")
 
 POLICY_REF_CODE = "CR0029M"
@@ -288,6 +340,9 @@ CURRENCY_CODE = "CR0110CM"
 STATUS_CODE = "CR0105CM"
 INSURED_NAME_CODE = "CR0035M"
 POLICY_REF_CODE = "CR0029M"
+INCEPTION_CODE = "TB_INCEPTION"
+EXPIRY_CODE = "TB_EXPIRY"
+BINDER_REF_CODE = "TB_BINDER_REF"
 
 ARITHMETIC_TOLERANCE = 0.01
 

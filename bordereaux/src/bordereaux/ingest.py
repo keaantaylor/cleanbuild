@@ -26,7 +26,7 @@ import pandas as pd
 
 from .iso4217 import VALID_CURRENCY_CODES
 from .mapping import parse_currency_suffix, parse_scale_suffix, split_trailing_parenthetical
-from .schema import CURRENCY_CODE, FIELDS, FIELDS_BY_CODE
+from .schema import CURRENCY_CODE, FIELDS, FIELDS_BY_CODE, STATUS_CODE
 
 # Tried in order; whichever format parses the most values for a given
 # column wins. A final flexible-parser pass catches anything left over.
@@ -645,6 +645,7 @@ def _structural_header_row(rows: list[tuple]) -> int | None:
 
 
 _CURRENCY_SYMBOL_RE = re.compile(r"[€£$¥₹]")
+_ISO_AFFIX_RE = re.compile(r"^(?:([A-Za-z]{3})\s*)?([-+(]?[\d.,\s]+\)?)(?:\s*([A-Za-z]{3}))?$")
 
 # TB-004(d): a formula-error cell (openpyxl returns the sentinel string
 # itself when data_only=True can't resolve it -- e.g. the workbook was
@@ -693,6 +694,10 @@ def _parse_amount_cell(text: str, decimal_sep: str | None = None, allow_ambiguou
         return None
     t = t.replace("−", "-")  # Unicode minus sign (U+2212), distinct from ASCII hyphen-minus
     t = _CURRENCY_SYMBOL_RE.sub("", t)
+    # "EUR 500" / "500 GBP": a leading or trailing ISO currency code is not part of the number.
+    m = _ISO_AFFIX_RE.match(t.strip())
+    if m and (m.group(1) or m.group(3) or "").upper() in VALID_CURRENCY_CODES:
+        t = m.group(2)
     t = "".join(t.split())  # drop all internal whitespace, incl. non-breaking (already normalized above)
 
     negative = False
@@ -874,6 +879,76 @@ def _best_date_parse(series: pd.Series, notes: list[str] | None = None) -> pd.Se
     return result
 
 
+def date_issue_column(field_code: str) -> str:
+    """Per-row note on a date cell: "" (fine), "unreadable" (text that is not a
+    date: the field cannot be validated on this row) or "text" (read, but
+    stored as text or as an Excel serial number rather than a real date)."""
+    return f"_date_issue_{field_code}"
+
+
+def amount_text_column(field_code: str) -> str:
+    """True where an amount was read from formatted text ("4,809.96", "EUR 500")
+    rather than a number cell: summed correctly, but worth tidying at source."""
+    return f"_amount_text_{field_code}"
+
+
+CURRENCY_NORMALISED_COLUMN = "_currency_original"
+STATUS_NORMALISED_COLUMN = "_status_original"
+
+# A real date cell (or an ISO date in a CSV) reaches the parser in this form.
+_REAL_DATE_TEXT = re.compile(r"^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?$")
+_PLAIN_NUMBER_TEXT = re.compile(r"^-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?$")
+
+# Spellings and symbols senders use for a currency, read as the ISO code and
+# disclosed. "$" alone is deliberately absent: it is USD, CAD, AUD, NZD... so it
+# stays invalid rather than being guessed.
+_CURRENCY_ALIASES = {
+    "€": "EUR", "EURO": "EUR", "EUROS": "EUR", "EU": "EUR", "E": None,
+    "£": "GBP", "STERLING": "GBP", "POUND": "GBP", "POUNDS": "GBP", "GBP£": "GBP", "UKP": "GBP",
+    "US$": "USD", "USD$": "USD", "US DOLLAR": "USD", "US DOLLARS": "USD", "DOLLARS US": "USD",
+    "CHF.": "CHF", "SFR": "CHF", "YEN": "JPY", "¥": "JPY",
+}
+
+
+def _normalise_currency(series: pd.Series) -> tuple[pd.Series, pd.Series]:
+    """Returns (ISO code or the original text upper-cased, original text where
+    it was changed into a valid ISO code else NA). Codes that stay invalid are
+    left for validation to flag."""
+    def one(v):
+        if v is None or pd.isna(v):
+            return v, None
+        raw = str(v)
+        key = " ".join(raw.strip().split()).upper().strip(".")
+        code = _CURRENCY_ALIASES.get(key, key)
+        if code is None:
+            return key, None
+        if code != raw and code in VALID_CURRENCY_CODES:
+            return code, raw
+        return code, None
+
+    pairs = [one(v) for v in series.tolist()]
+    out = pd.array([a for a, _ in pairs], dtype="string")
+    orig = pd.array([b for _, b in pairs], dtype="string")
+    return pd.Series(out, index=series.index), pd.Series(orig, index=series.index)
+
+
+def _normalise_status(series: pd.Series) -> tuple[pd.Series, pd.Series]:
+    """Lower-cased, whitespace-collapsed status with configured synonyms applied
+    ("Settled" -> closed). Returns (status, original text where a synonym was used)."""
+    from .domain_config import CLAIM_STATUS_SYNONYMS
+
+    def one(v):
+        if v is None or pd.isna(v):
+            return v, None
+        key = " ".join(str(v).strip().split()).lower()
+        mapped = CLAIM_STATUS_SYNONYMS.get(key)
+        return (mapped, str(v)) if mapped else (key, None)
+
+    pairs = [one(v) for v in series.tolist()]
+    return (pd.Series(pd.array([a for a, _ in pairs], dtype="string"), index=series.index),
+            pd.Series(pd.array([b for _, b in pairs], dtype="string"), index=series.index))
+
+
 class MappingConflictError(ValueError):
     """Two source columns were bound to the same canonical field. Resolving
     this by letting the last column win (the old behaviour, forensic P7)
@@ -910,6 +985,10 @@ def apply_mapping(raw: pd.DataFrame, mapping: dict[str, str], sheet_name: str = 
 
     out = pd.DataFrame(index=raw.index)
     unparseable_cols: dict[str, pd.Series] = {}
+    date_issue_cols: dict[str, pd.Series] = {}
+    amount_text_cols: dict[str, pd.Series] = {}
+    currency_original = pd.Series(pd.NA, index=raw.index, dtype="string")
+    status_original = pd.Series(pd.NA, index=raw.index, dtype="string")
     transforms: list[dict] = []
     notes: list[str] = []
     column_currencies: set[str] = set()
@@ -923,8 +1002,15 @@ def apply_mapping(raw: pd.DataFrame, mapping: dict[str, str], sheet_name: str = 
 
         if spec.dtype == "date":
             col_notes: list[str] = []
-            out[code] = _best_date_parse(series, col_notes)
+            parsed_dates = _best_date_parse(series, col_notes)
+            out[code] = parsed_dates
             notes.extend(f"{source_col!r}: {n}" for n in col_notes)
+            had = series.notna()
+            real = series.fillna("").str.match(_REAL_DATE_TEXT)
+            issue = pd.Series("", index=raw.index, dtype="object")
+            issue = issue.mask(had & parsed_dates.isna(), "unreadable")
+            issue = issue.mask(had & parsed_dates.notna() & ~real, "text")
+            date_issue_cols[code] = issue
         elif spec.dtype == "decimal":
             _, suffix = split_trailing_parenthetical(source_col)
             scale = parse_scale_suffix(suffix)
@@ -944,10 +1030,15 @@ def apply_mapping(raw: pd.DataFrame, mapping: dict[str, str], sheet_name: str = 
             })
             out[code] = parsed
             unparseable_cols[code] = unparseable
+            amount_text_cols[code] = (series.notna() & ~unparseable
+                                      & ~series.fillna("0").str.strip().str.match(_PLAIN_NUMBER_TEXT))
         elif spec.dtype == "enum":
-            out[code] = series.str.lower()
+            if code == STATUS_CODE:
+                out[code], status_original = _normalise_status(series)
+            else:
+                out[code] = series.str.lower()
         elif spec.dtype == "currency":
-            out[code] = series.str.upper()
+            out[code], currency_original = _normalise_currency(series)
         else:
             out[code] = series
 
@@ -956,8 +1047,20 @@ def apply_mapping(raw: pd.DataFrame, mapping: dict[str, str], sheet_name: str = 
             out[f.code] = _empty_column(f.dtype, len(out), out.index)
 
     decimal_codes = [f.code for f in FIELDS if f.dtype == "decimal"]
+    date_codes = [f.code for f in FIELDS if f.dtype == "date"]
     for code in decimal_codes:
         out[unparseable_flag_column(code)] = unparseable_cols.get(code, pd.Series(False, index=out.index))
+        out[amount_text_column(code)] = amount_text_cols.get(code, pd.Series(False, index=out.index))
+    for code in date_codes:
+        out[date_issue_column(code)] = date_issue_cols.get(code, pd.Series("", index=out.index, dtype="object"))
+    out[CURRENCY_NORMALISED_COLUMN] = currency_original
+    out[STATUS_NORMALISED_COLUMN] = status_original
+    if bool(currency_original.notna().any()):
+        seen = sorted({str(v) for v in currency_original.dropna().unique()})[:6]
+        notes.append("currency values read as ISO codes: " + ", ".join(repr(v) for v in seen))
+    if bool(status_original.notna().any()):
+        seen = sorted({str(v) for v in status_original.dropna().unique()})[:6]
+        notes.append("status values read through the synonym list: " + ", ".join(repr(v) for v in seen))
 
     # Forensic P9: "Paid (GBP)" + "Reserve (EUR)" used to be summed as if one
     # currency. Different header currencies on one sheet make every row's
@@ -978,7 +1081,10 @@ def apply_mapping(raw: pd.DataFrame, mapping: dict[str, str], sheet_name: str = 
     out[SOURCE_SHEET_CODE] = pd.array([sheet_name] * len(out), dtype="string")
 
     result = out[[f.code for f in FIELDS] + [SOURCE_SHEET_CODE, "_mixed_currency"]
-                 + [unparseable_flag_column(c) for c in decimal_codes]]
+                 + [unparseable_flag_column(c) for c in decimal_codes]
+                 + [amount_text_column(c) for c in decimal_codes]
+                 + [date_issue_column(c) for c in date_codes]
+                 + [CURRENCY_NORMALISED_COLUMN, STATUS_NORMALISED_COLUMN]]
     result.attrs["transforms"] = transforms
     result.attrs["parse_notes"] = notes
     return result

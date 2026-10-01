@@ -294,8 +294,9 @@ def test_void_status_completes_not_failed(api):
     _, path = _replica("realworld_a")
     rid, report = api.full_run(path.name, path.read_bytes())
     assert report["status"] == "COMPLETE" and report["grade"] == "5"
-    exc = api.get(f"/api/v1/reports/{rid}/exceptions", params={"check_type": "STATUS"}).json()
-    assert exc["total"] == 0, "Void is an accepted status (domain_config.CLAIM_STATUSES)"
+    exc = api.get(f"/api/v1/reports/{rid}/exceptions", params={"check_type": "STATUS", "limit": 500}).json()
+    invalid = [x for x in exc["items"] if x["rule"] == "invalid_status"]
+    assert invalid == [], "Void is an accepted status (domain_config.CLAIM_STATUSES)"
 
 
 def test_paid_expenses_included_in_total_incurred(api):

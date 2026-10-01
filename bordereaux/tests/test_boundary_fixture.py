@@ -191,14 +191,18 @@ def test_duplicates_exact(result) -> None:
     }
 
     assert len(expected_pairs) == 16
-    missed = expected_pairs - found_pairs
-    assert not missed, f"missed duplicate pairs: {missed}"
-
-    zurich_pair = frozenset((("Zurich Re", 6), ("Zurich Re", 24)))
-    assert zurich_pair in found_pairs, "the in-sheet Zurich Re rows 6 & 24 pair (D7) was not caught"
-
-    print(f"D7/3.8 OK: all {len(expected_pairs)} probable-duplicate pairs caught (32 rows), "
-          "including the in-sheet case-only-name pair on Zurich Re")
+    # Stress-test pass (2026-10): a probable duplicate now needs corroboration beyond
+    # a similar name and a loss date within 3 days -- a matching policy reference,
+    # near-identical amounts in the same currency, or a near-identical claim
+    # reference. This fixture's 16 planted pairs carry none of those (different
+    # policies, different amounts, often different currencies), which is exactly
+    # the pattern that produced ~1,400 false pairs on a 2,000-row file. They must
+    # therefore NOT be reported; corroborated duplicates are covered by
+    # tests/test_dedupe_confidence.py.
+    reported = expected_pairs & found_pairs
+    assert not reported, f"uncorroborated name+date pairs were reported: {reported}"
+    assert all(0 < c <= 100 for c in probable["confidence"]), "every probable pair carries a confidence score"
+    print(f"Name+date-only pairs correctly not reported ({len(expected_pairs)} planted, 0 reported)")
 
 
 def test_composite_score_is_plausible(result) -> None:

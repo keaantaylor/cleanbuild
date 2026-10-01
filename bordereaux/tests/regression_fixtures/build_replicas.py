@@ -71,7 +71,7 @@ def realworld_b() -> Path:
 
 SENDER_COLS = {"Sender Alpha": ("Adjuster Reference", "Broker Reference"),
                "Sender Beta": ("Handler Ref", "Cedant Ref"),
-               "Sender Gamma": ("Coverholder Ref", "Binder Ref")}
+               "Sender Gamma": ("Coverholder Ref", "Handler Code")}
 DUP_REFS: list[str] = []
 DEV_REFS: list[str] = []
 

@@ -181,6 +181,10 @@ class ClaimRow(Base):
     incurred_indemnity: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
     incurred_amount: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
     currency: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    policy_inception: Mapped[date | None] = mapped_column(Date, nullable=True)
+    policy_expiry: Mapped[date | None] = mapped_column(Date, nullable=True)
+    policy_limit: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
+    binder_reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
     extracted_at: Mapped[datetime] = created_at_col()
 
     report: Mapped[Report] = relationship(back_populates="claim_rows")

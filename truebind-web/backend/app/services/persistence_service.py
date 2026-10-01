@@ -26,6 +26,8 @@ from ..models.alerts import Alert
 from ..models.reports import ClaimRow, ExcludedRow, Mapping, Report, Sheet, ValidationResult
 from . import alert_service, audit_service, pipeline_service
 from .pipeline_service import FIELDS, FIELDS_BY_CODE, REQUIRED_CODES as _REQUIRED, classify_sheet_status, mapping_mod
+from bordereaux.rules import RULES
+from bordereaux.rules import rule as catalogue_rule
 
 FIELD_TO_COLUMN = {
     "CR0104M": "claim_reference", "CR0105CM": "claim_status", "CR0119CM": "date_of_loss",
@@ -34,18 +36,17 @@ FIELD_TO_COLUMN = {
     "CR0130CM": "reserve_amount", "CR0127CM": "fees_paid_this_month", "CR0129CM": "fees_previously_paid",
     "CR0131CM": "fees_reserve", "TB_FEES_PAID_TD": "fees_paid_to_date", "CR0134CM": "incurred_indemnity", "CR0155CM": "incurred_amount",
     "CR0110CM": "currency", "TB_PERIOD": "reporting_period",
+    "TB_INCEPTION": "policy_inception", "TB_EXPIRY": "policy_expiry", "TB_POLICY_LIMIT": "policy_limit",
+    "TB_BINDER_REF": "binder_reference",
 }
+_DATE_COLUMNS = ("date_of_loss", "date_notified", "policy_inception", "policy_expiry")
 assert set(FIELD_TO_COLUMN) == set(FIELDS_BY_CODE), "every canonical field needs a claim_rows column"
 
-RULE_CHECK_TYPE = {
-    "missing_mandatory_field": "MANDATORY_FIELD", "arithmetic_mismatch": "ARITHMETIC",
-    "date_order": "DATE", "date_in_future": "DATE", "invalid_currency": "CURRENCY",
-    "currency_inconsistency": "CURRENCY", "invalid_status": "STATUS", "schema_violation": "OTHER",
-}
-RULE_SEVERITY = {
-    "missing_mandatory_field": "CRITICAL", "arithmetic_mismatch": "HIGH", "invalid_currency": "HIGH",
-    "currency_inconsistency": "HIGH", "date_order": "MEDIUM", "date_in_future": "MEDIUM", "invalid_status": "MEDIUM", "schema_violation": "HIGH",
-}
+# Severity, check type and red/amber outcome come from ONE catalogue
+# (bordereaux/rules.py) shared with the engine's score and, through the API,
+# with the app, the PDF and every export.
+RULE_CHECK_TYPE = {code: r.check_type for code, r in RULES.items()}
+RULE_SEVERITY = {code: r.severity for code, r in RULES.items()}
 _CHUNK = 5000
 
 
@@ -250,7 +251,7 @@ def persist_pipeline_result(db: Session, report: Report, sheets, result, sheet_i
              "unmapped_values": (extras[i] or None) if isinstance(extras[i], dict) else None}
         for code, col in FIELD_TO_COLUMN.items():
             v = _clean(cols[code][i])
-            if v is not None and col in ("date_of_loss", "date_notified"):
+            if v is not None and col in _DATE_COLUMNS:
                 v = v.date()
             elif v is not None and isinstance(v, str):
                 v = v[:500 if col == "insured_name" else 255 if col != "currency" else 64]
@@ -273,19 +274,22 @@ def persist_pipeline_result(db: Session, report: Report, sheets, result, sheet_i
 
     exc = result.validation_result.exceptions
     for pos, rule, detail in zip(exc["row_index"].tolist(), exc["rule"].tolist(), exc["detail"].tolist()):
-        vr(int(pos), RULE_CHECK_TYPE.get(rule, "OTHER"), "FAIL", RULE_SEVERITY.get(rule, "INFO"), detail, rule)
+        rr = catalogue_rule(rule)
+        vr(int(pos), rr.check_type, rr.outcome, rr.severity, detail, rule)
     ne = result.validation_result.not_evaluable_detail
     for pos, reason, detail in zip(ne["row_index"].tolist(), ne["reason"].tolist(), ne["detail"].tolist()):
         vr(int(pos), "ARITHMETIC", "NOT_EVALUABLE", "MEDIUM", detail, reason)
     dups = result.duplicates
-    for a, b, mt, detail in zip(dups["row_index_a"].tolist(), dups["row_index_b"].tolist(),
-                                dups["match_type"].tolist(), dups["detail"].tolist()):
+    confidences = dups["confidence"].tolist() if "confidence" in dups.columns else [None] * len(dups)
+    for a, b, mt, detail, conf in zip(dups["row_index_a"].tolist(), dups["row_index_b"].tolist(),
+                                      dups["match_type"].tolist(), dups["detail"].tolist(), confidences):
         if b >= n:
             raise RuntimeError("duplicate pair references a missing row (integrity bug)")
-        severity = "HIGH" if mt == "exact_duplicate" else "MEDIUM"
-        status = "REVIEW" if mt == "repeat_period_unknown" else "FAIL"
-        vr(int(a), "DUPLICATE", status, severity, detail, mt, {"rule": mt, "match_type": mt,
-                                                              "match_claim_row_id": ids[int(b)]})
+        rr = catalogue_rule(mt)
+        extra = {"rule": mt, "match_type": mt, "match_claim_row_id": ids[int(b)]}
+        if conf is not None and conf == conf:
+            extra["confidence"] = int(conf)
+        vr(int(a), "DUPLICATE", rr.outcome, rr.severity, detail, mt, extra)
     alerts = _mapping_completeness(result, canonical, ids, vr, tid, report.id)
     _bulk(db, ValidationResult, vrs)
 

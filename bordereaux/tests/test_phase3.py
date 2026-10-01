@@ -43,7 +43,7 @@ SENDER_HEADERS = {
     "c": ["ClaimReference", "ClaimStatus", "LossDate", "FirstNotifiedDate", "InsuredName",
           "RiskReference", "IndemnityPaid", "IndemnityReserve", "TotalIncurred", "SettlementCurrency"],
     "d": ["Unique Identifier", "Current Stage", "Occurrence Date", "Notice Received Date",
-          "Named Insured Party", "Cover Note Number", "Settled Amount",
+          "Named Insured Party", "Cover Note Number", "Disbursed Sum",
           "Outstanding Provision", "Gross Position", "Denomination"],
 }
 

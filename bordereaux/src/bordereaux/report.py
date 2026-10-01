@@ -403,14 +403,21 @@ def build_health_report(canonical: pd.DataFrame, validation_result: ValidationRe
 
     exact_dupes = int((duplicates["match_type"] == "exact_duplicate").sum()) if not duplicates.empty else 0
     probable_dupes = int((duplicates["match_type"] == "probable_duplicate").sum()) if not duplicates.empty else 0
+    # Only certain duplicates (exact resubmissions) count against the score; probable
+    # pairs and period-unknown repeats are "check this" signals.
     period_unknown = int((duplicates["match_type"] == "repeat_period_unknown").sum()) if not duplicates.empty else 0
 
-    exception_rows = exceptions["row_index"].nunique() if not exceptions.empty else 0
+    # Amber (review) notes -- a date stored as text, a currency written "eur" --
+    # are shown and exported but never counted as errors (bordereaux/rules.py).
+    from .rules import FAIL_RULES
+    errors = exceptions[exceptions["rule"].isin(FAIL_RULES)] if not exceptions.empty else exceptions
+    exception_rows = errors["row_index"].nunique() if not errors.empty else 0
     exception_rate = 100.0 * exception_rows / total if total else 0.0
 
     dup_rows: set = set()
     if not duplicates.empty:
-        dup_rows = set(duplicates["row_index_a"]) | set(duplicates["row_index_b"])
+        certain = duplicates[duplicates["match_type"] == "exact_duplicate"]
+        dup_rows = set(certain["row_index_b"])
     duplicate_rate = 100.0 * len(dup_rows) / total if total else 0.0
 
     composite = overall_completeness - (EXCEPTION_WEIGHT * exception_rate) - (DUPLICATE_WEIGHT * duplicate_rate)

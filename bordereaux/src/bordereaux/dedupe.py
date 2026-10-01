@@ -89,7 +89,22 @@ def _normalize_policy_ref(value: str) -> str:
     return re.sub(r"[^a-z0-9]", "", value.strip().lower())
 
 
-DUPLICATE_COLUMNS = ["match_type", "row_index_a", "row_index_b", "claim_ref_a", "claim_ref_b", "detail"]
+DUPLICATE_COLUMNS = ["match_type", "row_index_a", "row_index_b", "claim_ref_a", "claim_ref_b", "detail", "confidence"]
+
+# Probable duplicates need corroboration (stress-test finding: name + loss date
+# alone flagged ~1,400 pairs on 2,000 rows, ~2.5% real). A candidate pair (same
+# name block, loss dates within ADJACENT_DAYS, similar names, different claim
+# references) is scored 0-100 from independent evidence and reported only at or
+# above PROBABLE_MIN_CONFIDENCE AND with at least one corroborating signal:
+# matching policy reference, near-identical amounts in the same currency, or a
+# near-identical claim reference (a transposed or mistyped digit).
+PROBABLE_MIN_CONFIDENCE = 60
+_BASE = 25                      # similar name + loss dates within the window
+_EXACT_NAME = 10                # names identical once normalised
+_SAME_DAY, _NEXT_DAY = 10, 5    # loss dates equal / one day apart
+_POLICY_MATCH, _POLICY_DIFFER = 35, -10
+_AMOUNT_SAME, _AMOUNT_CLOSE, _AMOUNT_FAR = 35, 20, -20   # within 0.5% / within 5% / further apart
+_REF_NEAR = 35                  # claim references one edit or one transposition apart
 
 _MONTHS = {m: i for i, m in enumerate(
     ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], start=1)}
@@ -216,7 +231,7 @@ def _reference_repeats(df: pd.DataFrame) -> list[dict]:
 
     def link(kind, a, b, r, detail):
         records.append({"match_type": kind, "row_index_a": a, "row_index_b": b, "claim_ref_a": r, "claim_ref_b": r,
-                        "detail": detail})
+                        "detail": detail, "confidence": 100 if kind == "exact_duplicate" else None})
 
     by_ref: dict = {}
     for i in sub:
@@ -348,22 +363,30 @@ def _compare_block(block: pd.DataFrame, seen_pairs: set[tuple], have_policy: boo
     order = sorted(range(len(idx)), key=lambda k: dates[k])
     records = []
     scores: dict[tuple[str, str], float] = {}  # repeat clients recur: score each name pair once
+    amounts = _pair_amounts(block)
+    currencies = (block[schema.CURRENCY_CODE].tolist() if schema.CURRENCY_CODE in block.columns
+                  else [None] * len(block))
+    norm_refs = [_normalize_policy_ref(str(r)).upper() if pd.notna(r) else None for r in refs]
 
     for oi in range(len(order)):
         i = order[oi]
         for oj in range(oi + 1, len(order)):
             j = order[oj]
-            if (dates[j] - dates[i]).days > ADJACENT_DAYS:
+            gap = (dates[j] - dates[i]).days
+            if gap > ADJACENT_DAYS:
                 break
             if pd.notna(refs[i]) and pd.notna(refs[j]) and refs[i] == refs[j]:
                 continue  # same claim, already covered by exact-duplicate check
+            ci, cj = currencies[i], currencies[j]
+            if pd.notna(ci) and pd.notna(cj) and ci != cj:
+                continue  # different settlement currencies: not the same payment
 
             same_sheet = sheets[i] is not None and sheets[i] == sheets[j]
             both_policies_known = norm_policies[i] is not None and norm_policies[j] is not None
             policies_match = both_policies_known and norm_policies[i] == norm_policies[j]
             is_repeat_client = name_counts_by_sheet.get((norm_names[i], sheets[i]), 0) > HIGH_FREQUENCY_REPEAT_THRESHOLD
             if same_sheet and both_policies_known and not policies_match and is_repeat_client:
-                continue  # a name repeated often enough to read as a genuine repeat client, with a different known policy each time -- ordinary business, not a duplicate
+                continue  # a repeat client with a different known policy each time: ordinary business
 
             name_pair = (norm_names[i], norm_names[j])
             score = scores.get(name_pair)
@@ -371,25 +394,86 @@ def _compare_block(block: pd.DataFrame, seen_pairs: set[tuple], have_policy: boo
                 score = scores[name_pair] = fuzz.WRatio(*name_pair, score_cutoff=NAME_SIMILARITY_THRESHOLD)
             if not score:
                 continue
+
+            evidence: list[str] = []
+            conf = _BASE
+            corroborated = False
+            if norm_names[i] == norm_names[j]:
+                conf += _EXACT_NAME
+            conf += _SAME_DAY if gap == 0 else _NEXT_DAY if gap == 1 else 0
+            if policies_match:
+                conf += _POLICY_MATCH
+                corroborated = True
+                evidence.append("policy references match")
+            elif both_policies_known:
+                conf += _POLICY_DIFFER
+                evidence.append("policy references differ")
+            a_amt, b_amt = amounts[i], amounts[j]
+            if a_amt is not None and b_amt is not None:
+                denom = max(abs(a_amt), abs(b_amt), 1.0)
+                rel = abs(a_amt - b_amt) / denom
+                if rel <= 0.005:
+                    conf += _AMOUNT_SAME
+                    corroborated = True
+                    evidence.append("amounts are the same")
+                elif rel <= 0.05:
+                    conf += _AMOUNT_CLOSE
+                    corroborated = True
+                    evidence.append(f"amounts within {rel:.1%}")
+                else:
+                    conf += _AMOUNT_FAR
+                    evidence.append("amounts differ")
+            if norm_refs[i] and norm_refs[j] and _refs_near(norm_refs[i], norm_refs[j]):
+                conf += _REF_NEAR
+                corroborated = True
+                evidence.append("claim references differ by one character or a transposition")
+            conf = max(0, min(100, conf))
+            if not corroborated or conf < PROBABLE_MIN_CONFIDENCE:
+                continue
+
             pair_key = tuple(sorted((idx[i], idx[j])))
             if pair_key in seen_pairs:
                 continue
             seen_pairs.add(pair_key)
-
-            policy_note = (
-                "; policy references match" if policies_match
-                else "; policy reference not available on one or both rows"
-            )
             records.append({
                 "match_type": "probable_duplicate",
                 "row_index_a": idx[i],
                 "row_index_b": idx[j],
                 "claim_ref_a": refs[i],
                 "claim_ref_b": refs[j],
+                "confidence": int(conf),
                 "detail": (
-                    f"insured names {names[i]!r} / {names[j]!r} are {score:.0f}% similar, "
-                    f"loss dates {dates[i].date()} / {dates[j].date()} are within "
-                    f"{ADJACENT_DAYS} days, and claim references differ{policy_note}"
+                    f"{int(conf)}% confidence: insured names {names[i]!r} / {names[j]!r} are {score:.0f}% similar, "
+                    f"loss dates {dates[i].date()} / {dates[j].date()} are {gap} day{'s' if gap != 1 else ''} apart, "
+                    f"claim references differ; " + "; ".join(evidence)
                 ),
             })
     return records
+
+
+def _pair_amounts(block: pd.DataFrame) -> list[float | None]:
+    """The figure compared between two candidate rows: total incurred, else
+    paid to date + reserve, else None (no amount evidence either way)."""
+    def col(code):
+        return (pd.to_numeric(block[code], errors="coerce").tolist() if code in block.columns
+                else [float("nan")] * len(block))
+    inc, paid, res = col(schema.INCURRED_CODE), col(schema.PAID_TD_CODE), col(schema.RESERVE_CODE)
+    out: list[float | None] = []
+    for a, p, r in zip(inc, paid, res):
+        if pd.notna(a):
+            out.append(float(a))
+        elif pd.notna(p) or pd.notna(r):
+            out.append(float(p if pd.notna(p) else 0) + float(r if pd.notna(r) else 0))
+        else:
+            out.append(None)
+    return out
+
+
+def _refs_near(a: str, b: str) -> bool:
+    """One substitution, insertion, deletion or adjacent transposition apart
+    (CLM-100123 vs CLM-100132), on references of a realistic length."""
+    if a == b or min(len(a), len(b)) < 5:
+        return False
+    from rapidfuzz.distance import DamerauLevenshtein
+
+    return DamerauLevenshtein.distance(a, b) <= 1

@@ -1,31 +1,33 @@
-# Stress-test fix pass — progress (resume point)
+# Strategy + build pass — progress (resume point)
 
-Branch `fix/stress-test-pass` (from `feat/nocturne-frontend` @ d264702). Locked Vercel preview only; never
-push to main or touch production data. Resume rule: read this section, continue from the first item not
-marked done. Evidence lives in `docs/stress-pass/`.
-
-Stress inputs (C:\Users\keala\Downloads): TrueBind_Stress_Test_500_rows / _2000_rows / _10000_rows / _HARD
-(30,347 rows). Answer keys: REVIEWED_Stress_Test_500_rows / _2000_rows (Issues sheet); 10k and 30k scored with
-an independent oracle and the generator's own keys (`truebind-web/backend/tests/fixtures/`).
+Branch `fix/strategy-pass` (from `feat/nocturne-frontend` @ d264702, with the earlier `fix/stress-test-pass`
+work merged in so nothing is redone). Locked Vercel preview only; never push to main or touch production data.
+**Resume rule:** re-read this section, continue from the first item not marked done. Evidence: `docs/stress-pass/`.
+Running unattended: approval items are listed under "Waiting for Kealan" and skipped, never waited on.
 
 | Phase | State |
 |---|---|
-| 0 Setup: branch, endpoint reachability baseline (104/104 reachable) | done |
-| 1 Reliability and speed | done (approvals pending: hosting size, region) |
-| 2 Accuracy | in progress |
-| 3 Security of uploaded content | remaining |
-| 4 Front end (incl. logout bug, annotated workbook) | remaining |
-| 5 Forms + merge launch-readiness branch | remaining |
-| 6 Verify (stress runs, before/after, tests, preview) | remaining |
+| 0 Strategy docs (strategy.md, customer-discovery.md) | done |
+| 1 Reliability (10k rows < 2 min, no hangs, durable originals, timeout, hosting map) | done |
+| 2 Trust in the findings | in progress (engine + backend done; remaining: non-claims auto-skip + Include anyway, catalogue in API/app/PDF/exports, count agreement, injection tests) |
+| 3 Health report redesign | remaining |
+| 4 Deliverables: annotated workbook, corrected copy, query letter, month-on-month | remaining |
+| 5 Adoption and trust: anonymise option, 30-day deletion, true security page, DPA draft, logout bug | remaining |
+| 6 Sales path: home wording, demo page, pricing, Health Check upload form (reuse launch-readiness branch) | remaining |
+| 7 Design docs: docs/next-products.md | remaining |
+| 8 Verify: generator, 500/2k/10k runs, recall, false positives, agreement, all tests, locked preview | remaining |
 
-Phase 1 notes: cause = workbook parsed twice + slow row classification + originals on ephemeral disk
-(restart -> source_missing) + 512 MB/0.1 CPU free instance. Fixed: parse cache (gzip JSON, parser-fingerprinted),
-memoised cell normalisation, lxml, originals and cache in PostgreSQL (STORAGE_BACKEND=db default in production,
-legacy disk fallback), 10-minute job timeout with plain message. Local timings 500/2k/10k/30k:
-3.8/5.5/23.1/56.2s -> 1.1/1.6/6.1/10.4s. Hosting map: docs/stress-pass/hosting-map.md.
+Phase 1 evidence: local timings 500/2k/10k/30k rows 3.8/5.5/23.1/56.2s -> 1.1/1.6/6.1/10.4s (parse once,
+memoised normalisation, lxml, originals + parse cache in PostgreSQL, 10-minute timeout). Hosting map:
+docs/stress-pass/hosting-map.md. Endpoint reachability baseline 104/104.
 
-Waiting on Kealan: (1) Render instance size for 30k-row files (512 MB is tight), (2) EU wording vs move to
-Frankfurt (database is in Virginia, Vercel functions in iad1).
+## Waiting for Kealan
+1. Render instance size: 512 MB is tight for 30,000-row files (peak ~430 MB in one process). Cheapest safe
+   option: Render Standard (2 GB, 1 CPU). Not changed.
+2. Data location: the database is in Virginia (USA) and Vercel functions in iad1 (USA), but the site says EU.
+   Choose: move to Frankfurt (plan in hosting-map.md, needs a paid Render database) or correct the wording.
+3. Rotate the production database password (it appeared once in a working log) and delete
+   C:\Users\keala\truebind-db-url.txt.
 
 ---
 

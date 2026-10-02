@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Check } from "@phosphor-icons/react";
 import { SiteFooter, SiteNav } from "./chrome";
 import { LeadButton } from "./lead-form";
+import { ContactLine } from "./contact";
 
 // [PRICE] placeholders are deliberate: prices are set after the first pilots.
 const PLANS = [
@@ -65,6 +66,7 @@ export function PricingPage() {
             </div>
           ))}
         </div>
+        <ContactLine />
         <p className="m-0 text-[14px]" style={{ color: "var(--chromeMuted)" }}>
           Not sure yet? <Link href="/demo" className="underline" style={{ color: "var(--accentText)" }}>See a sample Health Check</Link> or read how we handle your data on the <Link href="/security" className="underline" style={{ color: "var(--accentText)" }}>security page</Link>.
         </p>

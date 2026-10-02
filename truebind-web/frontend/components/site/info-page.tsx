@@ -23,7 +23,7 @@ export function InfoPage({ kicker, title, intro, sections }: { kicker: string; t
         ))}
         <div className="flex flex-wrap gap-3 pt-2">
           <LeadButton kind="demo" className="tb-btn tb-btn-primary">Book a demo</LeadButton>
-          <a href="mailto:hello@truebind.ie" className="tb-btn">Email hello@truebind.ie</a>
+          <a href="mailto:truebind@truebind.ie" className="tb-btn">Email truebind@truebind.ie</a>
         </div>
       </main>
       <SiteFooter />

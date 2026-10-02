@@ -1,3 +1,18 @@
+# Round 2 (resume here)
+
+Continue from the first item not marked done. Branch fix/strategy-pass; locked preview only.
+
+| Item | State |
+|---|---|
+| 1 Logout bug (logo -> /overview, session kept) | done (branch; production still has the old logo link until the branch is deployed) - e2e session.spec.ts clicks the logo from 3 pages |
+| 2 Contact details + Book a call on sales forms/pages | done; Needs Kealan: phone (NEXT_PUBLIC_CONTACT_PHONE) and real booking link (NEXT_PUBLIC_BOOK_CALL_URL, now https://calendly.com) |
+| 3 Annotated workbook view (Original / Review, colour-coded, virtualised) | remaining |
+| 4 Exceptions page (grouped, filters, 50/page, inline row) | remaining |
+| 5 Faster spreadsheet animation (landing + onboarding) | remaining |
+| 6 Front-end overhaul (navy, green accent, borders, Inter, density) | remaining |
+| 7 Use design files (Prototype.dc.html, nocturne.css) | remaining |
+| 8 Verify: tests, build, 500-row upload, locked preview | remaining |
+
 # Strategy + build pass — progress (resume point)
 
 Branch `fix/strategy-pass` (from `feat/nocturne-frontend` @ d264702, with the earlier `fix/stress-test-pass`

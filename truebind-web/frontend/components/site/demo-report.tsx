@@ -8,6 +8,7 @@ import { TONE, severityLabel } from "@/lib/severity";
 import { formatMoney, formatNumber } from "@/lib/formatters";
 import { SiteFooter, SiteNav } from "./chrome";
 import { LeadButton } from "./lead-form";
+import { ContactLine } from "./contact";
 
 const hv = demo.health_view as unknown as HealthView;
 const PAPER = { text: "#1c1e2a", muted: "#3f424d", faint: "#555a69", line: "rgba(28,30,42,.12)" };
@@ -110,6 +111,7 @@ export function DemoReport() {
           <h2 className="m-0 text-[22px] font-medium">Try it on one of your own files</h2>
           <p className="m-0 text-[15px]" style={{ color: "var(--chromeText)" }}>Founding pilot: your first file is free. We return the annotated workbook, the corrected copy and the query letter.</p>
           <LeadButton kind="health" className="tb-btn tb-btn-primary">Get a free Health Check</LeadButton>
+          <ContactLine />
         </section>
       </main>
       <SiteFooter />

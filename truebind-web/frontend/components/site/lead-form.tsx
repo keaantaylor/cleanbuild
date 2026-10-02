@@ -6,6 +6,8 @@ import { createPortal } from "react-dom";
 import { CheckCircle } from "@phosphor-icons/react";
 import { Modal } from "@/components/nocturne/ui";
 import { API_BASE } from "@/lib/api";
+import { CONTACT_EMAIL } from "@/lib/constants";
+import { ContactLine } from "./contact";
 
 type Kind = "demo" | "health";
 
@@ -74,20 +76,20 @@ function LeadForm({ kind, onClose }: { kind: Kind; onClose: () => void }) {
         res = await fetch(`${API_BASE}/leads`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, ...f, page }) });
       }
       if (!res.ok) {
-        let detail = "Something went wrong. Please email hello@truebind.ie instead.";
+        let detail = `Something went wrong. Please email ${CONTACT_EMAIL} instead.`;
         try {
           const j = await res.json();
           if (typeof j.detail === "string") detail = j.detail;
         } catch {
           // not JSON
         }
-        if (res.status === 429) detail = "Too many requests from this network. Please try again in an hour, or email hello@truebind.ie.";
+        if (res.status === 429) detail = `Too many requests from this network. Please try again in an hour, or email ${CONTACT_EMAIL}.`;
         setError(detail);
         return;
       }
       setSent(true);
     } catch {
-      setError("We couldn’t reach TrueBind. Check your connection, or email hello@truebind.ie.");
+      setError(`We couldn’t reach TrueBind. Check your connection, or email ${CONTACT_EMAIL}.`);
     } finally {
       setBusy(false);
     }
@@ -149,6 +151,7 @@ function LeadForm({ kind, onClose }: { kind: Kind; onClose: () => void }) {
             </span>
           </label>
         )}
+        <ContactLine className="pt-1" />
         {error && <span role="alert" className="text-[13px]" style={{ color: "var(--err)" }}>{error}</span>}
         <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
           <button type="button" className="tb-btn tb-btn-ghost" onClick={close}>Cancel</button>

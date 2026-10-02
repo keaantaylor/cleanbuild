@@ -46,6 +46,12 @@ test("sign up, upload the golden workbook, confirm mapping, read the report, sig
   await expect(page.getByText("Warnings", { exact: true })).toBeVisible();
   await expect(page.getByText("Couldn’t check", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("heading", { name: /^Top \d fix/ })).toBeVisible();
+  // The source workbook inline, colour-coded: red cells for the arithmetic errors.
+  await expect(page.getByRole("heading", { name: "Your workbook, reviewed" })).toBeVisible();
+  await expect(page.locator('td[style*="rgb(255, 199, 206)"]').first()).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("tab", { name: "Original" }).click();
+  await expect(page.locator('td[style*="rgb(255, 199, 206)"]')).toHaveCount(0);
+  await page.getByRole("tab", { name: "Review" }).click();
   await page.getByRole("tab", { name: "Mapping" }).click();
   await expect(page.getByText("Field completeness")).toBeVisible();
 

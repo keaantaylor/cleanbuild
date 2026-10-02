@@ -150,3 +150,19 @@ def test_deliverables_wait_for_processing(api: Api):
     rid = api.ingest("a.xlsx", _book(_rows()))
     assert api.get(f"/api/v1/reports/{rid}/export/annotated.xlsx").status_code == 409
     run_jobs()
+
+
+def test_sheet_grid_pages_and_colours(api: Api):
+    rid = _run(api, _book(_rows()))
+    sheet = next(s for s in api.get(f"/api/v1/reports/{rid}/sheets").json() if s["sheet_name"] == "Claims")
+    g = api.get(f"/api/v1/reports/{rid}/sheets/{sheet['id']}/grid", params={"offset": 0, "limit": 100}).json()
+    rows = {r["row"]: r for r in g["rows"]}
+    assert g["header_row"] == 2 and rows[2]["kind"] == "header" and rows[1]["kind"] == "structural"
+    assert rows[3]["kind"] == "claim" and rows[3]["cells"][0]["tone"] == "ok"
+    bad = rows[15]["cells"][8]  # I15: wrong total
+    assert bad["v"] == "999" and bad["tone"] == "err" and bad["notes"][0]["fix"]
+    assert rows[16]["cells"][5]["tone"] == "warn"  # F16: "Euro"
+    assert rows[21]["kind"] == "structural"  # subtotal
+    assert rows[17]["cells"][1]["v"].startswith("=HYPERLINK")  # shown as text, as received
+    page2 = api.get(f"/api/v1/reports/{rid}/sheets/{sheet['id']}/grid", params={"offset": 10, "limit": 5}).json()
+    assert [r["row"] for r in page2["rows"]] == [11, 12, 13, 14, 15]

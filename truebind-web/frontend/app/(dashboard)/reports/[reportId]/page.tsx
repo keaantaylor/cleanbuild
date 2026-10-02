@@ -16,6 +16,7 @@ import { EmptyState, ErrorState, LoadingState, Mark, Modal, StatusPill } from "@
 import { ProcessingPanel } from "@/components/nocturne/intake";
 import { reportStatus } from "@/components/nocturne/status";
 import { ChecksPanel } from "@/components/nocturne/checks";
+import { WorkbookPreview } from "@/components/nocturne/workbook-preview";
 import { exportFile } from "@/lib/exports";
 import { downloadPdf, type PdfBlock } from "@/lib/pdf";
 
@@ -279,6 +280,8 @@ function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
         </div>
       </article>
 
+      <ReviewedWorkbook report={report} />
+
       <Deliverables report={report} name={name} />
 
       <div className="no-print flex w-full max-w-[1100px] flex-col gap-5">
@@ -443,6 +446,11 @@ function MappingTab({ report, s }: { report: Report; s: ReportSummary }) {
       <Sheets reportId={report.id} s={s} />
     </div>
   );
+}
+
+function ReviewedWorkbook({ report }: { report: Report }) {
+  const sheets = useApi(() => api.listSheets(report.id), [report.id]);
+  return sheets.data ? <WorkbookPreview report={report} sheets={sheets.data} /> : null;
 }
 
 function Deliverables({ report, name }: { report: Report; name: string }) {

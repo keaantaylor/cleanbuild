@@ -188,6 +188,10 @@ export interface CouldntCheck {
   fix: "mapping" | "data";
 }
 
+export interface GridCell { v: string | null; tone: "ok" | "warn" | "err" | "grey" | null; notes: { result: string; status: string; label: string; text: string; fix: string }[] }
+export interface GridRow { row: number; kind: "header" | "structural" | "claim" | "other"; cells: GridCell[]; row_notes: GridCell["notes"] }
+export interface GridPage { sheet_id: string; sheet_name: string; total_rows: number; columns: number; header_row: number; offset: number; rows: GridRow[] }
+
 export interface QueryLetter {
   subject: string;
   body: string;

@@ -15,8 +15,8 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.reports import Report
 from ..security.auth import Context, require_reader
-from ..services import audit_service, deliverables, delivery_service
-from .deps import get_report_or_404
+from ..services import audit_service, deliverables, delivery_service, grid_view
+from .deps import get_report_or_404, get_sheet_or_404
 
 router = APIRouter(prefix="/api/v1/reports", tags=["deliverables"])
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -97,3 +97,20 @@ def month_on_month(report_id: str, previous_report_id: str | None = Query(defaul
     if previous.id == current.id:
         raise HTTPException(status_code=422, detail="Choose a different, earlier report to compare with.")
     return deliverables.month_on_month(db, current, previous, reserve_jump_pct, reserve_jump_min)
+
+
+@router.get("/{report_id}/sheets/{sheet_id}/grid")
+def sheet_grid(report_id: str, sheet_id: str, offset: int = Query(default=0, ge=0, le=2_000_000),
+               limit: int = Query(default=100, ge=1, le=500), ctx: Context = Depends(require_reader),
+               db: Session = Depends(get_db)) -> dict:
+    """Inline preview of the source sheet, a page of rows at a time: each cell's
+    original value, its review colour (ok / warn / err / grey) and the findings
+    on it. Values are exactly as received."""
+    report = _complete(db, ctx, report_id)
+    sheet = get_sheet_or_404(db, ctx, report, sheet_id)
+    try:
+        page = grid_view.grid_page(db, report, sheet, offset, limit)
+    except deliverables.SourceUnavailable as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    db.commit()  # the values cache, written on first use
+    return page

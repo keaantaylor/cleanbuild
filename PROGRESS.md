@@ -6,7 +6,7 @@ Continue from the first item not marked done. Branch fix/strategy-pass; locked p
 |---|---|
 | 1 Logout bug (logo -> /overview, session kept) | done (branch; production still has the old logo link until the branch is deployed) - e2e session.spec.ts clicks the logo from 3 pages |
 | 2 Contact details + Book a call on sales forms/pages | done; Needs Kealan: phone (NEXT_PUBLIC_CONTACT_PHONE) and real booking link (NEXT_PUBLIC_BOOK_CALL_URL, now https://calendly.com) |
-| 3 Annotated workbook view (Original / Review, colour-coded, virtualised) | remaining |
+| 3 Annotated workbook view (Original / Review, colour-coded, virtualised) | done: GET /sheets/{id}/grid (cached values, 100-row pages), Original/Review tabs, colour + click-for-fix, Expand full-screen, Excel download |
 | 4 Exceptions page (grouped, filters, 50/page, inline row) | remaining |
 | 5 Faster spreadsheet animation (landing + onboarding) | remaining |
 | 6 Front-end overhaul (navy, green accent, borders, Inter, density) | remaining |

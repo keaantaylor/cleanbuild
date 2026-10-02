@@ -321,7 +321,7 @@ export function ProcessingPanel({ report, system, onCancel, onRetry }: { report:
           </span>
         </div>
         <div className="relative h-1.5 overflow-hidden rounded-full" style={{ background: "var(--line)" }}>
-          <div className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-500" style={{ width: `${((idx + 1) / steps.length) * 100}%`, background: "var(--accent)" }} />
+          <div className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-200" style={{ width: `${((idx + 1) / steps.length) * 100}%`, background: "var(--accent)" }} />
         </div>
         <dl className="tnum m-0 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {facts.map(([l, v]) => (

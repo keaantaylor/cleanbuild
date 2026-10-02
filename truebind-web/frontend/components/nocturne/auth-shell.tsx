@@ -79,7 +79,7 @@ export function AuthShell({
                 Step {step + 1} of {steps.length}
               </span>
               <div className="hidden h-1 w-40 overflow-hidden rounded-full sm:block" style={{ background: "var(--line)" }}>
-                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${((step + 1) / steps.length) * 100}%`, background: "var(--accent)" }} />
+                <div className="h-full rounded-full transition-all duration-200" style={{ width: `${((step + 1) / steps.length) * 100}%`, background: "var(--accent)" }} />
               </div>
             </>
           )}

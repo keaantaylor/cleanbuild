@@ -52,6 +52,9 @@ logout bug fixed (tests/e2e/session.spec.ts). Backend 376 passed, e2e 7/7.
 4. Existing organisations keep their 90-day retention; new ones get 30. Should existing ones move to 30? (one SQL update, not done).
 5. DPA (docs/legal/dpa-template.md): fill in the legal entity, confirm the backup retention and encryption-at-rest statements with Render, and have a solicitor review. The privacy page now says transfers outside the EEA rely on providers' Standard Contractual Clauses - please confirm that is right for Render and Vercel.
 6. Migration 0019_privacy_controls is new (additive). It runs on the next backend deploy; nothing has been deployed to production.
+7. Pricing page shows [PRICE] and [N] placeholders on purpose: set the per-file and monthly prices and row limits (components/site/pricing.tsx).
+8. Health Check form: set LEADS_NOTIFY_EMAIL (where requests and their files are emailed), LEADS_ADMIN_EMAILS (who can read them in the app) and SMTP_* on Render. Until SMTP is set, requests are stored but no email is sent. Migration 0020_leads adds the leads tables.
+9. Anthropic AI mapping (docs/next-products.md section 3) is design only: it would send masked column headers to a new external service, so it needs your approval, an Anthropic account with the right data terms, and a sub-processor notice to customers.
 
 ---
 

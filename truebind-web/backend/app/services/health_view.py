@@ -181,8 +181,10 @@ def build(result, canonical: pd.DataFrame, summary: dict, locator: CellLocator,
         "duplicates": {
             "exact_pairs": int(summary.get("exact_duplicates") or 0),
             "probable_pairs": summary.get("probable_duplicates"),
-            "probable_high_confidence": int(sum(1 for c in (dups["confidence"].tolist() if "confidence" in dups.columns
-                                                            else []) if not _blank(c) and c >= 80)),
+            "probable_high_confidence": int(sum(
+                1 for mt, c in zip(dups["match_type"].tolist(),
+                                   dups["confidence"].tolist() if "confidence" in dups.columns else [None] * len(dups))
+                if mt == "probable_duplicate" and not _blank(c) and c >= 80)),
             "repeat_period_unknown": int(summary.get("period_unknown_repeats") or 0),
             "development_pairs": int(summary.get("development_pairs") or 0),
         },

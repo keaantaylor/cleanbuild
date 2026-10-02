@@ -206,6 +206,7 @@ class Worker:
             try:
                 retention_service.expire_due_reports(db)
                 retention_service.purge_deleted_reports(db)
+                retention_service.purge_old_lead_files(db)
             except Exception:  # noqa: BLE001 -- housekeeping must not stop the worker
                 log.exception("retention sweep failed")
             finally:

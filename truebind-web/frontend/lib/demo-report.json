@@ -1,0 +1,682 @@
+{
+ "file_name": "Sample_Bordereau.xlsx",
+ "rows": 502,
+ "sheets_total": 3,
+ "sheets_processed": 1,
+ "planted_problems": 15,
+ "health_view": {
+  "version": 1,
+  "verdict": "fix",
+  "verdict_label": "Fix before submitting",
+  "verdict_reason": "12 errors on 11 rows must be fixed before this file is sent.",
+  "counts": {
+   "errors": 12,
+   "error_rows": 11,
+   "warnings": 5,
+   "couldnt_check": 0,
+   "couldnt_check_rows": 0
+  },
+  "top_fixes": [
+   {
+    "rule": "missing_mandatory_field",
+    "label": "Required data missing",
+    "severity": "CRITICAL",
+    "outcome": "FAIL",
+    "owner": "sender",
+    "check_type": "MANDATORY_FIELD",
+    "fix": "Ask the sender for the missing value.",
+    "findings": 2,
+    "rows": 2,
+    "money_at_risk": [
+     {
+      "currency": "GBP",
+      "amount": 106647.3
+     }
+    ],
+    "examples": [
+     {
+      "sheet": "Claims",
+      "cell": "C416",
+      "column": "Insured Name",
+      "claim_ref": "CLM-102891",
+      "where": "Claims!C416",
+      "sentence": "Required data missing: insured name is missing."
+     },
+     {
+      "sheet": "Claims",
+      "cell": "C499",
+      "column": "Insured Name",
+      "claim_ref": "CLM-103472",
+      "where": "Claims!C499",
+      "sentence": "Required data missing: insured name is missing."
+     }
+    ]
+   },
+   {
+    "rule": "incurred_over_limit",
+    "label": "Incurred exceeds the policy limit",
+    "severity": "HIGH",
+    "outcome": "FAIL",
+    "owner": "sender",
+    "check_type": "POLICY",
+    "fix": "Total incurred is above the policy limit: a possible overpayment or a wrong limit. Check both.",
+    "findings": 1,
+    "rows": 1,
+    "money_at_risk": [
+     {
+      "currency": "GBP",
+      "amount": 150000.0
+     }
+    ],
+    "examples": [
+     {
+      "sheet": "Claims",
+      "cell": "M22",
+      "column": "Total Incurred",
+      "claim_ref": "CLM-100133",
+      "where": "Claims!M22",
+      "sentence": "Incurred exceeds the policy limit: total incurred 150,000.00 is above the policy limit 100,000.00."
+     }
+    ]
+   },
+   {
+    "rule": "arithmetic_mismatch",
+    "label": "Total incurred does not reconcile",
+    "severity": "HIGH",
+    "outcome": "FAIL",
+    "owner": "sender",
+    "check_type": "ARITHMETIC",
+    "fix": "Total incurred should equal paid plus reserve (plus fees). Ask the sender which figure is right.",
+    "findings": 2,
+    "rows": 2,
+    "money_at_risk": [
+     {
+      "currency": "GBP",
+      "amount": 88638.4
+     },
+     {
+      "currency": "USD",
+      "amount": 58702.08
+     }
+    ],
+    "examples": [
+     {
+      "sheet": "Claims",
+      "cell": "M458",
+      "column": "Total Incurred",
+      "claim_ref": "CLM-103185",
+      "where": "Claims!M458",
+      "sentence": "Total incurred does not reconcile: total incurred=58,702.08 but paid to date 26,451.11 + reserve 36,367.57 = 62,818.68 (no fee columns in this file: checked as nil fees; if the total includes fees the difference may be fees)."
+     },
+     {
+      "sheet": "Claims",
+      "cell": "M480",
+      "column": "Total Incurred",
+      "claim_ref": "CLM-103339",
+      "where": "Claims!M480",
+      "sentence": "Total incurred does not reconcile: total incurred=88,638.40 but paid to date 19,256.61 + reserve 73,580.85 = 92,837.46 (no fee columns in this file: checked as nil fees; if the total includes fees the difference may be fees)."
+     }
+    ]
+   },
+   {
+    "rule": "exact_duplicate",
+    "label": "Exact duplicate",
+    "severity": "HIGH",
+    "outcome": "FAIL",
+    "owner": "sender",
+    "check_type": "DUPLICATE",
+    "fix": "The same claim was sent twice with identical figures. Ask the sender to withdraw one.",
+    "findings": 1,
+    "rows": 1,
+    "money_at_risk": [
+     {
+      "currency": "GBP",
+      "amount": 59494.57
+     }
+    ],
+    "examples": [
+     {
+      "sheet": "Claims",
+      "cell": "A409",
+      "column": "Claim Ref",
+      "claim_ref": "CLM-102842",
+      "where": "Claims!A409",
+      "sentence": "Exact duplicate: claim reference 'CLM-102842' is repeated with identical amounts and status in the same sheet 'Claims' (no reporting period present)."
+     }
+    ]
+   },
+   {
+    "rule": "invalid_currency",
+    "label": "Currency code not recognised",
+    "severity": "HIGH",
+    "outcome": "FAIL",
+    "owner": "sender",
+    "check_type": "CURRENCY",
+    "fix": "Use a valid ISO currency code (EUR, GBP, USD...). Confirm which currency the amounts are in.",
+    "findings": 1,
+    "rows": 1,
+    "money_at_risk": [
+     {
+      "currency": "XXX",
+      "amount": 56621.16
+     }
+    ],
+    "examples": [
+     {
+      "sheet": "Claims",
+      "cell": "J107",
+      "column": "Currency",
+      "claim_ref": "CLM-100728",
+      "where": "Claims!J107",
+      "sentence": "Currency code not recognised: 'XXX' is not a valid ISO 4217 code."
+     }
+    ]
+   }
+  ],
+  "rules": [
+   {
+    "rule": "missing_mandatory_field",
+    "label": "Required data missing",
+    "severity": "CRITICAL",
+    "outcome": "FAIL",
+    "owner": "sender",
+    "check_type": "MANDATORY_FIELD",
+    "fix": "Ask the sender for the missing value.",
+    "findings": 2,
+    "rows": 2,
+    "money_at_risk": [
+     {
+      "currency": "GBP",
+      "amount": 106647.3
+     }
+    ],
+    "examples": [
+     {
+      "sheet": "Claims",
+      "cell": "C416",
+      "column": "Insured Name",
+      "claim_ref": "CLM-102891",
+      "where": "Claims!C416",
+      "sentence": "Required data missing: insured name is missing."
+     },
+     {
+      "sheet": "Claims",
+      "cell": "C499",
+      "column": "Insured Name",
+      "claim_ref": "CLM-103472",
+      "where": "Claims!C499",
+      "sentence": "Required data missing: insured name is missing."
+     }
+    ]
+   },
+   {
+    "rule": "incurred_over_limit",
+    "label": "Incurred exceeds the policy limit",
+    "severity": "HIGH",
+    "outcome": "FAIL",
+    "owner": "sender",
+    "check_type": "POLICY",
+    "fix": "Total incurred is above the policy limit: a possible overpayment or a wrong limit. Check both.",
+    "findings": 1,
+    "rows": 1,
+    "money_at_risk": [
+     {
+      "currency": "GBP",
+      "amount": 150000.0
+     }
+    ],
+    "examples": [
+     {
+      "sheet": "Claims",
+      "cell": "M22",
+      "column": "Total Incurred",
+      "claim_ref": "CLM-100133",
+      "where": "Claims!M22",
+      "sentence": "Incurred exceeds the policy limit: total incurred 150,000.00 is above the policy limit 100,000.00."
+     }
+    ]
+   },
+   {
+    "rule": "arithmetic_mismatch",
+    "label": "Total incurred does not reconcile",
+    "severity": "HIGH",
+    "outcome": "FAIL",
+    "owner": "sender",
+    "check_type": "ARITHMETIC",
+    "fix": "Total incurred should equal paid plus reserve (plus fees). Ask the sender which figure is right.",
+    "findings": 2,
+    "rows": 2,
+    "money_at_risk": [
+     {
+      "currency": "GBP",
+      "amount": 88638.4
+     },
+     {
+      "currency": "USD",
+      "amount": 58702.08
+     }
+    ],
+    "examples": [
+     {
+      "sheet": "Claims",
+      "cell": "M458",
+      "column": "Total Incurred",
+      "claim_ref": "CLM-103185",
+      "where": "Claims!M458",
+      "sentence": "Total incurred does not reconcile: total incurred=58,702.08 but paid to date 26,451.11 + reserve 36,367.57 = 62,818.68 (no fee columns in this file: checked as nil fees; if the total includes fees the difference may be fees)."
+     },
+     {
+      "sheet": "Claims",
+      "cell": "M480",
+      "column": "Total Incurred",
+      "claim_ref": "CLM-103339",
+      "where": "Claims!M480",
+      "sentence": "Total incurred does not reconcile: total incurred=88,638.40 but paid to date 19,256.61 + reserve 73,580.85 = 92,837.46 (no fee columns in this file: checked as nil fees; if the total includes fees the difference may be fees)."
+     }
+    ]
+   },
+   {
+    "rule": "exact_duplicate",
+    "label": "Exact duplicate",
+    "severity": "HIGH",
+    "outcome": "FAIL",
+    "owner": "sender",
+    "check_type": "DUPLICATE",
+    "fix": "The same claim was sent twice with identical figures. Ask the sender to withdraw one.",
+    "findings": 1,
+    "rows": 1,
+    "money_at_risk": [
+     {
+      "currency": "GBP",
+      "amount": 59494.57
+     }
+    ],
+    "examples": [
+     {
+      "sheet": "Claims",
+      "cell": "A409",
+      "column": "Claim Ref",
+      "claim_ref": "CLM-102842",
+      "where": "Claims!A409",
+      "sentence": "Exact duplicate: claim reference 'CLM-102842' is repeated with identical amounts and status in the same sheet 'Claims' (no reporting period present)."
+     }
+    ]
+   },
+   {
+    "rule": "invalid_currency",
+    "label": "Currency code not recognised",
+    "severity": "HIGH",
+    "outcome": "FAIL",
+    "owner": "sender",
+    "check_type": "CURRENCY",
+    "fix": "Use a valid ISO currency code (EUR, GBP, USD...). Confirm which currency the amounts are in.",
+    "findings": 1,
+    "rows": 1,
+    "money_at_risk": [
+     {
+      "currency": "XXX",
+      "amount": 56621.16
+     }
+    ],
+    "examples": [
+     {
+      "sheet": "Claims",
+      "cell": "J107",
+      "column": "Currency",
+      "claim_ref": "CLM-100728",
+      "where": "Claims!J107",
+      "sentence": "Currency code not recognised: 'XXX' is not a valid ISO 4217 code."
+     }
+    ]
+   },
+   {
+    "rule": "loss_outside_policy_period",
+    "label": "Loss outside the policy period",
+    "severity": "HIGH",
+    "outcome": "FAIL",
+    "owner": "sender",
+    "check_type": "POLICY",
+    "fix": "The date of loss is before inception or after expiry. Check the dates and the policy.",
+    "findings": 1,
+    "rows": 1,
+    "money_at_risk": [
+     {
+      "currency": "USD",
+      "amount": 34664.43
+     }
+    ],
+    "examples": [
+     {
+      "sheet": "Claims",
+      "cell": "G5",
+      "column": "Date of Loss",
+      "claim_ref": "CLM-100014",
+      "where": "Claims!G5",
+      "sentence": "Loss outside the policy period: date of loss 2025-09-27 is before policy inception 2025-10-16."
+     }
+    ]
+   },
+   {
+    "rule": "negative_reserve",
+    "label": "Negative reserve",
+    "severity": "HIGH",
+    "outcome": "FAIL",
+    "owner": "sender",
+    "check_type": "AMOUNT",
+    "fix": "Reserves cannot be negative. Ask the sender for the correct outstanding amount.",
+    "findings": 1,
+    "rows": 1,
+    "money_at_risk": [
+     {
+      "currency": "GBP",
+      "amount": 17306.82
+     }
+    ],
+    "examples": [
+     {
+      "sheet": "Claims",
+      "cell": "L479",
+      "column": "Outstanding Reserve",
+      "claim_ref": "CLM-103332",
+      "where": "Claims!L479",
+      "sentence": "Negative reserve: reserve is -1,841.16; a reserve cannot be negative."
+     }
+    ]
+   },
+   {
+    "rule": "paid_exceeds_incurred",
+    "label": "Paid exceeds total incurred",
+    "severity": "HIGH",
+    "outcome": "FAIL",
+    "owner": "sender",
+    "check_type": "ARITHMETIC",
+    "fix": "Paid to date cannot be more than total incurred. Ask the sender to correct the figures.",
+    "findings": 1,
+    "rows": 1,
+    "money_at_risk": [
+     {
+      "currency": "GBP",
+      "amount": 17306.82
+     }
+    ],
+    "examples": [
+     {
+      "sheet": "Claims",
+      "cell": "K479",
+      "column": "Paid to Date",
+      "claim_ref": "CLM-103332",
+      "where": "Claims!K479",
+      "sentence": "Paid exceeds total incurred: paid to date 19,147.98 is more than total incurred 17,306.82."
+     }
+    ]
+   },
+   {
+    "rule": "invalid_status",
+    "label": "Status not recognised",
+    "severity": "MEDIUM",
+    "outcome": "FAIL",
+    "owner": "sender",
+    "check_type": "STATUS",
+    "fix": "Use one of the agreed statuses (Open, Closed, Reopened...), or add it to the accepted list.",
+    "findings": 1,
+    "rows": 1,
+    "money_at_risk": [
+     {
+      "currency": "EUR",
+      "amount": 92012.38
+     }
+    ],
+    "examples": [
+     {
+      "sheet": "Claims",
+      "cell": "I287",
+      "column": "Claim Status",
+      "claim_ref": "CLM-101988",
+      "where": "Claims!I287",
+      "sentence": "Status not recognised: 'in litigation hold' is not one of ['cancelled', 'closed', 'ntu', 'open', 'other', 'reopened', 'void', 'withdrawn']."
+     }
+    ]
+   },
+   {
+    "rule": "date_order",
+    "label": "Notified before the loss date",
+    "severity": "MEDIUM",
+    "outcome": "FAIL",
+    "owner": "sender",
+    "check_type": "DATE",
+    "fix": "The claim was notified before it happened. Check both dates with the sender.",
+    "findings": 1,
+    "rows": 1,
+    "money_at_risk": [
+     {
+      "currency": "GBP",
+      "amount": 49598.07
+     }
+    ],
+    "examples": [
+     {
+      "sheet": "Claims",
+      "cell": "H67",
+      "column": "Date Rptd",
+      "claim_ref": "CLM-100448",
+      "where": "Claims!H67",
+      "sentence": "Notified before the loss date: date of loss 2026-01-17 is after date first notified 2026-01-01."
+     }
+    ]
+   },
+   {
+    "rule": "closed_with_reserve",
+    "label": "Closed claim still holds a reserve",
+    "severity": "MEDIUM",
+    "outcome": "REVIEW",
+    "owner": "sender",
+    "check_type": "STATUS",
+    "fix": "A closed or settled claim should hold no reserve. Ask the sender to release it or reopen the claim.",
+    "findings": 2,
+    "rows": 2,
+    "money_at_risk": [
+     {
+      "currency": "GBP",
+      "amount": 194450.22
+     }
+    ],
+    "examples": [
+     {
+      "sheet": "Claims",
+      "cell": "L22",
+      "column": "Outstanding Reserve",
+      "claim_ref": "CLM-100133",
+      "where": "Claims!L22",
+      "sentence": "Closed claim still holds a reserve: claim is closed but still holds a reserve of 60,000.00."
+     },
+     {
+      "sheet": "Claims",
+      "cell": "L391",
+      "column": "Outstanding Reserve",
+      "claim_ref": "CLM-102716",
+      "where": "Claims!L391",
+      "sentence": "Closed claim still holds a reserve: claim is closed but still holds a reserve of 1,500.00."
+     }
+    ]
+   },
+   {
+    "rule": "probable_duplicate",
+    "label": "Probable duplicate",
+    "severity": "MEDIUM",
+    "outcome": "REVIEW",
+    "owner": "sender",
+    "check_type": "DUPLICATE",
+    "fix": "Compare the two rows side by side; confirm whether they are the same loss.",
+    "findings": 1,
+    "rows": 1,
+    "money_at_risk": [
+     {
+      "currency": "USD",
+      "amount": 25295.02
+     }
+    ],
+    "examples": [
+     {
+      "sheet": "Claims",
+      "cell": "A304",
+      "column": "Claim Ref",
+      "claim_ref": "CLM-102107",
+      "where": "Claims!A304",
+      "sentence": "Probable duplicate: 100% confidence: insured names 'Ballina Florists Limited' / 'Ballina Florists Limited' are 100% similar, loss dates 2025-11-13 / 2025-11-13 are 0 days apart, claim references differ; policy references match; amounts are the same."
+     }
+    ]
+   },
+   {
+    "rule": "currency_normalised",
+    "label": "Currency written non-standardly",
+    "severity": "INFO",
+    "outcome": "REVIEW",
+    "owner": "us",
+    "check_type": "CURRENCY",
+    "fix": "Read as the ISO code shown. The corrected copy writes the ISO code.",
+    "findings": 1,
+    "rows": 1,
+    "money_at_risk": [
+     {
+      "currency": "EUR",
+      "amount": 106578.27
+     }
+    ],
+    "examples": [
+     {
+      "sheet": "Claims",
+      "cell": "J74",
+      "column": "Currency",
+      "claim_ref": "CLM-100497",
+      "where": "Claims!J74",
+      "sentence": "Currency written non-standardly: 'eur' read as EUR."
+     }
+    ]
+   },
+   {
+    "rule": "date_stored_as_text",
+    "label": "Date stored as text or a number",
+    "severity": "INFO",
+    "outcome": "REVIEW",
+    "owner": "us",
+    "check_type": "DATE",
+    "fix": "Read correctly, but stored as text or an Excel serial number. The corrected copy converts it to a real date.",
+    "findings": 1,
+    "rows": 1,
+    "money_at_risk": [
+     {
+      "currency": "GBP",
+      "amount": 52902.51
+     }
+    ],
+    "examples": [
+     {
+      "sheet": "Claims",
+      "cell": "G164",
+      "column": "Date of Loss",
+      "claim_ref": "CLM-101127",
+      "where": "Claims!G164",
+      "sentence": "Date stored as text or a number: date of loss 2025-04-25 was read from text or an Excel serial number, not a date cell."
+     }
+    ]
+   }
+  ],
+  "by_owner": {
+   "sender": [
+    "missing_mandatory_field",
+    "incurred_over_limit",
+    "arithmetic_mismatch",
+    "exact_duplicate",
+    "invalid_currency",
+    "loss_outside_policy_period",
+    "negative_reserve",
+    "paid_exceeds_incurred",
+    "invalid_status",
+    "date_order",
+    "closed_with_reserve",
+    "probable_duplicate"
+   ],
+   "us": [
+    "currency_normalised",
+    "date_stored_as_text"
+   ]
+  },
+  "couldnt_check": [],
+  "duplicates": {
+   "exact_pairs": 1,
+   "probable_pairs": 1,
+   "probable_high_confidence": 1,
+   "repeat_period_unknown": 0,
+   "development_pairs": 0
+  },
+  "money_by_currency": [
+   {
+    "currency": "EUR",
+    "rows": 109,
+    "paid_to_date": 3244885.95,
+    "reserve": 3448329.24,
+    "incurred": 6693215.19,
+    "fees_paid_to_date": 0.0,
+    "paid_rows": 109,
+    "reserve_rows": 109,
+    "incurred_rows": 109,
+    "fees_rows": 0
+   },
+   {
+    "currency": "GBP",
+    "rows": 288,
+    "paid_to_date": 8303050.55,
+    "reserve": 7972227.33,
+    "incurred": 16271078.82,
+    "fees_paid_to_date": 0.0,
+    "paid_rows": 288,
+    "reserve_rows": 288,
+    "incurred_rows": 288,
+    "fees_rows": 0
+   },
+   {
+    "currency": "USD",
+    "rows": 104,
+    "paid_to_date": 3001558.2,
+    "reserve": 2717898.8,
+    "incurred": 5715340.4,
+    "fees_paid_to_date": 0.0,
+    "paid_rows": 104,
+    "reserve_rows": 104,
+    "incurred_rows": 104,
+    "fees_rows": 0
+   },
+   {
+    "currency": "XXX",
+    "rows": 1,
+    "paid_to_date": 56621.16,
+    "reserve": 0.0,
+    "incurred": 56621.16,
+    "fees_paid_to_date": 0.0,
+    "paid_rows": 1,
+    "reserve_rows": 1,
+    "incurred_rows": 1,
+    "fees_rows": 0
+   }
+  ]
+ },
+ "skipped_sheets": [
+  {
+   "sheet_name": "Summary",
+   "reason": "Looks like a non-claims tab: its name ('Summary') suggests reference material, and 2 of 22 claim fields were recognised. Skipped so it never counts in findings or the score; include it anyway if it holds claims."
+  },
+  {
+   "sheet_name": "Notes",
+   "reason": "no row in the first 50 matched enough known fields to be a header row"
+  },
+  {
+   "sheet_name": "Summary",
+   "reason": "Looks like a non-claims tab: its name ('Summary') suggests reference material, and 2 of 22 claim fields were recognised. Skipped so it never counts in findings or the score; include it anyway if it holds claims."
+  }
+ ],
+ "query_letter": {
+  "subject": "Queries on Sample_Bordereau.xlsx",
+  "body": "Dear team,\n\nThank you for Sample_Bordereau.xlsx. Before we can accept it, please check the points below (15 items). Each line gives the sheet, the cell and what we found.\n\n1. Required data missing (2)\n   What we need: Ask the sender for the missing value.\n   - Claims!C416 (claim CLM-102891): Required data missing: insured name is missing.\n   - Claims!C499 (claim CLM-103472): Required data missing: insured name is missing.\n\n2. Total incurred does not reconcile (2)\n   What we need: Total incurred should equal paid plus reserve (plus fees). Ask the sender which figure is right.\n   - Claims!M458 (claim CLM-103185): Total incurred does not reconcile: total incurred=58,702.08 but paid to date 26,451.11 + reserve 36,367.57 = 62,818.68 (no fee columns in this file: checked as nil fees; if the total includes fees the difference may be fees).\n   - Claims!M480 (claim CLM-103339): Total incurred does not reconcile: total incurred=88,638.40 but paid to date 19,256.61 + reserve 73,580.85 = 92,837.46 (no fee columns in this file: checked as nil fees; if the total includes fees the difference may be fees).\n\n3. Currency code not recognised (1)\n   What we need: Use a valid ISO currency code (EUR, GBP, USD...). Confirm which currency the amounts are in.\n   - Claims!J107 (claim CLM-100728): Currency code not recognised: 'XXX' is not a valid ISO 4217 code.\n\n4. Negative reserve (1)\n   What we need: Reserves cannot be negative. Ask the sender for the correct outstanding amount.\n   - Claims!L479 (claim CLM-103332): Negative reserve: reserve is -1,841.16; a reserve cannot be negative.\n\n5. Paid exceeds total incurred (1)\n   What we need: Paid to date cannot be more than total incurred. Ask the sender to correct the figures.\n   - Claims!K479 (claim CLM-103332): Paid exceeds total incurred: paid to date 19,147.98 is more than total incurred 17,306.82.\n\n6. Incurred exceeds the policy limit (1)\n   What we need: Total incurred is above the policy limit: a possible overpayment or a wrong limit. Check both.\n   - Claims!M22 (claim CLM-100133): Incurred exceeds the policy limit: total incurred 150,000.00 is above the policy limit 100,000.00.\n\n7. Loss outside the policy period (1)\n   What we need: The date of loss is before inception or after expiry. Check the dates and the policy.\n   - Claims!G5 (claim CLM-100014): Loss outside the policy period: date of loss 2025-09-27 is before policy inception 2025-10-16.\n\n8. Exact duplicate (1)\n   What we need: The same claim was sent twice with identical figures. Ask the sender to withdraw one.\n   - Claims!A409 (claim CLM-102842): Exact duplicate: claim reference 'CLM-102842' is repeated with identical amounts and status in the same sheet 'Claims' (no reporting period present).\n\n9. Notified before the loss date (1)\n   What we need: The claim was notified before it happened. Check both dates with the sender.\n   - Claims!H67 (claim CLM-100448): Notified before the loss date: date of loss 2026-01-17 is after date first notified 2026-01-01.\n\n10. Status not recognised (1)\n   What we need: Use one of the agreed statuses (Open, Closed, Reopened...), or add it to the accepted list.\n   - Claims!I287 (claim CLM-101988): Status not recognised: 'in litigation hold' is not one of ['cancelled', 'closed', 'ntu', 'open', 'other', 'reopened', 'void', 'withdrawn'].\n\n11. Closed claim still holds a reserve (2)\n   What we need: A closed or settled claim should hold no reserve. Ask the sender to release it or reopen the claim.\n   - Claims!L22 (claim CLM-100133): Closed claim still holds a reserve: claim is closed but still holds a reserve of 60,000.00.\n   - Claims!L391 (claim CLM-102716): Closed claim still holds a reserve: claim is closed but still holds a reserve of 1,500.00.\n\n12. Probable duplicate (1)\n   What we need: Compare the two rows side by side; confirm whether they are the same loss.\n   - Claims!A304 (claim CLM-102107): Probable duplicate: 100% confidence: insured names 'Ballina Florists Limited' / 'Ballina Florists Limited' are 100% similar, loss dates 2025-11-13 / 2025-11-13 are 0 days apart, claim references differ; policy references match; amounts are the same.\n\nPlease send a corrected file, or reply with an explanation for any item you believe is right.\n\nKind regards,",
+  "items": 15
+ }
+}

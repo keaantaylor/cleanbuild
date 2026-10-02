@@ -88,6 +88,19 @@ r = c.post("/api/v1/auth/signup", json={"email": "bench@example.com", "password"
 assert r.status_code == 201, r.text
 H = {"X-CSRF-Token": r.json()["csrf_token"]}
 
+def _all(url: str) -> dict:
+    """Every page of a paginated list (the API caps a page at 1,000)."""
+    items, offset, total = [], 0, None
+    while total is None or offset < total:
+        page = c.get(url, params={"limit": 1000, "offset": offset}).json()
+        total = page["total"]
+        items += page["items"]
+        offset += 1000
+        if not page["items"]:
+            break
+    return {"items": items, "total": total}
+
+
 results = []
 for f in FILES:
     rec: dict = {"file": f.name, "label": args.label}
@@ -154,8 +167,7 @@ for f in FILES:
                     (DUMP / f"{f.stem}.{args.label}.{key}.xlsx").write_bytes(resp.content)
         if DUMP:
             DUMP.mkdir(parents=True, exist_ok=True)
-            ex = c.get(f"/api/v1/reports/{rid}/exceptions", params={"limit": 100000}).json()
-            du = c.get(f"/api/v1/reports/{rid}/duplicates").json()
+            ex, du = _all(f"/api/v1/reports/{rid}/exceptions"), _all(f"/api/v1/reports/{rid}/duplicates")
             (DUMP / f"{f.stem}.{args.label}.json").write_text(json.dumps({"report": rep, "summary": summ, "exceptions": ex,
                                                                            "duplicates": du}, default=str), encoding="utf-8")
     results.append(rec)

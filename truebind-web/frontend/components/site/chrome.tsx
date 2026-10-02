@@ -8,10 +8,10 @@ import { Brand, Mark, ThemeToggle } from "@/components/nocturne/ui";
 import { LeadButton } from "./lead-form";
 
 const LINKS = [
-  ["Why", "/#problem"],
   ["How it works", "/#how"],
-  ["Product", "/#product"],
-  ["Health Check", "/#health"],
+  ["Sample report", "/demo"],
+  ["Pricing", "/pricing"],
+  ["Security", "/security"],
 ];
 
 /** The prototype's floating glass pill nav. */

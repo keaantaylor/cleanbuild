@@ -121,6 +121,14 @@ class Settings(BaseSettings):
     smtp_user: str = Field(default="", validation_alias="SMTP_USER")
     smtp_password: SecretStr = Field(default=SecretStr(""), validation_alias="SMTP_PASSWORD")
     smtp_from: str = Field(default="truebind@localhost", validation_alias="SMTP_FROM")
+
+    # ---- Website enquiries (demo / Health Check / contact / updates forms)
+    # Who may read them in the app (comma-separated sign-in emails), and where
+    # a notification is emailed when one arrives (needs SMTP_* as well).
+    leads_admin_emails: str = Field(default="", validation_alias="LEADS_ADMIN_EMAILS")
+    leads_notify_email: str = Field(default="", validation_alias="LEADS_NOTIFY_EMAIL")
+    # Files sent with a Health Check request are deleted after this many days.
+    lead_file_retention_days: int = Field(default=30, ge=1, le=365, validation_alias="LEAD_FILE_RETENTION_DAYS")
     smtp_starttls: bool = Field(default=True, validation_alias="SMTP_STARTTLS")
     max_email_attachment_mb: int = Field(default=10, ge=1, validation_alias="MAX_EMAIL_ATTACHMENT_MB")
 

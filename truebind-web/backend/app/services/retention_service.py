@@ -110,3 +110,19 @@ def purge_deleted_reports(db: Session, limit: int = 100) -> int:
     if n:
         log.info("retention: purged %d report(s)", n)
     return n
+
+
+def purge_old_lead_files(db: Session) -> int:
+    """Files sent with website Health Check requests are deleted after
+    LEAD_FILE_RETENTION_DAYS (default 30); the enquiry itself is kept."""
+    from datetime import timedelta
+
+    from ..models.leads import LeadFile
+    from ..settings import get_settings
+
+    cutoff = utcnow() - timedelta(days=get_settings().lead_file_retention_days)
+    n = db.query(LeadFile).filter(LeadFile.created_at < cutoff).delete(synchronize_session=False)
+    db.commit()
+    if n:
+        log.info("retention: deleted %d Health Check file(s)", n)
+    return n

@@ -214,6 +214,8 @@ def classify_sheet_status(
     sheet (Section 9), and a sheet missing some but not all required
     fields is its own "partial" state rather than being silently folded
     into either "mapped" or "unmapped"."""
+    if skipped and skip_reason and skip_reason.startswith("Looks like a non-claims tab"):
+        return "non_claim_summary", skip_reason  # pre-skipped as reference material (pipeline.non_claims_reason)
     if skipped:
         is_crash = bool(skip_reason and skip_reason.startswith("error while reading"))
         return ("error" if is_crash else "empty"), (skip_reason or "sheet contained no tabular data")

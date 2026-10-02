@@ -519,6 +519,91 @@
     "title": "BinderOut",
     "type": "object"
    },
+   "Body_health_check_api_v1_leads_health_check_post": {
+    "properties": {
+     "company": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Company"
+     },
+     "consent": {
+      "default": false,
+      "title": "Consent",
+      "type": "boolean"
+     },
+     "email": {
+      "maxLength": 320,
+      "title": "Email",
+      "type": "string"
+     },
+     "file": {
+      "contentMediaType": "application/octet-stream",
+      "title": "File",
+      "type": "string"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "note": {
+      "anyOf": [
+       {
+        "maxLength": 2000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Note"
+     },
+     "page": {
+      "anyOf": [
+       {
+        "maxLength": 300,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Page"
+     },
+     "website": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Website"
+     }
+    },
+    "required": [
+     "email",
+     "file"
+    ],
+    "title": "Body_health_check_api_v1_leads_health_check_post",
+    "type": "object"
+   },
    "Body_load_list_api_v1_sanctions_lists_post": {
     "properties": {
      "file": {
@@ -2180,6 +2265,229 @@
      "heartbeat_at"
     ],
     "title": "JobOut",
+    "type": "object"
+   },
+   "LeadIn": {
+    "properties": {
+     "attribution": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "type": "string"
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Attribution"
+     },
+     "company": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Company"
+     },
+     "email": {
+      "format": "email",
+      "title": "Email",
+      "type": "string"
+     },
+     "kind": {
+      "enum": [
+       "demo",
+       "health",
+       "contact",
+       "updates"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "note": {
+      "anyOf": [
+       {
+        "maxLength": 2000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Note"
+     },
+     "page": {
+      "anyOf": [
+       {
+        "maxLength": 300,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Page"
+     },
+     "website": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Website"
+     }
+    },
+    "required": [
+     "kind",
+     "email"
+    ],
+    "title": "LeadIn",
+    "type": "object"
+   },
+   "LeadOut": {
+    "properties": {
+     "attribution": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "type": "string"
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Attribution"
+     },
+     "company": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Company"
+     },
+     "consent_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Consent At"
+     },
+     "created_at": {
+      "title": "Created At",
+      "type": "string"
+     },
+     "email": {
+      "title": "Email",
+      "type": "string"
+     },
+     "file_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "File Name"
+     },
+     "file_size": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "File Size"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "kind": {
+      "title": "Kind",
+      "type": "string"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "note": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Note"
+     },
+     "page": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Page"
+     }
+    },
+    "required": [
+     "id",
+     "kind",
+     "name",
+     "email",
+     "company",
+     "note",
+     "page",
+     "attribution",
+     "created_at"
+    ],
+    "title": "LeadOut",
     "type": "object"
    },
    "LinkOut": {
@@ -5984,6 +6292,179 @@
     "summary": "Ses Inbound",
     "tags": [
      "inbound"
+    ]
+   }
+  },
+  "/api/v1/leads": {
+   "get": {
+    "operationId": "list_leads_api_v1_leads_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/LeadOut"
+         },
+         "title": "Response List Leads Api V1 Leads Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "List Leads",
+    "tags": [
+     "leads"
+    ]
+   },
+   "post": {
+    "operationId": "create_lead_api_v1_leads_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LeadIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "string"
+         },
+         "title": "Response Create Lead Api V1 Leads Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Lead",
+    "tags": [
+     "leads"
+    ]
+   }
+  },
+  "/api/v1/leads/export.csv": {
+   "get": {
+    "operationId": "export_leads_api_v1_leads_export_csv_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Export Leads",
+    "tags": [
+     "leads"
+    ]
+   }
+  },
+  "/api/v1/leads/health-check": {
+   "post": {
+    "description": "A free Health Check request: the visitor's bordereau, checked like an app\nupload (type, signature, zip safety), stored apart from the lead and emailed\nto the notification address.",
+    "operationId": "health_check_api_v1_leads_health_check_post",
+    "requestBody": {
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_health_check_api_v1_leads_health_check_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "string"
+         },
+         "title": "Response Health Check Api V1 Leads Health Check Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Health Check",
+    "tags": [
+     "leads"
+    ]
+   }
+  },
+  "/api/v1/leads/{lead_id}/file": {
+   "get": {
+    "operationId": "lead_file_api_v1_leads__lead_id__file_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "lead_id",
+      "required": true,
+      "schema": {
+       "title": "Lead Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Lead File",
+    "tags": [
+     "leads"
     ]
    }
   },

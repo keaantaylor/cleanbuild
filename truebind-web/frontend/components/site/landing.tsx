@@ -6,6 +6,7 @@ import { ArrowCounterClockwise, ArrowRight } from "@phosphor-icons/react";
 import { HeroSheet, STAGES, useHeroStage } from "./hero-sheet";
 import { SiteFooter, SiteNav } from "./chrome";
 import { LeadButton } from "./lead-form";
+import demo from "@/lib/demo-report.json";
 
 type Cell = { t: string; k?: "r" | "a" };
 const RED = { bg: "oklch(0.94 0.045 25)", fg: "oklch(0.48 0.17 25)" };
@@ -52,22 +53,22 @@ export function Landing() {
       <section id="main" className="relative mx-auto grid max-w-[1320px] items-start gap-10 px-4 pb-[72px] pt-[120px] sm:px-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-[clamp(24px,3vw,48px)] lg:px-[clamp(32px,3.5vw,48px)] lg:pt-[clamp(110px,11vh,150px)]">
         <div className="pointer-events-none absolute inset-y-0 -left-[50vw] -right-[50vw]" style={{ background: "radial-gradient(760px 520px at 60% 40%, var(--heroGlowA), transparent 70%), radial-gradient(640px 420px at 31% 0%, var(--heroGlowB), transparent 70%)" }} />
         <div className="relative flex max-w-[560px] flex-col gap-[clamp(16px,2vw,24px)] lg:max-w-[460px] lg:pt-[clamp(8px,3vh,40px)]">
-          <span className={kicker} style={{ color: "var(--kicker)" }}>Claims bordereaux integrity</span>
-          <h1 className="m-0 text-[clamp(38px,4.1vw,58px)] font-medium leading-[1.04] tracking-[-0.035em] [text-wrap:balance]">Clean claims data. Before it becomes a problem.</h1>
+          <span className={kicker} style={{ color: "var(--kicker)" }}>For coverholders, MGAs and TPAs</span>
+          <h1 className="m-0 text-[clamp(38px,4.1vw,58px)] font-medium leading-[1.04] tracking-[-0.035em] [text-wrap:balance]">Send bordereaux that don’t come back.</h1>
           <p className="m-0 text-[clamp(15.5px,1.2vw,17px)] leading-[1.6] [text-wrap:pretty]" style={{ color: "var(--chromeMuted)" }}>
-            TrueBind maps, validates and reconciles claims bordereaux before they reach carriers, giving teams clear evidence of what was checked and what was not.
+            TrueBind checks your claims bordereau before it goes to the managing agent or insurer. You get your own workbook back with every problem marked, a corrected copy of the safe fixes, and a ready-to-send query letter for the rest.
           </p>
           <div className="flex flex-wrap gap-2.5">
-            <a href="#health" className="whitespace-nowrap rounded-lg px-[18px] py-[13px] text-[14.5px] font-medium transition-colors hover:bg-[rgba(145,132,217,.22)]" style={{ color: "var(--accentText)", background: "rgba(145,132,217,.12)", boxShadow: "inset 0 0 0 1px var(--accent), 0 0 24px rgba(145,132,217,.18)" }}>
-              Run a Bordereau Health Check
-            </a>
-            <Link href="/overview" className="whitespace-nowrap rounded-lg px-4 py-[13px] text-[14.5px] font-medium transition-colors hover:bg-[rgba(233,233,237,.06)]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }}>
-              See TrueBind in action
+            <LeadButton kind="health" className="whitespace-nowrap rounded-lg px-[18px] py-[13px] text-[14.5px] font-medium transition-colors hover:bg-[rgba(145,132,217,.22)]" style={{ color: "var(--accentText)", background: "rgba(145,132,217,.12)", boxShadow: "inset 0 0 0 1px var(--accent), 0 0 24px rgba(145,132,217,.18)" }}>
+              Get a free Health Check
+            </LeadButton>
+            <Link href="/demo" className="whitespace-nowrap rounded-lg px-4 py-[13px] text-[14.5px] font-medium transition-colors hover:bg-[rgba(233,233,237,.06)]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }}>
+              See a sample report
             </Link>
           </div>
           <div className="flex flex-col gap-2 pt-4 text-[13px] leading-[1.5]" style={{ color: "var(--muted)", background: `${rule} top / 100% 1px no-repeat` }}>
-            <span>Works alongside your existing TPA files, inboxes and carrier templates.</span>
-            <span>Source values are never rewritten. Unmapped and unassessed data is reported, not hidden.</span>
+            <span>Founding pilot: your first file is free. No integration: upload the file as it is.</span>
+            <span>Your values are never changed. Anything we couldn’t check is listed, not hidden.</span>
           </div>
         </div>
 
@@ -235,36 +236,34 @@ export function Landing() {
         <span id="trust" className="absolute scroll-mt-16" />
         <div className="mx-auto flex max-w-[1320px] flex-wrap items-center justify-between gap-12 px-4 py-20 sm:px-12">
           <div className="flex max-w-[560px] flex-[1_1_420px] flex-col gap-[18px]">
-            <span className={kicker} style={{ color: "var(--accentText)" }}>Bordereau Health Check</span>
-            <h2 className={h2}>Send one bordereau. Get back a report you can forward.</h2>
+            <span className={kicker} style={{ color: "var(--accentText)" }}>Free Health Check</span>
+            <h2 className={h2}>Send one bordereau. Get it back checked, marked up and ready to fix.</h2>
             <p className="m-0 text-[16px] leading-[1.6]" style={{ color: "var(--chromeText)" }}>
-              What was checked, what was flagged, what couldn’t be mapped and what wasn’t assessed — with the evidence. Ready for your COO, Head of Claims, carrier or auditor.
+              A clear verdict (ready to submit, or fix first), the top fixes ranked by money at risk, your workbook annotated cell by cell, a corrected copy and a query letter for the sender. First file free.
             </p>
             <div className="flex flex-wrap gap-2.5">
               <LeadButton kind="health" className="whitespace-nowrap rounded-lg px-[18px] py-[13px] text-[14.5px] font-medium transition-colors hover:bg-[rgba(245,244,255,.08)]" style={{ boxShadow: "inset 0 0 0 1px var(--accentText)" }}>
-                Run a Bordereau Health Check
+                Get a free Health Check
               </LeadButton>
-              <Link href="/sample-report" className="whitespace-nowrap px-1.5 py-[13px] text-[14.5px]" style={{ color: "var(--accentText)" }}>
+              <Link href="/demo" className="whitespace-nowrap px-1.5 py-[13px] text-[14.5px]" style={{ color: "var(--accentText)" }}>
                 See a sample report →
+              </Link>
+              <Link href="/pricing" className="whitespace-nowrap px-1.5 py-[13px] text-[14.5px]" style={{ color: "var(--accentText)" }}>
+                Pricing →
               </Link>
             </div>
           </div>
           <div className="flex max-w-[520px] flex-[1_1_420px] flex-col gap-[18px]">
-            <div className="flex h-2.5 gap-0.5 overflow-hidden rounded-[3px]">
-              <div style={{ width: "92%", background: "oklch(0.76 0.12 155)" }} />
-              <div style={{ width: "4%", background: "oklch(0.81 0.12 75)" }} />
-              <div style={{ width: "2%", background: "repeating-linear-gradient(45deg,var(--chromeText) 0 2px,transparent 2px 4px)" }} />
-              <div style={{ width: "2%", background: "var(--chromeFaint)" }} />
-            </div>
+            <span className="text-[22px] font-medium" style={{ color: "var(--chromeStrong)" }}>{demo.health_view.verdict_label}</span>
             <div className="grid grid-cols-4 gap-3">
-              {[["1,259", "Checked"], ["23", "Flagged"], ["1", "Unmapped"], ["2", "Not assessed"]].map(([v, l]) => (
+              {[[demo.rows.toLocaleString("en-GB"), "Rows checked"], [String(demo.health_view.counts.errors), "Errors"], [String(demo.health_view.counts.warnings), "Warnings"], [String(demo.health_view.counts.couldnt_check), "Couldn’t check"]].map(([v, l]) => (
                 <div key={l} className="flex flex-col gap-1">
                   <span className="tnum text-[24px] font-medium sm:text-[30px]">{v}</span>
                   <span className="text-[12.5px]" style={{ color: "var(--chromeText)" }}>{l}</span>
                 </div>
               ))}
             </div>
-            <span className="text-[12px]" style={{ color: "var(--accentText)" }}>Sample: Harbour MGA · Claims Aug-26 · 1,284 rows · 3m 12s</span>
+            <span className="text-[12px]" style={{ color: "var(--accentText)" }}>Sample: a generated {demo.rows.toLocaleString("en-GB")}-row bordereau with {demo.planted_problems} planted problems, run through TrueBind. <Link href="/demo" className="underline">See the full report</Link>.</span>
           </div>
         </div>
       </section>

@@ -42,7 +42,7 @@ export function useConfirm() {
 
 export function Panel({ title, sub, status, actions, children }: { title: string; sub?: string; status?: React.ReactNode; actions?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="tb-card flex flex-col gap-4 p-4 sm:p-6">
+    <section className="tb-card flex flex-col gap-4 p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 max-w-[760px] flex-col gap-1">
           <span className="text-[16px] font-medium">{title}</span>
@@ -99,7 +99,7 @@ function KV({ items }: { items: [string, React.ReactNode][] }) {
 
 function Table({ head, children }: { head: string[]; children: React.ReactNode }) {
   return (
-    <div className="overflow-x-auto rounded-[10px]" style={{ boxShadow: "inset 0 0 0 1px var(--line)" }}>
+    <div className="overflow-x-auto rounded-md" style={{ boxShadow: "inset 0 0 0 1px var(--line)" }}>
       <table className="w-full min-w-[560px] border-collapse text-[13px]">
         <thead>
           <tr className="text-left text-[11px] uppercase tracking-[.06em]" style={{ color: "var(--faint)" }}>
@@ -361,7 +361,7 @@ function QrCode({ value }: { value: string }) {
     };
   }, [value]);
   // Generated locally from our own otpauth URI (no user HTML).
-  return <div className="h-[168px] w-[168px] flex-none rounded-lg bg-white p-3" role="img" aria-label="QR code for your authenticator app" dangerouslySetInnerHTML={svg ? { __html: svg } : undefined} />;
+  return <div className="h-[168px] w-[168px] flex-none rounded-md bg-white p-3" role="img" aria-label="QR code for your authenticator app" dangerouslySetInnerHTML={svg ? { __html: svg } : undefined} />;
 }
 
 export function SecuritySettings({ required }: { required: boolean }) {
@@ -389,11 +389,11 @@ export function SecuritySettings({ required }: { required: boolean }) {
   return (
     <Panel title="Two-step verification" sub="A code from an authenticator app (Microsoft Authenticator, Google Authenticator, 1Password…) in addition to your password." status={<StatusPill tone={s.enabled ? "ok" : "warn"}>{s.enabled ? "On" : "Off"}</StatusPill>}>
       <div className="flex max-w-[720px] flex-col gap-4">
-        {required && s.setup_required && <div className="rounded-lg px-3.5 py-2.5 text-[13px]" style={{ background: "var(--warnT)", color: "var(--warn)" }}>Your organisation requires two-step verification. Set it up to continue using TrueBind.</div>}
-        {error && <div className="rounded-lg px-3.5 py-2.5 text-[13px]" style={{ background: "var(--errT)", color: "var(--err)" }}>{error}</div>}
+        {required && s.setup_required && <div className="rounded-md px-3.5 py-2.5 text-[13px]" style={{ background: "var(--warnT)", color: "var(--warn)" }}>Your organisation requires two-step verification. Set it up to continue using TrueBind.</div>}
+        {error && <div className="rounded-md px-3.5 py-2.5 text-[13px]" style={{ background: "var(--errT)", color: "var(--err)" }}>{error}</div>}
         {codes && (
           <>
-            <div className="rounded-lg px-3.5 py-2.5 text-[13px]" style={{ background: "var(--okT)", color: "var(--ok)" }}>Two-step verification is on. Your other sessions were signed out. Save these recovery codes somewhere safe: each works once, and they are shown only now.</div>
+            <div className="rounded-md px-3.5 py-2.5 text-[13px]" style={{ background: "var(--okT)", color: "var(--ok)" }}>Two-step verification is on. Your other sessions were signed out. Save these recovery codes somewhere safe: each works once, and they are shown only now.</div>
             <ul className="tnum m-0 grid list-none grid-cols-2 gap-2 p-0 sm:grid-cols-4" data-testid="recovery-codes">
               {codes.map((c) => <li key={c}><Mono>{c}</Mono></li>)}
             </ul>
@@ -687,7 +687,7 @@ function Webhooks({ canManage }: { canManage: boolean }) {
   return (
     <Panel title="Webhooks" sub="Report events are posted to your systems, signed (webhook-id, webhook-timestamp, webhook-signature: HMAC-SHA256). Failed deliveries are retried with backoff." status={<StatusPill tone={st.tone}>{st.label}</StatusPill>}>
       {secret && (
-        <div role="status" className="flex flex-col gap-2 rounded-lg px-3.5 py-3" style={{ background: "var(--warnT)" }}>
+        <div role="status" className="flex flex-col gap-2 rounded-md px-3.5 py-3" style={{ background: "var(--warnT)" }}>
           <span className="text-[13px] font-medium" style={{ color: "var(--warn)" }}>Signing secret — copy it now, it won’t be shown again.</span>
           <Mono>{secret}</Mono>
           <div className="flex gap-2">
@@ -698,7 +698,7 @@ function Webhooks({ canManage }: { canManage: boolean }) {
       )}
       {data.length === 0 && <span className="text-[13px]" style={{ color: "var(--faint)" }}>No endpoints yet.</span>}
       {data.map((ep) => (
-        <div key={ep.id} className="flex flex-col gap-3 rounded-[10px] p-4" style={{ boxShadow: "inset 0 0 0 1px var(--line)" }}>
+        <div key={ep.id} className="flex flex-col gap-3 rounded-md p-4" style={{ boxShadow: "inset 0 0 0 1px var(--line)" }}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex min-w-0 flex-col gap-1">
               <code className="break-all text-[13px]">{ep.url}</code>

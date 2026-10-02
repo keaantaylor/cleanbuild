@@ -9,8 +9,8 @@ Continue from the first item not marked done. Branch fix/strategy-pass; locked p
 | 3 Annotated workbook view (Original / Review, colour-coded, virtualised) | done: GET /sheets/{id}/grid (cached values, 100-row pages), Original/Review tabs, colour + click-for-fix, Expand full-screen, Excel download |
 | 4 Exceptions page (grouped, filters, 50/page, inline row) | done: grouped by issue type (collapsed, count badge), filters severity/sheet/column/check/outcome, 50 per page, selected finding shows cell, value and source row inline; GET /exceptions/groups + rule/column filters |
 | 5 Faster spreadsheet animation (landing + onboarding) | done: hero stage 3.4s -> 2.1s, transitions ~half (1.3s -> 0.7s); onboarding progress bars 500 -> 200ms |
-| 6 Front-end overhaul (navy, green accent, borders, Inter, density) | remaining |
-| 7 Use design files (Prototype.dc.html, nocturne.css) | remaining |
+| 6 Front-end overhaul (navy, green accent, borders, Inter, density) | done: navy #0F172A, mint-green accent from the logo, amber/red only for severity; gradients, glass and drop shadows removed (1px borders); radii 6px; tighter padding; Inter only; 'Planned' placeholder cards removed. Icons stay Phosphor (already one consistent set) |
+| 7 Use design files (Prototype.dc.html, nocturne.css) | done: no 'TrueBind Prototype.dc.html' in the repo or Downloads; nocturne.css (the purple system) retuned to the new palette |
 | 8 Verify: tests, build, 500-row upload, locked preview | remaining |
 
 # Strategy + build pass — progress (resume point)

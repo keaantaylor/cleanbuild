@@ -276,7 +276,7 @@ function CompanyStep({ d, set, password, back, done }: { d: Draft; set: SetFn; p
                 role="radio"
                 aria-checked={d.orgType === o.v}
                 onClick={() => set("orgType", o.v)}
-                className="cursor-pointer rounded-lg px-3.5 py-2 text-[13.5px] transition-colors"
+                className="cursor-pointer rounded-md px-3.5 py-2 text-[13.5px] transition-colors"
                 style={{ boxShadow: `inset 0 0 0 1px ${d.orgType === o.v ? "var(--accent)" : "var(--line2)"}`, background: d.orgType === o.v ? "var(--accentTint)" : "transparent", color: d.orgType === o.v ? "var(--accentText)" : "var(--text)" }}
               >
                 {o.label}
@@ -449,7 +449,7 @@ function BindersStep({ back, next }: { back: () => void; next: () => void }) {
     <>
       <StepHead n={5} title="Binders and the ruleset" sub="Every bordereau is validated against Lloyd’s CRS v5.2. Add the binding authorities you report under and TrueBind also checks period, currencies, claims settlement authority and aggregate limit." />
       <div className="flex flex-col gap-5">
-        <div className="flex items-center gap-3 rounded-[10px] px-4 py-3" style={{ background: "var(--accentTint)", boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent)" }}>
+        <div className="flex items-center gap-3 rounded-md px-4 py-3" style={{ background: "var(--accentTint)", boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent)" }}>
           <CheckCircle size={18} weight="fill" style={{ color: "var(--accentText)" }} />
           <span className="text-[13.5px]"><b>Lloyd’s CRS v5.2</b> ruleset · required data, arithmetic, dates, currencies, status, duplicates vs development</span>
         </div>
@@ -533,7 +533,7 @@ function ChannelsStep({ back, next }: { back: () => void; next: () => void }) {
     <>
       <StepHead n={6} title="How will files reach TrueBind?" sub="These statuses come from your server. Live channels work today; anything not built yet is shown as planned, never as working." />
       {err && <FormError>{err}</FormError>}
-      {!ch && !err && <div className="h-40 animate-pulse rounded-xl" style={{ background: "var(--line)" }} />}
+      {!ch && !err && <div className="h-40 animate-pulse rounded-md" style={{ background: "var(--line)" }} />}
       {ch && (
         <div className="grid gap-3 sm:grid-cols-2">
           {ch.inbound.map((c) => {
@@ -541,9 +541,9 @@ function ChannelsStep({ back, next }: { back: () => void; next: () => void }) {
             const st = CH_STATUS[c.status] ?? CH_STATUS.planned;
             const live = c.status === "active";
             return (
-              <div key={c.id} className="flex flex-col gap-3 rounded-[12px] p-4" style={{ background: live ? "color-mix(in srgb, var(--ok) 6%, var(--surface))" : "var(--surface)", boxShadow: live ? "var(--shadow), inset 0 0 0 1px color-mix(in srgb, var(--ok) 40%, transparent)" : "var(--shadow)" }}>
+              <div key={c.id} className="flex flex-col gap-3 rounded-md p-4" style={{ background: live ? "color-mix(in srgb, var(--ok) 6%, var(--surface))" : "var(--surface)", boxShadow: live ? "var(--shadow), inset 0 0 0 1px color-mix(in srgb, var(--ok) 40%, transparent)" : "var(--shadow)" }}>
                 <div className="flex items-center justify-between">
-                  <span className="grid h-9 w-9 place-items-center rounded-lg text-[17px]" style={{ background: "var(--accentTint)", color: "var(--accentText)" }}>
+                  <span className="grid h-9 w-9 place-items-center rounded-md text-[17px]" style={{ background: "var(--accentTint)", color: "var(--accentText)" }}>
                     <Icon />
                   </span>
                   <StatusPill tone={st.tone}>{st.label}</StatusPill>

@@ -33,7 +33,7 @@ export default function WorkQueuePage() {
   };
 
   return (
-    <div className="flex max-w-[1440px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-9">
+    <div className="flex max-w-[1440px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-6">
       <PageHeader kicker="Operate" title="Work queue" sub="Everything waiting on a person, most urgent first. Items leave the queue when the underlying work is done." />
       {q.loading && !q.data ? (
         <LoadingState label="Loading work queue" rows={6} />

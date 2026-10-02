@@ -33,7 +33,7 @@ export default function InboxPage() {
   const live = (channels.data?.inbound ?? []).filter((c) => c.status === "active");
 
   return (
-    <div className="flex max-w-[1440px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-9">
+    <div className="flex max-w-[1440px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-6">
       <PageHeader
         kicker="Operate"
         title="Inbox"
@@ -46,11 +46,11 @@ export default function InboxPage() {
         }
       />
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-lg px-3" style={{ boxShadow: "inset 0 0 0 1px var(--line2)", background: "var(--surface)" }}>
+        <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-md px-3" style={{ boxShadow: "inset 0 0 0 1px var(--line2)", background: "var(--surface)" }}>
           <MagnifyingGlass style={{ color: "var(--faint)" }} />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search file, sender or programme" aria-label="Search inbox" className="h-[38px] flex-1 bg-transparent text-[14px] outline-none" />
         </div>
-        <div className="flex flex-wrap gap-0.5 rounded-[9px] p-[3px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }} role="tablist" aria-label="Filter by status">
+        <div className="flex flex-wrap gap-0.5 rounded-md p-[3px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }} role="tablist" aria-label="Filter by status">
           {FILTERS.map(([k, l]) => (
             <button key={k} type="button" role="tab" aria-selected={filter === k} onClick={() => setFilter(k)} className="flex cursor-pointer items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-[13px]" style={{ background: filter === k ? "var(--accentTint)" : "transparent", color: filter === k ? "var(--text)" : "var(--muted)" }}>
               {l}

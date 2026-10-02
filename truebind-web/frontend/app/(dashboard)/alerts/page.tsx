@@ -76,7 +76,7 @@ export default function AlertsPage() {
   const unread = items.filter((a) => !a.acknowledged);
 
   return (
-    <div className="flex max-w-[1200px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-9">
+    <div className="flex max-w-[1200px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-6">
       <PageHeader
         kicker="Govern"
         title="Alerts"
@@ -91,7 +91,7 @@ export default function AlertsPage() {
           </>
         }
       />
-      <div className="flex flex-wrap gap-0.5 self-start rounded-[9px] p-[3px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }} role="tablist" aria-label="Alert type">
+      <div className="flex flex-wrap gap-0.5 self-start rounded-md p-[3px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }} role="tablist" aria-label="Alert type">
         {(
           [
             ["all", "All"],

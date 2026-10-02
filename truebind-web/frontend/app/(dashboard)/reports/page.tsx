@@ -26,7 +26,7 @@ export default function ReportsPage() {
   const avg = scored.length ? Math.round(scored.reduce((a, r) => a + (r.score ?? 0), 0) / scored.length) : null;
 
   return (
-    <div className="flex max-w-[1440px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-9">
+    <div className="flex max-w-[1440px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-6">
       <PageHeader
         kicker="Investigate"
         title="Health Check reports"
@@ -54,11 +54,11 @@ export default function ReportsPage() {
         </div>
       )}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-lg px-3" style={{ boxShadow: "inset 0 0 0 1px var(--line2)", background: "var(--surface)" }}>
+        <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-md px-3" style={{ boxShadow: "inset 0 0 0 1px var(--line2)", background: "var(--surface)" }}>
           <MagnifyingGlass style={{ color: "var(--faint)" }} />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by file, sender or programme" aria-label="Search reports" className="h-[38px] flex-1 bg-transparent text-[14px] outline-none" />
         </div>
-        <div className="flex flex-wrap gap-0.5 rounded-[9px] p-[3px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }} role="tablist">
+        <div className="flex flex-wrap gap-0.5 rounded-md p-[3px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }} role="tablist">
           {[
             ["all", "All"],
             ["complete", "Complete"],

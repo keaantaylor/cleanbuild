@@ -59,7 +59,7 @@ export default function ExportsPage() {
   const rows = deliveries.data?.items ?? [];
 
   return (
-    <div className="flex max-w-[1440px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-9">
+    <div className="flex max-w-[1440px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-6">
       <PageHeader kicker="Deliver" title="Exports & deliveries" sub="Every output TrueBind produced: what, for which report, where it went and whether it arrived." />
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)]">
         <section className="flex flex-col gap-3">
@@ -105,7 +105,7 @@ export default function ExportsPage() {
           </div>
         </section>
         <div className="flex flex-col gap-4">
-          <section className="tb-card flex flex-col gap-3 p-5">
+          <section className="tb-card flex flex-col gap-3 p-4">
             <span className="text-[15px] font-medium">Send an output</span>
             <span className="text-[12.5px]" style={{ color: emailLive ? "var(--muted)" : "var(--warn)" }}>{!channels.data ? "Checking the email channel…" : emailLive ? "Delivered by email from this server." : "Email isn’t configured on this server — the attempt will be recorded, not sent. Downloads work now."}</span>
             {complete.length === 0 ? (

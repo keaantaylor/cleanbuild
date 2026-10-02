@@ -75,7 +75,7 @@ function Intake() {
   );
 
   return (
-    <div className="flex max-w-[1440px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-9">
+    <div className="flex max-w-[1440px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-6">
       {header}
       <IntakeStepper current={intakeStep(report, !!upload)} failed={report?.status === "FAILED"} />
 
@@ -87,7 +87,7 @@ function Intake() {
         (sheets.length ? <MappingReview report={report} sheets={sheets} onSheetsChange={setSheets} onProcess={process} /> : <LoadingState label="Loading sheets" rows={6} />)}
 
       {report?.status === "COMPLETE" && (
-        <div className="tb-card flex flex-wrap items-center gap-4 p-4 sm:p-6">
+        <div className="tb-card flex flex-wrap items-center gap-4 p-4 sm:p-5">
           <span className="flex-1 text-[14px]">This report is complete.</span>
           <Link href={`/reports/${report.id}`} className="tb-btn tb-btn-solid">
             Open the report
@@ -113,7 +113,7 @@ function Intake() {
                 <input id="in-programme" className="tb-input" value={programme} onChange={(e) => setProgramme(e.target.value)} maxLength={200} placeholder="e.g. Property binder 2026" disabled={!!upload} />
               </div>
             </div>
-            <div className="tb-card flex flex-col gap-3 p-5">
+            <div className="tb-card flex flex-col gap-3 p-4">
               <span className="text-[15px] font-medium">What happens next</span>
               <ol className="m-0 flex list-none flex-col gap-2.5 p-0 text-[13px]">
                 {[

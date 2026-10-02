@@ -44,7 +44,7 @@ function Audit() {
   const rep = (reports.data ?? []).find((r) => r.id === reportId);
 
   return (
-    <div className="flex max-w-[1440px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-9">
+    <div className="flex max-w-[1440px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-6">
       <PageHeader
         kicker="Govern"
         title="Audit trail"

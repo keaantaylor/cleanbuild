@@ -126,7 +126,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <button
         type="button"
         onClick={() => setSearch(true)}
-        className="flex cursor-pointer items-center gap-2 overflow-hidden whitespace-nowrap rounded-lg px-2.5 py-2 text-left text-[12.5px] transition-colors hover:bg-[rgba(233,233,237,.06)]"
+        className="flex cursor-pointer items-center gap-2 overflow-hidden whitespace-nowrap rounded-md px-2.5 py-2 text-left text-[12.5px] transition-colors hover:bg-[rgba(233,233,237,.06)]"
         style={{ background: "rgba(233,233,237,.04)", boxShadow: "inset 0 0 0 1px var(--chromeLine)", color: "var(--chromeFaint)" }}
       >
         <MagnifyingGlass />
@@ -145,7 +145,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 href={it.href}
                 aria-current={on ? "page" : undefined}
                 className="flex items-center gap-2.5 rounded-[7px] px-2.5 py-[7px] text-[13.5px] transition-colors hover:bg-[rgba(233,233,237,.05)]"
-                style={{ background: on ? "rgba(145,132,217,.14)" : undefined, color: on ? "var(--chromeStrong)" : "var(--chromeMuted)", boxShadow: on ? "inset 2px 0 0 var(--accent)" : "none" }}
+                style={{ background: on ? "rgba(52,211,153,.14)" : undefined, color: on ? "var(--chromeStrong)" : "var(--chromeMuted)", boxShadow: on ? "inset 2px 0 0 var(--accent)" : "none" }}
               >
                 <it.icon size={16} />
                 <span className="flex-1">{it.label}</span>
@@ -159,7 +159,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Link
           href="/settings"
           className="flex items-center gap-2.5 rounded-[7px] px-2.5 py-[7px] text-[13.5px] transition-colors hover:bg-[rgba(233,233,237,.05)]"
-          style={{ background: path.startsWith("/settings") ? "rgba(145,132,217,.14)" : undefined, color: path.startsWith("/settings") ? "var(--chromeStrong)" : "var(--chromeMuted)", boxShadow: path.startsWith("/settings") ? "inset 2px 0 0 var(--accent)" : "none" }}
+          style={{ background: path.startsWith("/settings") ? "rgba(52,211,153,.14)" : undefined, color: path.startsWith("/settings") ? "var(--chromeStrong)" : "var(--chromeMuted)", boxShadow: path.startsWith("/settings") ? "inset 2px 0 0 var(--accent)" : "none" }}
         >
           <Gear size={16} />
           Settings
@@ -189,7 +189,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] min-h-screen lg:grid-cols-[232px_minmax(0,1fr)]" style={{ background: "var(--bg)", color: "var(--text)" }}>
-      <a href="#main" className="sr-only z-[70] rounded-lg text-[13px] focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:px-3 focus:py-2" style={{ background: "var(--surface)", color: "var(--text)", boxShadow: "0 0 0 2px var(--accent)" }}>Skip to content</a>
+      <a href="#main" className="sr-only z-[70] rounded-md text-[13px] focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:px-3 focus:py-2" style={{ background: "var(--surface)", color: "var(--text)", boxShadow: "0 0 0 2px var(--accent)" }}>Skip to content</a>
       <div className="no-print sticky top-0 hidden h-screen lg:block">{sidebar}</div>
       {mobileNav && (
         <div className="anim-fade fixed inset-0 z-40 lg:hidden" style={{ background: "rgba(0,0,0,.45)" }} onClick={() => setMobileNav(false)}>
@@ -200,7 +200,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main className="flex min-w-0 flex-col overflow-x-clip">
         <header
           className="no-print tb-safe-top sticky top-0 z-30 flex min-h-14 items-center gap-1.5 px-3 sm:gap-3 sm:px-5"
-          style={{ background: "color-mix(in srgb, var(--bg) 82%, transparent)", backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)", boxShadow: "0 1px 0 var(--line)" }}
+          style={{ background: "color-mix(in srgb, var(--bg) 82%, transparent)", boxShadow: "0 1px 0 var(--line)" }}
         >
           <button type="button" className="tb-btn tb-btn-ghost !p-2 lg:hidden" aria-label="Open navigation" onClick={() => setMobileNav(true)}>
             <List size={18} />
@@ -222,7 +222,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             onClick={() => setSearch(true)}
-            className="hidden min-w-[140px] flex-[0_1000_220px] cursor-pointer items-center gap-2 overflow-hidden whitespace-nowrap rounded-lg px-2.5 py-[7px] text-left text-[13px] lg:flex"
+            className="hidden min-w-[140px] flex-[0_1000_220px] cursor-pointer items-center gap-2 overflow-hidden whitespace-nowrap rounded-md px-2.5 py-[7px] text-left text-[13px] lg:flex"
             style={{ boxShadow: "inset 0 0 0 1px var(--line2)", color: "var(--faint)" }}
           >
             <MagnifyingGlass />
@@ -238,10 +238,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
           <span className="hidden sm:contents"><ThemeToggle /></span>
           <div className="relative flex-none">
-            <button type="button" aria-label={`Notifications, ${unreadAlerts} unread`} onClick={() => setBell((v) => !v)} className="relative flex h-[34px] w-[34px] cursor-pointer items-center justify-center rounded-lg text-[17px] hover:bg-[var(--accentTint)]" style={{ color: "var(--muted)" }}>
+            <button type="button" aria-label={`Notifications, ${unreadAlerts} unread`} onClick={() => setBell((v) => !v)} className="relative flex h-[34px] w-[34px] cursor-pointer items-center justify-center rounded-md text-[17px] hover:bg-[var(--accentTint)]" style={{ color: "var(--muted)" }}>
               <Bell />
               {unreadAlerts > 0 && (
-                <span className="tnum absolute right-0.5 top-[3px] rounded-lg px-1 text-[9.5px] font-semibold text-white" style={{ background: "var(--badge)" }}>
+                <span className="tnum absolute right-0.5 top-[3px] rounded-md px-1 text-[9.5px] font-semibold text-white" style={{ background: "var(--badge)" }}>
                   {unreadAlerts > 99 ? "99+" : unreadAlerts}
                 </span>
               )}
@@ -249,7 +249,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {bell && <BellMenu onClose={() => setBell(false)} onChange={refresh} />}
           </div>
           <div className="relative flex-none">
-            <button type="button" onClick={() => setUserMenu((v) => !v)} className="flex cursor-pointer items-center gap-[9px] rounded-lg py-1 pl-1 pr-1 sm:pl-3 sm:[box-shadow:-1px_0_0_var(--line)]" aria-label="Account menu">
+            <button type="button" onClick={() => setUserMenu((v) => !v)} className="flex cursor-pointer items-center gap-[9px] rounded-md py-1 pl-1 pr-1 sm:pl-3 sm:[box-shadow:-1px_0_0_var(--line)]" aria-label="Account menu">
               <span className="grid h-[30px] w-[30px] place-items-center rounded-full text-[12px] font-semibold" style={{ background: "var(--accentTint)", color: "var(--accentText)" }}>{initial}</span>
               <span className="hidden max-w-[160px] flex-col text-left text-[12.5px] leading-[1.25] xl:flex">
                 <span className="truncate font-medium">{name}</span>
@@ -277,7 +277,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Popover>
             )}
           </div>
-          <button type="button" aria-label="Sign out" title="Sign out" className="hidden h-[34px] w-[34px] flex-none cursor-pointer items-center justify-center rounded-lg text-[17px] hover:bg-[var(--accentTint)] sm:flex" style={{ color: "var(--muted)" }} onClick={signOut}>
+          <button type="button" aria-label="Sign out" title="Sign out" className="hidden h-[34px] w-[34px] flex-none cursor-pointer items-center justify-center rounded-md text-[17px] hover:bg-[var(--accentTint)] sm:flex" style={{ color: "var(--muted)" }} onClick={signOut}>
             <SignOut />
           </button>
         </header>
@@ -307,8 +307,8 @@ export function Popover({ children, onClose, width = 360, align = "right" }: { c
   return (
     <div
       ref={ref}
-      className="tb-popover anim-pop absolute top-[calc(100%+8px)] z-50 overflow-hidden rounded-[12px]"
-      style={{ [align]: 0, width, maxWidth: "calc(100vw - 24px)", background: "var(--surface)", boxShadow: "0 0 0 1px var(--line2), 0 18px 44px rgba(0,0,0,.35)" }}
+      className="tb-popover anim-pop absolute top-[calc(100%+8px)] z-50 overflow-hidden rounded-md"
+      style={{ [align]: 0, width, maxWidth: "calc(100vw - 24px)", background: "var(--surface)", boxShadow: "0 0 0 1px var(--line2)" }}
     >
       {children}
     </div>
@@ -415,8 +415,8 @@ function SearchPalette({ open, onClose, onNavigate }: { open: boolean; onClose: 
     onNavigate(href);
   };
   return (
-    <div className="anim-fade fixed inset-0 z-[65] flex justify-center px-4 pt-[12vh]" style={{ background: "color-mix(in srgb, #0b0c14 55%, transparent)", backdropFilter: "blur(3px)" }} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="anim-pop flex h-fit max-h-[70vh] w-full max-w-[600px] flex-col overflow-hidden rounded-[14px]" style={{ background: "var(--surface)", boxShadow: "0 0 0 1px var(--line2), 0 24px 60px rgba(0,0,0,.45)" }} role="dialog" aria-label="Search">
+    <div className="anim-fade fixed inset-0 z-[65] flex justify-center px-4 pt-[12vh]" style={{ background: "color-mix(in srgb, #0b0c14 55%, transparent)" }} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="anim-pop flex h-fit max-h-[70vh] w-full max-w-[600px] flex-col overflow-hidden rounded-md" style={{ background: "var(--surface)", boxShadow: "0 0 0 1px var(--line2)" }} role="dialog" aria-label="Search">
         <div className="flex items-center gap-3 px-4" style={{ boxShadow: "0 1px 0 var(--line)" }}>
           <MagnifyingGlass size={18} style={{ color: "var(--faint)" }} />
           <input

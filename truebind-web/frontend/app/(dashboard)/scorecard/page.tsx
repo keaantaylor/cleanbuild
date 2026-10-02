@@ -38,7 +38,7 @@ export default function ScorecardPage() {
   const [win, setWin] = useState("");
   const card = useApi(() => api.getScorecard(sinceDate(win)), [win]);
   return (
-    <div className="flex max-w-[1440px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-9">
+    <div className="flex max-w-[1440px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-6">
       <PageHeader
         kicker="Investigate"
         title="Sender scorecard"
@@ -55,7 +55,7 @@ export default function ScorecardPage() {
       {card.error ? (
         <ErrorState title="The scorecard could not be loaded" message={card.error} onRetry={card.reload} />
       ) : !card.data ? (
-        <div className="tb-card p-4 sm:p-6"><LoadingState label="Loading scorecard" rows={6} /></div>
+        <div className="tb-card p-4 sm:p-5"><LoadingState label="Loading scorecard" rows={6} /></div>
       ) : card.data.senders.length === 0 ? (
         <div className="tb-card"><EmptyState icon={<ChartBar />} title="No processed bordereaux yet" body="Scores appear once reports from a sender have been processed. Record the sender when uploading." /></div>
       ) : (

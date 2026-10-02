@@ -37,15 +37,13 @@ export function SiteNav() {
     // The wrapper is zero-height so the pill floats over the hero; items-start stops
     // the pill being stretched to that zero height (the pill sizes to its content).
     <>
-    <a href="#main" className="sr-only z-[70] rounded-lg text-[13px] focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:px-3 focus:py-2" style={{ background: "var(--surface)", color: "var(--text)", boxShadow: "0 0 0 2px var(--accent)" }}>Skip to content</a>
+    <a href="#main" className="sr-only z-[70] rounded-md text-[13px] focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:px-3 focus:py-2" style={{ background: "var(--surface)", color: "var(--text)", boxShadow: "0 0 0 2px var(--accent)" }}>Skip to content</a>
     <div className="no-print sticky top-[calc(20px+env(safe-area-inset-top))] z-20 flex h-0 items-start justify-center px-3 sm:px-5">
       <nav
         className="flex h-[52px] w-full max-w-max flex-none items-center gap-2 whitespace-nowrap rounded-full pl-4 pr-2 min-[375px]:gap-3 min-[375px]:pl-5 lg:gap-8"
         style={{
           background: "var(--glass)",
-          backdropFilter: "blur(24px) saturate(170%)",
-          WebkitBackdropFilter: "blur(24px) saturate(170%)",
-          boxShadow: "inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px var(--glassRing), 0 12px 32px rgba(0,0,0,.28)",
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px var(--glassRing)",
           color: "var(--chromeStrong)",
         }}
       >
@@ -66,7 +64,7 @@ export function SiteNav() {
           </Link>
           <LeadButton
             kind="demo"
-            className="flex h-9 items-center rounded-full px-4 text-[13.5px] font-medium transition-colors hover:bg-[rgba(145,132,217,.16)]"
+            className="flex h-9 items-center rounded-full px-4 text-[13.5px] font-medium transition-colors hover:bg-[rgba(52,211,153,.16)]"
             style={{ color: "var(--accentText)", boxShadow: "inset 0 0 0 1px var(--accent)" }}
           >
             Book a demo
@@ -78,11 +76,11 @@ export function SiteNav() {
       </nav>
       {open && (
         <div
-          className="anim-pop absolute left-4 right-4 top-[62px] flex flex-col rounded-2xl p-2 lg:hidden"
-          style={{ background: "var(--popover)", backdropFilter: "blur(24px)", boxShadow: "0 0 0 1px var(--glassRing), 0 16px 40px rgba(0,0,0,.35)" }}
+          className="anim-pop absolute left-4 right-4 top-[62px] flex flex-col rounded-md p-2 lg:hidden"
+          style={{ background: "var(--popover)", boxShadow: "0 0 0 1px var(--glassRing)" }}
         >
           {[...LINKS, signedIn ? ["Open TrueBind", "/overview"] : ["Sign in", "/login"]].map(([l, h]) => (
-            <a key={h} href={h} onClick={() => setOpen(false)} className="rounded-lg px-3 py-2.5 text-[14px] hover:bg-[var(--accentTint)]" style={{ color: "var(--chromeStrong)" }}>
+            <a key={h} href={h} onClick={() => setOpen(false)} className="rounded-md px-3 py-2.5 text-[14px] hover:bg-[var(--accentTint)]" style={{ color: "var(--chromeStrong)" }}>
               {l}
             </a>
           ))}

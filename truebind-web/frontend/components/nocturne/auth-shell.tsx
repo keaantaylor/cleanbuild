@@ -26,7 +26,6 @@ export function AuthShell({
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] min-h-screen lg:grid-cols-[300px_minmax(0,1fr)]" style={{ background: "var(--bg)" }}>
       <aside className="relative hidden flex-col gap-8 overflow-hidden px-7 py-7 lg:flex" style={{ background: "var(--chrome)", color: "var(--chromeText)", boxShadow: "1px 0 0 var(--chromeLine)" }}>
-        <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(420px 320px at 0% 0%, var(--heroGlowB), transparent 70%)" }} />
         <Link href="/" className="relative text-[15px]" style={{ color: "var(--chromeStrong)" }}>
           <Brand size={26} />
         </Link>
@@ -41,8 +40,8 @@ export function AuthShell({
                     type="button"
                     onClick={() => onJump?.(i)}
                     disabled={!done || !onJump}
-                    className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-[13.5px] transition-colors enabled:cursor-pointer enabled:hover:bg-[rgba(233,233,237,.05)]"
-                    style={{ background: on ? "rgba(145,132,217,.14)" : "transparent", boxShadow: on ? "inset 2px 0 0 var(--accent)" : "none", color: on ? "var(--chromeStrong)" : done ? "var(--chromeText)" : "var(--chromeFaint)" }}
+                    className="flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left text-[13.5px] transition-colors enabled:cursor-pointer enabled:hover:bg-[rgba(233,233,237,.05)]"
+                    style={{ background: on ? "rgba(52,211,153,.14)" : "transparent", boxShadow: on ? "inset 2px 0 0 var(--accent)" : "none", color: on ? "var(--chromeStrong)" : done ? "var(--chromeText)" : "var(--chromeFaint)" }}
                   >
                     <span className="tnum grid h-[22px] w-[22px] flex-none place-items-center rounded-full text-[11px]" style={{ boxShadow: done ? "none" : `inset 0 0 0 1px ${on ? "var(--accent)" : "var(--chromeLine)"}`, background: done ? "var(--ok)" : "transparent", color: done ? "#fff" : "inherit" }}>
                       {done ? <Check size={12} weight="bold" /> : i + 1}
@@ -69,7 +68,7 @@ export function AuthShell({
         </div>
       </aside>
       <main className="flex min-w-0 flex-col">
-        <header className="tb-safe-top sticky top-0 z-10 flex min-h-14 items-center gap-3 px-4 sm:px-8" style={{ background: "color-mix(in srgb, var(--bg) 82%, transparent)", backdropFilter: "blur(20px)", boxShadow: "0 1px 0 var(--line)" }}>
+        <header className="tb-safe-top sticky top-0 z-10 flex min-h-14 items-center gap-3 px-4 sm:px-8" style={{ background: "color-mix(in srgb, var(--bg) 82%, transparent)", boxShadow: "0 1px 0 var(--line)" }}>
           <Link href="/" className="tb-hit py-2 text-[14px] lg:hidden">
             <Brand size={22} />
           </Link>
@@ -105,7 +104,7 @@ export function Field({ label, id, children, hint }: { label: string; id: string
 
 export function FormError({ children }: { children: React.ReactNode }) {
   return (
-    <div role="alert" className="rounded-lg px-3.5 py-2.5 text-[13px]" style={{ background: "var(--errT)", color: "var(--err)" }}>
+    <div role="alert" className="rounded-md px-3.5 py-2.5 text-[13px]" style={{ background: "var(--errT)", color: "var(--err)" }}>
       {children}
     </div>
   );

@@ -108,7 +108,7 @@ function ModuleCard({ run, report, canWrite, onRan, extra }: { run: ModuleRun; r
       ) : list.length === 0 ? (
         <span className="text-[13px]" style={{ color: "var(--muted)" }}>{run.state === "ASSESSED" ? "No findings: every assessed row passed." : run.state === "PARTIAL" ? "No findings in the rows that could be assessed." : "No findings — nothing was assessed yet."}</span>
       ) : (
-        <ul className="m-0 flex list-none flex-col overflow-hidden rounded-[10px] p-0" style={{ boxShadow: "inset 0 0 0 1px var(--line)" }} aria-label={`${run.label} findings`}>
+        <ul className="m-0 flex list-none flex-col overflow-hidden rounded-md p-0" style={{ boxShadow: "inset 0 0 0 1px var(--line)" }} aria-label={`${run.label} findings`}>
           {list.map((f) => (
             <FindingRow key={f.id} f={f} reportId={report.id} canWrite={canWrite} onChange={findings.reload} />
           ))}

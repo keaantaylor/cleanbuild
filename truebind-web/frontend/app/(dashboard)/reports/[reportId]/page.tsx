@@ -35,8 +35,8 @@ export default function ReportPage({ params }: { params: Promise<{ reportId: str
   const complete = report?.status === "COMPLETE";
   const summary = useApi(() => (complete ? api.getReportSummary(reportId) : Promise.resolve(null)), [reportId, complete]);
 
-  if (rep.loading && !rep.data) return <div className="px-4 pt-8 sm:px-9"><LoadingState label="Loading report" rows={8} /></div>;
-  if (rep.error && !rep.data) return <div className="px-4 pt-8 sm:px-9"><ErrorState title="This report could not be loaded" message={rep.error} onRetry={rep.reload} /></div>;
+  if (rep.loading && !rep.data) return <div className="px-4 pt-8 sm:px-6"><LoadingState label="Loading report" rows={8} /></div>;
+  if (rep.error && !rep.data) return <div className="px-4 pt-8 sm:px-6"><ErrorState title="This report could not be loaded" message={rep.error} onRetry={rep.reload} /></div>;
   if (!report) return null;
 
   const st = reportStatus(report);
@@ -53,29 +53,29 @@ export default function ReportPage({ params }: { params: Promise<{ reportId: str
 
   if (IN_PROGRESS.has(report.status) || report.status === "FAILED" || report.status === "CANCELLED")
     return (
-      <div className="flex max-w-[1240px] flex-col gap-6 px-4 pb-16 pt-7 sm:px-9">
+      <div className="flex max-w-[1240px] flex-col gap-6 px-4 pb-10 pt-5 sm:px-6">
         {top}
         <ProcessingPanel report={report} system={shell.system} onCancel={IN_PROGRESS.has(report.status) ? () => void api.cancelReport(reportId).then(rep.reload) : undefined} onRetry={() => void api.retryReport(reportId).then(rep.reload).catch(rep.reload)} />
       </div>
     );
   if (report.status === "WAITING_FOR_REVIEW")
     return (
-      <div className="flex max-w-[1240px] flex-col gap-6 px-4 pb-16 pt-7 sm:px-9">
+      <div className="flex max-w-[1240px] flex-col gap-6 px-4 pb-10 pt-5 sm:px-6">
         {top}
         <div className="tb-card"><EmptyState icon={<DownloadSimple />} title="Mapping needs your review" body="The workbook has been read. Confirm each sheet’s column mapping and TrueBind will produce the Health Check." action={<Link href={`/upload?reportId=${reportId}`} className="tb-btn tb-btn-primary">Review mapping</Link>} /></div>
       </div>
     );
   if (!complete)
     return (
-      <div className="flex max-w-[1240px] flex-col gap-6 px-4 pb-16 pt-7 sm:px-9">
+      <div className="flex max-w-[1240px] flex-col gap-6 px-4 pb-10 pt-5 sm:px-6">
         {top}
-        <div className="tb-card p-4 sm:p-6 text-[14px]">This report is {report.status.toLowerCase()}. Its source file is no longer available.</div>
+        <div className="tb-card p-4 sm:p-5 text-[14px]">This report is {report.status.toLowerCase()}. Its source file is no longer available.</div>
       </div>
     );
 
   const s = summary.data;
   return (
-    <div className="flex flex-col items-center gap-6 px-4 pb-16 pt-7 sm:px-9">
+    <div className="flex flex-col items-center gap-6 px-4 pb-10 pt-5 sm:px-6">
       <div className="w-full max-w-[1100px]">{top}</div>
       {!s ? (
         summary.error ? <div className="w-full max-w-[1100px]"><ErrorState title="The summary could not be loaded" message={summary.error} onRetry={summary.reload} /></div> : <div className="w-full max-w-[1100px]"><LoadingState label="Loading summary" rows={8} /></div>
@@ -190,7 +190,7 @@ function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
         <button type="button" className="tb-btn tb-btn-primary" onClick={() => setSend(true)}><EnvelopeSimple />Send</button>
       </div>
 
-      <article className="flex w-full max-w-[1100px] flex-col gap-8 rounded-md px-6 pb-[48px] pt-[52px] sm:px-[60px]" style={{ background: "#fbfbfd", color: PAPER.text, boxShadow: "0 0 0 1px rgba(28,30,42,.08), 0 20px 50px rgba(0,0,0,.25)" }}>
+      <article className="flex w-full max-w-[1100px] flex-col gap-8 rounded-md px-6 pb-[48px] pt-[52px] sm:px-[60px]" style={{ background: "#fbfbfd", color: PAPER.text, boxShadow: "0 0 0 1px rgba(28,30,42,.08)" }}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-[9px] text-[15px] font-semibold"><Mark size={24} radius={6} />TrueBind</div>
           <div className="tnum text-right text-[12px] leading-[1.6]" style={{ color: PAPER.faint }}>
@@ -203,7 +203,7 @@ function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
         </div>
 
         <div className="flex flex-col gap-2">
-          <span className="text-[12px] font-semibold uppercase tracking-[.1em]" style={{ color: "#4a3f85" }}>Bordereau Health Check</span>
+          <span className="text-[12px] font-semibold uppercase tracking-[.1em]" style={{ color: "#047857" }}>Bordereau Health Check</span>
           <p className="m-0 text-[14px] leading-[1.6]" style={{ color: PAPER.muted }}>
             {[report.file_name, `${s.sheets_processed} of ${s.sheets_total} sheet${s.sheets_total === 1 ? "" : "s"}`, `${formatNumber(s.reconciliation.exported_rows)} claim rows`, `received ${formatDateTime(report.created_at)}`].join(" · ")}
           </p>
@@ -285,7 +285,7 @@ function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
       <Deliverables report={report} name={name} />
 
       <div className="no-print flex w-full max-w-[1100px] flex-col gap-5">
-        <div role="tablist" aria-label="Report sections" className="flex flex-wrap gap-1 rounded-[9px] p-1" style={{ background: "var(--surface)", boxShadow: "inset 0 0 0 1px var(--line)" }}>
+        <div role="tablist" aria-label="Report sections" className="flex flex-wrap gap-1 rounded-md p-1" style={{ background: "var(--surface)", boxShadow: "inset 0 0 0 1px var(--line)" }}>
           {([["owner", "Who must fix"], ["duplicates", "Duplicates"], ["money", "Money by currency"], ["mapping", "Mapping"], ["compare", "Month on month"], ["more", "Other checks & evidence"]] as const).map(([k, l]) => (
             <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className="cursor-pointer rounded-[7px] px-3 py-1.5 text-[13.5px]" style={{ background: tab === k ? "var(--accentTint)" : "transparent", color: tab === k ? "var(--text)" : "var(--muted)", fontWeight: tab === k ? 500 : 400 }}>{l}</button>
           ))}
@@ -405,7 +405,7 @@ function MappingTab({ report, s }: { report: Report; s: ReportSummary }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
-        <div className="tb-card flex flex-col gap-3 p-5">
+        <div className="tb-card flex flex-col gap-3 p-4">
           <span className="text-[14px] font-medium">Field completeness</span>
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {fields.map((f) => {
@@ -423,7 +423,7 @@ function MappingTab({ report, s }: { report: Report; s: ReportSummary }) {
           </ul>
         </div>
         <div className="flex flex-col gap-4">
-          <div className="tb-card flex flex-col gap-3 p-5">
+          <div className="tb-card flex flex-col gap-3 p-4">
             <span className="flex items-center justify-between text-[14px] font-medium">Row reconciliation <StatusPill tone={s.reconciliation.reconciles ? "ok" : "err"}>{s.reconciliation.reconciles ? "Reconciles" : "Does not reconcile"}</StatusPill></span>
             <dl className="tnum m-0 grid grid-cols-[1fr_auto] gap-y-1.5 text-[13px]">
               {([
@@ -668,7 +668,7 @@ function Lineage({ report }: { report: Report }) {
   return (
     <Section id="lineage" kicker="Lineage" title="Where every number came from" sub="The source file’s fingerprint and every recorded step, newest first. The audit trail is hash-chained.">
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-        <div className="tb-card flex flex-col gap-3 p-5">
+        <div className="tb-card flex flex-col gap-3 p-4">
           <span className="text-[14px] font-medium">Recorded steps</span>
           {audit.error ? <ErrorState title="Steps could not be loaded" message={audit.error} onRetry={audit.reload} /> : !audit.data ? <LoadingState label="Loading steps" rows={5} /> : (
             <ol className="m-0 flex list-none flex-col gap-2 p-0">
@@ -687,7 +687,7 @@ function Lineage({ report }: { report: Report }) {
           {(audit.data?.length ?? 0) > 12 && <Link href={`/audit?reportId=${report.id}`} className="text-[12.5px]" style={{ color: "var(--accentText)" }}>See all {audit.data?.length} entries →</Link>}
         </div>
         <div className="flex flex-col gap-4">
-          <div className="tb-card flex flex-col gap-3 p-5">
+          <div className="tb-card flex flex-col gap-3 p-4">
             <span className="text-[14px] font-medium">Source file</span>
             <dl className="tnum m-0 grid grid-cols-[minmax(84px,110px)_minmax(0,1fr)] [overflow-wrap:anywhere] gap-y-1.5 text-[12.5px]">
               {[
@@ -708,7 +708,7 @@ function Lineage({ report }: { report: Report }) {
               ))}
             </dl>
           </div>
-          <div id="history" className="tb-card flex flex-col gap-3 p-5">
+          <div id="history" className="tb-card flex flex-col gap-3 p-4">
             <span className="text-[14px] font-medium">Processing history</span>
             {(jobs.data ?? []).map((j) => {
               const m = (j.metrics ?? {}) as Record<string, unknown>;

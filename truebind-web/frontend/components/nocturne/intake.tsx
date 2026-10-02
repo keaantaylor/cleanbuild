@@ -36,7 +36,7 @@ export function intakeStep(report: Report | null, uploading: boolean): number {
 export function IntakeStepper({ current, failed, confirming }: { current: number; failed?: boolean; confirming?: boolean }) {
   const cur = confirming ? 4 : current;
   return (
-    <ol className="m-0 flex list-none items-center gap-2 overflow-x-auto rounded-xl px-4 py-3.5" style={{ background: "var(--surface)", boxShadow: "var(--shadow)" }} aria-label="Intake progress">
+    <ol className="m-0 flex list-none items-center gap-2 overflow-x-auto rounded-md px-4 py-3.5" style={{ background: "var(--surface)", boxShadow: "var(--shadow)" }} aria-label="Intake progress">
       {STEPS.map((s, i) => {
         const done = i < cur || (i === cur && cur === STEPS.length - 1);
         const on = i === cur && !done;
@@ -191,7 +191,7 @@ export function Dropzone({ upload, onFile, compact }: { upload: { name: string; 
         const f = e.dataTransfer.files?.[0];
         if (f && !upload) onFile(f);
       }}
-      className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[14px] px-6 text-center transition-colors ${compact ? "py-10" : "min-h-[280px] py-12"}`}
+      className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-md px-6 text-center transition-colors ${compact ? "py-10" : "min-h-[280px] py-12"}`}
       style={{ boxShadow: `inset 0 0 0 1.5px ${drag ? "var(--accent)" : "var(--line2)"}`, background: drag ? "var(--accentTint)" : "var(--surface)" }}
     >
       <input
@@ -296,7 +296,7 @@ export function ProcessingPanel({ report, system, onCancel, onRetry }: { report:
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-      <section className="tb-card flex flex-col gap-5 p-4 sm:p-6" aria-live="polite">
+      <section className="tb-card flex flex-col gap-5 p-4 sm:p-5" aria-live="polite">
         <div className="flex flex-wrap items-center gap-3">
           <FileGlyph name={report.file_name} />
           <div className="flex min-w-0 flex-1 flex-col">
@@ -344,7 +344,7 @@ export function ProcessingPanel({ report, system, onCancel, onRetry }: { report:
           </span>
         )}
       </section>
-      <section className="tb-card flex flex-col p-4 sm:p-6" aria-label="Processing stages">
+      <section className="tb-card flex flex-col p-4 sm:p-5" aria-label="Processing stages">
         <ol className="m-0 flex list-none flex-col gap-0 p-0">
           {steps.map((s, i) => {
             const state = i < idx || (i === idx && s.key === "done") ? "done" : i === idx ? "active" : "pending";
@@ -555,7 +555,7 @@ export function MappingReview({ report, sheets, onSheetsChange, onProcess, proce
             )}
           </div>
           {mapping && active && (
-            <div className="flex gap-0.5 rounded-[9px] p-[3px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }} role="tablist" aria-label="Filter fields">
+            <div className="flex gap-0.5 rounded-md p-[3px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }} role="tablist" aria-label="Filter fields">
               {(
                 [
                   ["all", "All", mapping.fields.length],

@@ -133,19 +133,19 @@ function Exceptions() {
 
   if (rl)
     return (
-      <div className="px-4 pt-8 sm:px-9">
+      <div className="px-4 pt-8 sm:px-6">
         <LoadingState label="Loading exceptions" rows={8} />
       </div>
     );
   if (rerr)
     return (
-      <div className="px-4 pt-8 sm:px-9">
+      <div className="px-4 pt-8 sm:px-6">
         <ErrorState title="Reports could not be loaded" message={rerr} onRetry={rreload} />
       </div>
     );
   if (!reportId)
     return (
-      <div className="flex max-w-[1520px] flex-col gap-5 px-4 pb-10 pt-7 sm:px-9">
+      <div className="flex max-w-[1520px] flex-col gap-5 px-4 pb-10 pt-5 sm:px-6">
         <PageHeader kicker="Investigate · Exception centre" title="Exceptions" />
         <div className="tb-card">
           <EmptyState icon={<Warning />} title="No completed reports yet" body="Exceptions appear once a bordereau has been processed." action={<Link href="/upload" className="tb-btn tb-btn-primary">Upload a bordereau</Link>} />
@@ -158,7 +158,7 @@ function Exceptions() {
   const reviewedOnPage = items.filter((e) => e.review_status && e.review_status !== "open").length;
 
   return (
-    <div className="flex max-w-[1520px] flex-col gap-5 px-4 pb-10 pt-7 sm:px-9">
+    <div className="flex max-w-[1520px] flex-col gap-5 px-4 pb-10 pt-5 sm:px-6">
       <PageHeader
         kicker="Investigate · Exception centre"
         title="Exceptions"
@@ -176,7 +176,7 @@ function Exceptions() {
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-0.5 rounded-[9px] p-[3px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }} role="tablist" aria-label="Severity">
+        <div className="flex flex-wrap gap-0.5 rounded-md p-[3px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }} role="tablist" aria-label="Severity">
           {(["", ...SEVS] as const).map((k) => (
             <button key={k || "all"} type="button" role="tab" aria-selected={severity === k} onClick={() => setFilter(() => setSeverity(k))} className="flex cursor-pointer items-center gap-[7px] rounded-[7px] px-3 py-1.5 text-[13px]" style={{ background: severity === k ? "var(--accentTint)" : "transparent", color: severity === k ? "var(--text)" : "var(--muted)" }}>
               <span className="h-1.5 w-1.5 rounded-full" style={{ background: k ? SEV[k].c : "transparent" }} />
@@ -186,7 +186,7 @@ function Exceptions() {
           ))}
         </div>
         <div className="grid w-full grid-cols-2 items-center gap-2 sm:flex sm:w-auto sm:flex-wrap">
-          <div className="col-span-2 flex items-center gap-2 rounded-lg px-2.5 sm:col-span-1" style={{ boxShadow: "inset 0 0 0 1px var(--line2)", background: "var(--surface)" }}>
+          <div className="col-span-2 flex items-center gap-2 rounded-md px-2.5 sm:col-span-1" style={{ boxShadow: "inset 0 0 0 1px var(--line2)", background: "var(--surface)" }}>
             <MagnifyingGlass size={14} style={{ color: "var(--faint)" }} />
             <input value={q} onChange={(e) => setFilter(() => setQ(e.target.value))} placeholder="Claim reference" aria-label="Search claim reference" className="h-[34px] min-w-0 flex-1 bg-transparent text-[13px] outline-none sm:w-[150px] sm:flex-none" />
           </div>
@@ -219,7 +219,7 @@ function Exceptions() {
         </div>
       </div>
 
-      <div className="flex min-h-[620px] flex-wrap overflow-hidden rounded-xl" style={{ background: "var(--surface)", boxShadow: "var(--shadow)" }}>
+      <div className="flex min-h-[620px] flex-wrap overflow-hidden rounded-md" style={{ background: "var(--surface)", boxShadow: "var(--shadow)" }}>
         <div ref={listRef} className="flex max-h-[420px] min-w-[240px] flex-[1_1_260px] flex-col overflow-y-auto overflow-x-hidden lg:max-h-[760px]" style={{ boxShadow: "1px 0 0 var(--line)" }}>
           {groups.error ? (
             <div className="p-4"><ErrorState title="Findings could not be loaded" message={groups.error} onRetry={groups.reload} /></div>
@@ -340,7 +340,7 @@ function FindingPanels({ reportId, fileName, f, onAccept, onFollowup, onDismiss,
           )}
           <p className="m-0 max-w-[640px] text-[13.5px] leading-[1.6] [text-wrap:pretty]" style={{ color: "var(--muted)" }}>{g.why}</p>
         </div>
-        <div className="overflow-hidden rounded-lg" style={{ background: "#f7f8f6", color: "#2a2f36", boxShadow: "0 0 0 1px var(--line2)" }}>
+        <div className="overflow-hidden rounded-md" style={{ background: "#f7f8f6", color: "#2a2f36", boxShadow: "0 0 0 1px var(--line2)" }}>
           <div className="flex h-[30px] items-center justify-between px-3 text-[11px]" style={{ background: "#edf0ec", borderBottom: "1px solid #dde1db", color: "#5e656d" }}>
             <span className="truncate">{fileName} › {f.sheet_name}</span>
             <span className="flex flex-none items-center gap-[5px]"><LockSimple />source · read-only</span>
@@ -388,7 +388,7 @@ function FindingPanels({ reportId, fileName, f, onAccept, onFollowup, onDismiss,
             )}
           </div>
         </div>
-        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg sm:grid-cols-3" style={{ background: "var(--line)", boxShadow: "0 0 0 1px var(--line)" }}>
+        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-md sm:grid-cols-3" style={{ background: "var(--line)", boxShadow: "0 0 0 1px var(--line)" }}>
           {[
             ["Outcome", f.status === "NOT_EVALUABLE" ? "Could not be checked" : f.status === "FAIL" ? "Failed the check" : "Needs review", sv.c],
             ["Amount at stake", formatMoney(f.amount, f.currency ?? ""), "var(--text)"],
@@ -422,7 +422,7 @@ function FindingPanels({ reportId, fileName, f, onAccept, onFollowup, onDismiss,
             </>
           )}
         </div>
-        <div className="flex flex-col gap-2 rounded-lg px-3.5 py-3 text-[12.5px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }}>
+        <div className="flex flex-col gap-2 rounded-md px-3.5 py-3 text-[12.5px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }}>
           <span className="flex items-center gap-1.5 text-[12px]" style={{ color: "var(--muted)" }}>
             <ShieldCheck style={{ color: "var(--ok)" }} />
             Evidence
@@ -431,7 +431,7 @@ function FindingPanels({ reportId, fileName, f, onAccept, onFollowup, onDismiss,
           <Link href={`/audit?reportId=${reportId}`} style={{ color: "var(--accentText)" }}>Audit trail for this report</Link>
         </div>
         {decided && (
-          <div className="anim-rise flex items-start gap-2 rounded-lg px-3 py-2.5 text-[12.5px] leading-[1.45]" style={{ background: "var(--okT)", color: "var(--ok)" }}>
+          <div className="anim-rise flex items-start gap-2 rounded-md px-3 py-2.5 text-[12.5px] leading-[1.45]" style={{ background: "var(--okT)", color: "var(--ok)" }}>
             <CheckCircle size={15} className="mt-px flex-none" />
             <span className="flex-1">{REVIEW_LABEL[f.review_status!]}{f.note ? ` — “${f.note}”` : ""}. Recorded in the audit trail. Source value unchanged.</span>
             <button type="button" title="Reopen" aria-label="Reopen this finding" className="tb-hit cursor-pointer" onClick={onReopen}>
@@ -476,7 +476,7 @@ function RecordDecision({ f, onRecord }: { f: ExceptionRow; onRecord: (review: s
       </button>
       {open && (
         <form
-          className="anim-fade flex flex-col gap-2.5 rounded-[10px] p-3"
+          className="anim-fade flex flex-col gap-2.5 rounded-md p-3"
           style={{ boxShadow: "inset 0 0 0 1px var(--line)" }}
           onSubmit={(e) => {
             e.preventDefault();
@@ -580,7 +580,7 @@ function FollowupModal({ open, onClose, reportId, f, onDone }: { open: boolean; 
           <label className="tb-label" htmlFor="fu-note">Note (optional)</label>
           <input id="fu-note" className="tb-input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} />
         </div>
-        <pre className="m-0 whitespace-pre-wrap rounded-lg px-3 py-2.5 text-[12.5px]" style={{ background: "var(--bg2)", color: "var(--muted)", fontFamily: "inherit" }}>{draft}</pre>
+        <pre className="m-0 whitespace-pre-wrap rounded-md px-3 py-2.5 text-[12.5px]" style={{ background: "var(--bg2)", color: "var(--muted)", fontFamily: "inherit" }}>{draft}</pre>
       </div>
     </Modal>
   );
@@ -689,7 +689,7 @@ function AiTriage({ reportId, onFilter }: { reportId: string; onFilter: (checkTy
                   ["Fix in the tool (ingestion / mapping)", n.ingestion_issues, "No likely ingestion issues identified."],
                   ["Query with the cedant (data quality)", n.data_issues, "No likely genuine data issues identified."],
                 ] as const).map(([h, list, none]) => (
-                  <div key={h} className="flex flex-col gap-1.5 rounded-[10px] p-4" style={{ boxShadow: "inset 0 0 0 1px var(--line)" }}>
+                  <div key={h} className="flex flex-col gap-1.5 rounded-md p-4" style={{ boxShadow: "inset 0 0 0 1px var(--line)" }}>
                     <span className="text-[13px] font-medium">{h}</span>
                     {list.length ? (
                       <ul className="m-0 flex flex-col gap-1 pl-4 text-[13px]" style={{ color: "var(--muted)" }}>{list.map((x, i) => <li key={i}>{x}</li>)}</ul>

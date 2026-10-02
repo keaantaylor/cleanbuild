@@ -39,8 +39,8 @@ export function DemoReport() {
           </p>
         </div>
 
-        <article className="flex flex-col gap-7 rounded-md px-6 pb-10 pt-9 sm:px-12" style={{ background: "#fbfbfd", color: PAPER.text, boxShadow: "0 20px 50px rgba(0,0,0,.25)" }}>
-          <span className="text-[12px] font-semibold uppercase tracking-[.1em]" style={{ color: "#4a3f85" }}>Bordereau Health Check · {demo.file_name} · {formatNumber(demo.rows)} claim rows</span>
+        <article className="flex flex-col gap-7 rounded-md px-6 pb-10 pt-9 sm:px-12" style={{ background: "#fbfbfd", color: PAPER.text, boxShadow: "0 0 0 1px var(--line)" }}>
+          <span className="text-[12px] font-semibold uppercase tracking-[.1em]" style={{ color: "#047857" }}>Bordereau Health Check · {demo.file_name} · {formatNumber(demo.rows)} claim rows</span>
           <section className="flex flex-col gap-1.5 rounded-md px-5 py-4" style={{ background: v.bg, color: v.fg }}>
             <span className="text-[28px] font-semibold leading-[1.15] tracking-[-0.02em]">{hv.verdict_label}</span>
             <span className="text-[14.5px] font-medium">{hv.verdict_reason}</span>
@@ -89,7 +89,7 @@ export function DemoReport() {
           <h2 className="m-0 text-[22px] font-medium">Download the files</h2>
           <div className="grid gap-4 md:grid-cols-3">
             {FILES.map(([title, file, body]) => (
-              <a key={file} href={`/demo/${file}`} download className="flex flex-col gap-2 rounded-xl p-5 transition-colors hover:bg-[rgba(145,132,217,.08)]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }}>
+              <a key={file} href={`/demo/${file}`} download className="flex flex-col gap-2 rounded-md p-5 transition-colors hover:bg-[rgba(52,211,153,.08)]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }}>
                 <span className="flex items-center gap-2 text-[15px] font-medium"><DownloadSimple />{title}</span>
                 <span className="text-[13.5px] leading-[1.5]" style={{ color: "var(--chromeMuted)" }}>{body}</span>
                 <span className="text-[12.5px]" style={{ color: "var(--accentText)" }}>{file}</span>
@@ -104,10 +104,10 @@ export function DemoReport() {
             <button type="button" className="tb-btn" onClick={() => setLetter((x) => !x)}>{letter ? "Hide the letter" : `Show the letter (${demo.query_letter.items} points)`}</button>
           </div>
           <p className="m-0 text-[14.5px]" style={{ color: "var(--chromeMuted)" }}>Only what the sender must fix, grouped by issue, each with its cell. Ready to paste into an email.</p>
-          {letter && <pre className="m-0 max-h-[460px] overflow-auto whitespace-pre-wrap rounded-xl p-5 text-[12.5px] leading-[1.55]" style={{ background: "var(--surface)", color: "var(--chromeText)", boxShadow: "inset 0 0 0 1px var(--line2)" }}>{`Subject: ${demo.query_letter.subject}\n\n${demo.query_letter.body}`}</pre>}
+          {letter && <pre className="m-0 max-h-[460px] overflow-auto whitespace-pre-wrap rounded-md p-5 text-[12.5px] leading-[1.55]" style={{ background: "var(--surface)", color: "var(--chromeText)", boxShadow: "inset 0 0 0 1px var(--line2)" }}>{`Subject: ${demo.query_letter.subject}\n\n${demo.query_letter.body}`}</pre>}
         </section>
 
-        <section className="flex flex-col items-start gap-3 rounded-xl p-6" style={{ background: "var(--section)" }}>
+        <section className="flex flex-col items-start gap-3 rounded-md p-6" style={{ background: "var(--section)" }}>
           <h2 className="m-0 text-[22px] font-medium">Try it on one of your own files</h2>
           <p className="m-0 text-[15px]" style={{ color: "var(--chromeText)" }}>Founding pilot: your first file is free. We return the annotated workbook, the corrected copy and the query letter.</p>
           <LeadButton kind="health" className="tb-btn tb-btn-primary">Get a free Health Check</LeadButton>

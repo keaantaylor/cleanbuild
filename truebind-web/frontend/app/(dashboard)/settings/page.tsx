@@ -20,7 +20,7 @@ function Settings() {
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  if (!me) return <div className="px-4 pt-8 sm:px-9"><LoadingState label="Loading settings" rows={6} /></div>;
+  if (!me) return <div className="px-4 pt-8 sm:px-6"><LoadingState label="Loading settings" rows={6} /></div>;
   const can = (p: string) => hasPermission(me.permissions, p);
   const tabs = [
     ...(can("org:read") ? [["organisation", "Organisation"]] : []),
@@ -36,7 +36,7 @@ function Settings() {
   const active = tabs.some(([v]) => v === requested) ? requested! : me.mfa?.setup_required ? "security" : tabs[0][0];
 
   return (
-    <div className="flex max-w-[1200px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-9">
+    <div className="flex max-w-[1200px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-6">
       <PageHeader kicker="Workspace" title="Settings" sub={`${me.tenant.name} · signed in as ${me.user.email}`} />
       <label className="sm:hidden">
         <span className="tb-label">Section</span>

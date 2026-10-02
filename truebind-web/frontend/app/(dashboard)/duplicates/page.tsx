@@ -49,11 +49,11 @@ function Duplicates() {
   const pairs = useApi(() => (reportId ? api.listDuplicates(reportId) : Promise.resolve([] as DuplicatePair[])), [reportId]);
   const summary = useApi(() => (reportId ? api.getReportSummary(reportId) : Promise.resolve(null)), [reportId]);
 
-  if (rl) return <div className="px-4 pt-8 sm:px-9"><LoadingState label="Loading duplicates" rows={8} /></div>;
-  if (rerr) return <div className="px-4 pt-8 sm:px-9"><ErrorState title="Reports could not be loaded" message={rerr} onRetry={rreload} /></div>;
+  if (rl) return <div className="px-4 pt-8 sm:px-6"><LoadingState label="Loading duplicates" rows={8} /></div>;
+  if (rerr) return <div className="px-4 pt-8 sm:px-6"><ErrorState title="Reports could not be loaded" message={rerr} onRetry={rreload} /></div>;
   if (!reportId)
     return (
-      <div className="flex max-w-[1440px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-9">
+      <div className="flex max-w-[1440px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-6">
         <PageHeader kicker="Investigate" title="Duplicate intelligence" />
         <div className="tb-card"><EmptyState icon={<Copy />} title="No completed reports yet" body="Duplicates are found when a bordereau is processed." action={<Link href="/upload" className="tb-btn tb-btn-primary">Upload a bordereau</Link>} /></div>
       </div>
@@ -90,7 +90,7 @@ function Duplicates() {
   ];
 
   return (
-    <div className="flex max-w-[1440px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-9">
+    <div className="flex max-w-[1440px] flex-col gap-6 px-4 pb-12 pt-8 sm:px-6">
       <PageHeader
         kicker="Investigate"
         title="Duplicate intelligence"
@@ -103,7 +103,7 @@ function Duplicates() {
         <StatTile label="Need a reporting period" value={formatNumber(by("repeat_period_unknown").length)} color="var(--line2)" icon={<CalendarBlank size={15} />} active={tab === "repeat_period_unknown"} onClick={() => { setTab("repeat_period_unknown"); setSel(null); }} note="Can’t be classified yet" />
         <StatTile label="Claim development" value={formatNumber(s?.development_pairs ?? 0)} color="var(--ok)" icon={<Pulse size={15} />} active={tab === "development"} onClick={() => { setTab("development"); setSel(null); }} note="Movement — not duplicates" />
       </div>
-      <div className="flex flex-wrap gap-0.5 self-start rounded-[9px] p-[3px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }} role="tablist">
+      <div className="flex flex-wrap gap-0.5 self-start rounded-md p-[3px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }} role="tablist">
         {TABS.map(([k, l, n]) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => { setTab(k); setSel(null); }} className="flex cursor-pointer items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-[13px]" style={{ background: tab === k ? "var(--accentTint)" : "transparent", color: tab === k ? "var(--text)" : "var(--muted)" }}>
             {l}
@@ -123,7 +123,7 @@ function Duplicates() {
           <EmptyState icon={<CheckCircle />} title={tab === "reviewed" || tab === "dismissed" ? "No decisions here yet" : "Nothing left to decide here"} body={tab === "reviewed" ? "Pairs you confirm or flag for the sender move here." : tab === "dismissed" ? "Pairs you mark as not a duplicate move here." : by(tab).length ? "Every pair in this category has a decision — see Reviewed and Dismissed." : "TrueBind found no pairs of this kind in the selected report."} />
         </div>
       ) : (
-        <div className="grid grid-cols-[minmax(0,1fr)] min-h-[480px] overflow-hidden rounded-xl lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]" style={{ background: "var(--surface)", boxShadow: "var(--shadow)" }}>
+        <div className="grid grid-cols-[minmax(0,1fr)] min-h-[480px] overflow-hidden rounded-md lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]" style={{ background: "var(--surface)", boxShadow: "var(--shadow)" }}>
           <div className="flex max-h-[640px] flex-col overflow-y-auto" style={{ boxShadow: "1px 0 0 var(--line)" }}>
             {current.map((p) => {
               const on = p === pair;
@@ -165,7 +165,7 @@ function Compare({ pair, onReview }: { pair: DuplicatePair; onReview: (s: string
         <h2 className="m-0 text-[22px] font-medium tracking-[-0.02em]">{String(pair.row_a.claim_reference ?? "—")} · {String(pair.row_a.insured_name ?? "")}</h2>
         <p className="m-0 max-w-[640px] text-[14px] leading-[1.6]" style={{ color: "var(--muted)" }}>{pair.detail} {g.why}</p>
       </div>
-      <div className="overflow-x-auto rounded-lg" style={{ background: "#f7f8f6", color: "#2a2f36", boxShadow: "0 0 0 1px var(--line2)" }}>
+      <div className="overflow-x-auto rounded-md" style={{ background: "#f7f8f6", color: "#2a2f36", boxShadow: "0 0 0 1px var(--line2)" }}>
         <table className="w-full min-w-[600px] border-collapse text-[12px]">
           <thead>
             <tr style={{ background: "oklch(0.96 0.02 150)" }}>
@@ -191,7 +191,7 @@ function Compare({ pair, onReview }: { pair: DuplicatePair; onReview: (s: string
         </table>
       </div>
       {pair.review_status ? (
-        <div className="flex items-center gap-2 rounded-lg px-3.5 py-2.5 text-[13px]" style={{ background: "var(--okT)", color: "var(--ok)" }}>
+        <div className="flex items-center gap-2 rounded-md px-3.5 py-2.5 text-[13px]" style={{ background: "var(--okT)", color: "var(--ok)" }}>
           <CheckCircle size={16} />
           <span className="flex-1">{REVIEW_LABEL[pair.review_status]}. Recorded in the audit trail. Change it with the buttons below.</span>
         </div>
@@ -211,7 +211,7 @@ function Development({ reportId, refs }: { reportId: string; refs: string[] }) {
   const rows = useApi(() => (ref ? api.listClaimsByRef(reportId, ref) : Promise.resolve([])), [reportId, ref]);
   if (!refs.length) return <div className="tb-card"><EmptyState icon={<Pulse />} title="No claim development in this report" body="When a claim is re-reported with a later period or changed amounts, it appears here as movement, not as a duplicate." /></div>;
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] min-h-[420px] overflow-hidden rounded-xl lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]" style={{ background: "var(--surface)", boxShadow: "var(--shadow)" }}>
+    <div className="grid grid-cols-[minmax(0,1fr)] min-h-[420px] overflow-hidden rounded-md lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]" style={{ background: "var(--surface)", boxShadow: "var(--shadow)" }}>
       <div className="flex max-h-[560px] flex-col overflow-y-auto" style={{ boxShadow: "1px 0 0 var(--line)" }}>
         {refs.map((r) => (
           <button key={r} type="button" onClick={() => setRef(r)} className="flex cursor-pointer items-center justify-between px-4 py-3 text-left transition-colors hover:bg-[var(--accentTint)]" style={{ background: r === ref ? "var(--accentTint)" : "transparent", boxShadow: r === ref ? "inset 2px 0 0 var(--accent)" : "inset 0 -1px 0 var(--line)" }}>
@@ -228,7 +228,7 @@ function Development({ reportId, refs }: { reportId: string; refs: string[] }) {
         ) : !rows.data ? (
           <LoadingState label="Loading rows" rows={4} />
         ) : (
-          <div className="overflow-x-auto rounded-lg" style={{ background: "#f7f8f6", color: "#2a2f36", boxShadow: "0 0 0 1px var(--line2)" }}>
+          <div className="overflow-x-auto rounded-md" style={{ background: "#f7f8f6", color: "#2a2f36", boxShadow: "0 0 0 1px var(--line2)" }}>
             <table className="w-full min-w-[560px] border-collapse text-[12px]">
               <thead>
                 <tr style={{ background: "oklch(0.96 0.02 150)" }}>

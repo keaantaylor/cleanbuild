@@ -130,13 +130,13 @@ export function HeroSheet({ stage: s }: { stage: number }) {
     <div ref={wrap} className="relative w-full" style={{ height: 500 * scale }} aria-label={`Bordereau workbook — stage ${STAGES[s][0]}`} role="img">
       <div style={{ position: "absolute", left: 0, top: 0, width: 760, height: 500, transform: `scale(${scale})`, transformOrigin: "0 0", perspective: 1900, perspectiveOrigin: "40% 40%" }}>
         <div style={{ position: "absolute", left: 24, top: 48, width: 706, height: 374, transformStyle: "preserve-3d", transform: TF[s], transition: `transform .7s ${ease}` }}>
-          <div style={{ position: "absolute", inset: 0, borderRadius: 10, background: "#e8eae7", boxShadow: "0 30px 60px rgba(0,0,0,.5)", transform: back2.tf, opacity: back2.op, transition: `all .6s ${ease}`, backgroundImage: grid }}>
+          <div style={{ position: "absolute", inset: 0, borderRadius: 10, background: "#e8eae7", boxShadow: "0 0 0 1px var(--line)", transform: back2.tf, opacity: back2.op, transition: `all .6s ${ease}`, backgroundImage: grid }}>
             <span style={{ position: "absolute", left: 14, bottom: 8, font: "500 10.5px var(--font-body)", color: "#4b5159", padding: "3px 8px", background: "#fafbf9", borderRadius: 4 }}>Movements</span>
           </div>
-          <div style={{ position: "absolute", inset: 0, borderRadius: 10, background: "#eef0ed", boxShadow: "0 30px 60px rgba(0,0,0,.5)", transform: back1.tf, opacity: back1.op, transition: `all .6s ${ease}`, backgroundImage: grid.replace(/#d6d9d4/g, "#dadcd7") }}>
+          <div style={{ position: "absolute", inset: 0, borderRadius: 10, background: "#eef0ed", boxShadow: "0 0 0 1px var(--line)", transform: back1.tf, opacity: back1.op, transition: `all .6s ${ease}`, backgroundImage: grid.replace(/#d6d9d4/g, "#dadcd7") }}>
             <span style={{ position: "absolute", left: 14, bottom: 8, font: "500 10.5px var(--font-body)", color: "#4b5159", padding: "3px 8px", background: "#fafbf9", borderRadius: 4 }}>Reserves</span>
           </div>
-          <div style={{ position: "absolute", inset: 0, borderRadius: 10, background: "#f7f8f6", boxShadow: "0 40px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(0,0,0,.08)", overflow: "hidden", color: "#2a2f36" }}>
+          <div style={{ position: "absolute", inset: 0, borderRadius: 10, background: "#f7f8f6", boxShadow: "0 0 0 1px rgba(15,23,42,.12), 0 0 0 1px rgba(0,0,0,.08)", overflow: "hidden", color: "#2a2f36" }}>
             <div style={{ height: 30, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px", background: "oklch(0.46 0.11 150)", color: "#eaf4ee", fontSize: 11.5, fontWeight: 500 }}>
               <div style={{ display: "flex", gap: 6 }}>
                 {[0, 1, 2].map((i) => <span key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: "rgba(255,255,255,.35)" }} />)}
@@ -173,7 +173,7 @@ export function HeroSheet({ stage: s }: { stage: number }) {
                 {row.cells.map((c, ci) => (
                   <div key={ci} className="tnum" style={{ width: c.w, flex: "none", padding: "0 7px", display: "flex", alignItems: "center", justifyContent: c.al, borderRight: "1px solid #e6e8e4", fontSize: 10.5, color: c.fg, background: c.bg, boxShadow: c.ring, fontStyle: c.fs, whiteSpace: "nowrap", overflow: "hidden", transition: "background .3s, box-shadow .6s" }}>{c.t}</div>
                 ))}
-                <div style={{ position: "absolute", right: 6, top: 3, height: 18, display: "flex", alignItems: "center", padding: "0 8px", borderRadius: 5, background: "#fff", boxShadow: `0 0 0 1px ${row.chipC}, 0 4px 10px rgba(0,0,0,.12)`, color: row.chipC, fontSize: 10, fontWeight: 500, whiteSpace: "nowrap", opacity: row.chipOp, transition: "opacity .3s" }}>{row.chip}</div>
+                <div style={{ position: "absolute", right: 6, top: 3, height: 18, display: "flex", alignItems: "center", padding: "0 8px", borderRadius: 5, background: "#fff", boxShadow: `0 0 0 1px ${row.chipC}`, color: row.chipC, fontSize: 10, fontWeight: 500, whiteSpace: "nowrap", opacity: row.chipOp, transition: "opacity .3s" }}>{row.chip}</div>
               </div>
             ))}
             {[12, 13].map((n) => (
@@ -187,7 +187,7 @@ export function HeroSheet({ stage: s }: { stage: number }) {
               <span style={{ padding: "5px 12px" }}>Movements</span>
             </div>
           </div>
-          <div style={{ position: "absolute", left: 430, top: 196, width: 300, padding: "16px 18px", borderRadius: 14, background: "rgba(27,29,43,.92)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.1), 0 0 0 1px rgba(145,132,217,.35), 0 30px 60px rgba(0,0,0,.55), 0 0 40px rgba(145,132,217,.12)", color: "#e9e9ed", display: "flex", flexDirection: "column", gap: 12, transform: audit.tf, opacity: audit.op, transition: `all .55s ${ease}` }}>
+          <div style={{ position: "absolute", left: 430, top: 196, width: 300, padding: "16px 18px", borderRadius: 14, background: "rgba(27,29,43,.92)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.1), 0 0 0 1px rgba(52,211,153,.35), 0 0 40px rgba(52,211,153,.12)", color: "#e9e9ed", display: "flex", flexDirection: "column", gap: 12, transform: audit.tf, opacity: audit.op, transition: `all .55s ${ease}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
               <span style={{ fontSize: 13, fontWeight: 500 }}>Evidence · run 7F3A</span>
               <span style={{ fontSize: 10.5, color: "#9397ab" }}>28 Sep 09:14</span>

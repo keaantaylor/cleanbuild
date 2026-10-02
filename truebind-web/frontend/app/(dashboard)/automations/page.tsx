@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, CalendarBlank, EnvelopeSimple, Lightning, PaperPlaneTilt, Warning } from "@phosphor-icons/react";
+import { ArrowRight, EnvelopeSimple, Lightning, PaperPlaneTilt, Warning } from "@phosphor-icons/react";
 import { api } from "@/lib/api";
 import type { Channel, ChannelStatus } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
@@ -17,9 +17,9 @@ const STATUS: Record<ChannelStatus, { label: string; tone: "ok" | "med" | "warn"
 function Card({ icon: Icon, title, state, what, today, action }: { icon: React.ElementType; title: string; state: { label: string; tone: "ok" | "med" | "warn" | "muted" }; what: string; today: string; action?: React.ReactNode }) {
   const live = state.tone === "ok";
   return (
-    <article className="flex flex-col gap-3 rounded-[12px] p-5" style={{ background: live ? "color-mix(in srgb, var(--ok) 6%, var(--surface))" : "var(--surface)", boxShadow: live ? "var(--shadow), inset 0 0 0 1px color-mix(in srgb, var(--ok) 40%, transparent)" : "var(--shadow)" }}>
+    <article className="flex flex-col gap-3 rounded-md p-5" style={{ background: live ? "color-mix(in srgb, var(--ok) 6%, var(--surface))" : "var(--surface)", boxShadow: live ? "var(--shadow), inset 0 0 0 1px color-mix(in srgb, var(--ok) 40%, transparent)" : "var(--shadow)" }}>
       <span className="flex items-center justify-between gap-2">
-        <span className="grid h-10 w-10 place-items-center rounded-[10px] text-[18px]" style={{ background: "var(--accentTint)", color: "var(--accentText)" }}>
+        <span className="grid h-10 w-10 place-items-center rounded-md text-[18px]" style={{ background: "var(--accentTint)", color: "var(--accentText)" }}>
           <Icon />
         </span>
         <StatusPill tone={state.tone}>{state.label}</StatusPill>
@@ -52,8 +52,8 @@ function ChannelList({ items }: { items: Channel[] }) {
 
 export default function AutomationsPage() {
   const { data, error, loading, reload } = useApi(() => api.channels());
-  if (loading && !data) return <div className="px-4 pt-8 sm:px-9"><LoadingState label="Loading automations" rows={8} /></div>;
-  if (error || !data) return <div className="px-4 pt-8 sm:px-9"><ErrorState title="Automations could not be loaded" message={error} onRetry={reload} /></div>;
+  if (loading && !data) return <div className="px-4 pt-8 sm:px-6"><LoadingState label="Loading automations" rows={8} /></div>;
+  if (error || !data) return <div className="px-4 pt-8 sm:px-6"><ErrorState title="Automations could not be loaded" message={error} onRetry={reload} /></div>;
 
   const email = data.inbound.find((c) => c.id === "email");
   const out = Object.fromEntries(data.outbound.map((c) => [c.id, c])) as Record<string, Channel | undefined>;
@@ -61,7 +61,7 @@ export default function AutomationsPage() {
   const sftpAuto = out.sftp_out?.status === "active" && /automatic/.test(out.sftp_out.detail);
 
   return (
-    <div className="flex max-w-[1440px] flex-col gap-7 px-4 pb-12 pt-8 sm:px-9">
+    <div className="flex max-w-[1440px] flex-col gap-7 px-4 pb-12 pt-8 sm:px-6">
       <PageHeader kicker="Deliver" title="Automations" sub="How bordereaux reach TrueBind, what happens to them, and where results go. Every status here comes from your server: live channels work today; anything not built is shown as planned, never as working." />
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))" }}>
         <Card
@@ -92,7 +92,7 @@ export default function AutomationsPage() {
         <ol className="m-0 flex list-none flex-wrap items-center gap-2 p-0">
           {data.pipeline.map((s, i) => (
             <li key={s} className="flex items-center gap-2">
-              <span className="flex items-center gap-2 rounded-lg px-3 py-2 text-[13px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }}>
+              <span className="flex items-center gap-2 rounded-md px-3 py-2 text-[13px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }}>
                 <span className="tnum text-[11px]" style={{ color: "var(--faint)" }}>{String(i + 1).padStart(2, "0")}</span>
                 {s}
               </span>
@@ -117,27 +117,6 @@ export default function AutomationsPage() {
         </section>
       </div>
 
-      <section className="flex flex-col gap-3">
-        <span className="text-[15px] font-medium">Planned</span>
-        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))" }}>
-          {[
-            [CalendarBlank, "Deadline reminders", "Email the team before carrier deadlines when a file isn’t ready."],
-            [PaperPlaneTilt, "Scheduled delivery", "Send outputs to agreed recipients on a schedule."],
-            [Warning, "Rule-based routing", "Assign findings automatically by sender, check or severity."],
-          ].map(([I, t, d]) => {
-            const Icon = I as React.ElementType;
-            return (
-              <div key={t as string} className="flex items-start gap-3 rounded-[12px] p-4" style={{ boxShadow: "inset 0 0 0 1px var(--line)" }}>
-                <Icon size={18} style={{ color: "var(--faint)", flex: "none", marginTop: 2 }} />
-                <span className="flex flex-col gap-1">
-                  <span className="flex items-center gap-2 text-[13.5px] font-medium">{t as string}<StatusPill tone="muted">Planned</StatusPill></span>
-                  <span className="text-[12.5px]" style={{ color: "var(--muted)" }}>{d as string} Not built yet.</span>
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </section>
     </div>
   );
 }

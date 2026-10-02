@@ -50,7 +50,7 @@ export function PricingPage() {
         </div>
         <div className="grid gap-5 md:grid-cols-3">
           {PLANS.map((p) => (
-            <div key={p.name} className="flex flex-col gap-4 rounded-xl p-6" style={{ background: p.highlight ? "var(--section)" : "transparent", boxShadow: p.highlight ? "inset 0 0 0 1px var(--accent)" : "inset 0 0 0 1px var(--line2)" }}>
+            <div key={p.name} className="flex flex-col gap-4 rounded-md p-6" style={{ background: p.highlight ? "var(--section)" : "transparent", boxShadow: p.highlight ? "inset 0 0 0 1px var(--accent)" : "inset 0 0 0 1px var(--line2)" }}>
               <span className="text-[15px] font-medium" style={{ color: p.highlight ? "var(--accentText)" : "var(--chromeStrong)" }}>{p.name}</span>
               <div className="flex items-baseline gap-2">
                 <span className="tnum text-[34px] font-medium tracking-[-0.02em]">{p.price}</span>

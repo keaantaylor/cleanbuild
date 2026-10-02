@@ -23,7 +23,7 @@ export function Recommendations({ items, reportId, showFile }: { items: Recommen
         const rid = r.report_id ?? reportId;
         const href = r.target && rid ? TARGET_HREF[r.target]?.(rid) : undefined;
         return (
-          <li key={`${rid}-${r.id}`} className="flex flex-col gap-1 rounded-[10px] px-3.5 py-3" style={{ boxShadow: "inset 0 0 0 1px var(--line)" }}>
+          <li key={`${rid}-${r.id}`} className="flex flex-col gap-1 rounded-md px-3.5 py-3" style={{ boxShadow: "inset 0 0 0 1px var(--line)" }}>
             <span className="flex flex-wrap items-center gap-2 text-[13.5px] font-medium">
               <StatusPill tone={SEV[r.severity]?.tone ?? "muted"}>{SEV[r.severity]?.label ?? r.severity}</StatusPill>
               {r.title}

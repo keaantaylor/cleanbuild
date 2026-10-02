@@ -7,100 +7,103 @@
    (TrueBind Prototype.dc.html, `.tb` block). The theme lives on <html
    data-theme>, so every page — site, onboarding and app — follows the toggle.
    ───────────────────────────────────────────────────────────────────────── */
+/* TrueBind theme (round 2): a restrained palette. Dark navy ground, white and
+   slate text, ONE accent (the logo's mint green), amber and red only for
+   severity. No gradients, no glass, no drop shadows: 1px borders. */
 :root,
 [data-theme="dark"] {
-  --bg: #161826;
-  --bg2: #1b1d2b;
-  --surface: #1f2130;
-  --surface2: #262838;
-  --line: rgba(233, 233, 237, 0.08);
-  --line2: rgba(233, 233, 237, 0.15);
-  --text: #e9e9ed;
-  --muted: #9397ab;
-  --faint: #8b8fa2;
-  --accent: #9184d9;
-  --accentText: #d2cefd;
-  --accentTint: rgba(145, 132, 217, 0.14);
-  --ok: oklch(0.76 0.12 155);
-  --okT: oklch(0.76 0.12 155 / 0.14);
-  --warn: oklch(0.81 0.12 75);
-  --warnT: oklch(0.81 0.12 75 / 0.14);
-  --err: oklch(0.72 0.15 25);
-  --errT: oklch(0.72 0.15 25 / 0.15);
-  --med: oklch(0.75 0.08 255);
-  --medT: oklch(0.75 0.08 255 / 0.15);
-  --na: #4a4d5c;
-  --shadow: 0 0 0 1px #3f424d;
-  --accentSolid: #9184d9;
-  --onAccent: #161826;
-  --badge: #c8473a;
+  --bg: #0f172a;
+  --bg2: #111b31;
+  --surface: #131d33;
+  --surface2: #1a253d;
+  --line: rgba(148, 163, 184, 0.14);
+  --line2: rgba(148, 163, 184, 0.26);
+  --text: #f1f5f9;
+  --muted: #a3b0c2;
+  --faint: #8a98ad;
+  --accent: #34d399;
+  --accentText: #6fe3c1;
+  --accentTint: rgba(52, 211, 153, 0.1);
+  --ok: #34d399;
+  --okT: rgba(52, 211, 153, 0.12);
+  --warn: #fbbf24;
+  --warnT: rgba(251, 191, 36, 0.12);
+  --err: #f87171;
+  --errT: rgba(248, 113, 113, 0.13);
+  --med: #93c5fd;
+  --medT: rgba(147, 197, 253, 0.12);
+  --na: #475569;
+  --shadow: 0 0 0 1px var(--line);
+  --accentSolid: #10b981;
+  --onAccent: #04261a;
+  --badge: #ef4444;
 
-  /* Chrome that the prototype keeps dark (sidebar, marketing site). */
-  --chrome: #12131e;
-  --chromeText: #cfd3e5;
-  --chromeStrong: #e9e9ed;
-  --chromeMuted: #b2b6ca;
-  --chromeFaint: #808493;
-  --chromeLine: rgba(233, 233, 237, 0.06);
-  --glass: rgba(35, 37, 50, 0.55);
-  --glassRing: rgba(233, 233, 237, 0.1);
-  --kicker: #b5abfc;
-  --heroGlowA: rgba(62, 120, 96, 0.14);
-  --heroGlowB: rgba(38, 42, 96, 0.55);
-  --section: #262a60;
-  --sectionGlow: #353b80;
-  --popover: rgba(35, 37, 50, 0.92);
+  /* Chrome (sidebar, marketing site): the same navy, a step darker. */
+  --chrome: #0b1324;
+  --chromeText: #cbd5e1;
+  --chromeStrong: #f8fafc;
+  --chromeMuted: #a3b0c2;
+  --chromeFaint: #8a98ad;
+  --chromeLine: rgba(148, 163, 184, 0.12);
+  --glass: #0f172a;
+  --glassRing: rgba(148, 163, 184, 0.22);
+  --kicker: #6fe3c1;
+  --heroGlowA: transparent;
+  --heroGlowB: transparent;
+  --section: #111b31;
+  --sectionGlow: transparent;
+  --popover: #131d33;
   color-scheme: dark;
 }
 
 [data-theme="light"] {
-  --bg: #f4f5fa;
-  --bg2: #eceef6;
-  --surface: #fcfcfe;
-  --surface2: #f1f2f8;
-  --line: rgba(28, 30, 42, 0.08);
-  --line2: rgba(28, 30, 42, 0.15);
-  --text: #1c1e2a;
-  --muted: #595d6c;
-  --faint: #676b7e;
-  --accent: #796cbf;
-  --accentText: #5d5294;
-  --accentTint: rgba(121, 108, 191, 0.1);
-  --ok: oklch(0.5 0.11 155);
-  --okT: oklch(0.5 0.11 155 / 0.1);
-  --warn: oklch(0.54 0.12 65);
-  --warnT: oklch(0.75 0.13 75 / 0.18);
-  --err: oklch(0.54 0.17 25);
-  --errT: oklch(0.6 0.17 25 / 0.1);
-  --med: oklch(0.5 0.1 255);
-  --medT: oklch(0.5 0.1 255 / 0.1);
-  --na: #b2b6ca;
-  --shadow: 0 0 0 1px rgba(28, 30, 42, 0.08), 0 1px 2px rgba(28, 30, 42, 0.05);
-  --accentSolid: #6e61b3;
+  --bg: #f8fafc;
+  --bg2: #f1f5f9;
+  --surface: #ffffff;
+  --surface2: #f1f5f9;
+  --line: rgba(15, 23, 42, 0.1);
+  --line2: rgba(15, 23, 42, 0.18);
+  --text: #0f172a;
+  --muted: #475569;
+  --faint: #5b6b80;
+  --accent: #059669;
+  --accentText: #047857;
+  --accentTint: rgba(5, 150, 105, 0.08);
+  --ok: #047857;
+  --okT: rgba(4, 120, 87, 0.1);
+  --warn: #b45309;
+  --warnT: rgba(217, 119, 6, 0.12);
+  --err: #b91c1c;
+  --errT: rgba(220, 38, 38, 0.09);
+  --med: #1d4ed8;
+  --medT: rgba(29, 78, 216, 0.08);
+  --na: #94a3b8;
+  --shadow: 0 0 0 1px var(--line);
+  --accentSolid: #059669;
   --onAccent: #ffffff;
 
-  --chrome: #ecedf5;
-  --chromeText: #3f424d;
-  --chromeStrong: #1c1e2a;
-  --chromeMuted: #595d6c;
-  --chromeFaint: #676b7e;
-  --chromeLine: rgba(28, 30, 42, 0.08);
-  --glass: rgba(252, 252, 254, 0.7);
-  --glassRing: rgba(28, 30, 42, 0.1);
-  --kicker: #5d5294;
-  --heroGlowA: rgba(62, 160, 110, 0.1);
-  --heroGlowB: rgba(121, 108, 191, 0.16);
-  --section: #e7e5fe;
-  --sectionGlow: #d2cefd;
-  --popover: rgba(252, 252, 254, 0.96);
+  --chrome: #f1f5f9;
+  --chromeText: #334155;
+  --chromeStrong: #0f172a;
+  --chromeMuted: #475569;
+  --chromeFaint: #5b6b80;
+  --chromeLine: rgba(15, 23, 42, 0.1);
+  --glass: #ffffff;
+  --glassRing: rgba(15, 23, 42, 0.14);
+  --kicker: #047857;
+  --heroGlowA: transparent;
+  --heroGlowB: transparent;
+  --section: #ecfdf5;
+  --sectionGlow: transparent;
+  --popover: #ffffff;
   color-scheme: light;
 
   /* Nocturne base tokens follow the theme too. */
-  --color-bg: #f4f5fa;
-  --color-surface: #fcfcfe;
-  --color-text: #1c1e2a;
-  --color-accent: #796cbf;
-  --color-divider: color-mix(in srgb, #1c1e2a 14%, transparent);
+  --color-bg: #f8fafc;
+  --color-surface: #ffffff;
+  --color-text: #0f172a;
+  --color-accent: #059669;
+  --color-divider: rgba(15, 23, 42, 0.12);
 }
 
 /* Colours are used as var(--token) directly (the prototype's own naming) rather
@@ -137,7 +140,7 @@ a {
 }
 .fade-rule {
   height: 1px;
-  background: linear-gradient(to right, transparent, var(--line2) 48px, var(--line2) calc(100% - 48px), transparent);
+  background: var(--line);
 }
 .hatch {
   background: repeating-linear-gradient(45deg, var(--muted) 0 2px, transparent 2px 4px);
@@ -153,8 +156,8 @@ a {
   cursor: pointer;
   font-size: 13.5px;
   line-height: 1.2;
-  padding: 9px 14px;
-  border-radius: 8px;
+  padding: 7px 12px;
+  border-radius: 6px;
   color: var(--text);
   box-shadow: inset 0 0 0 1px var(--line2);
   background: transparent;
@@ -195,14 +198,14 @@ a {
 
 .tb-input {
   width: 100%;
-  min-height: 38px;
-  padding: 8px 11px;
+  min-height: 34px;
+  padding: 6px 10px;
   font: inherit;
   font-size: 14px;
   color: var(--text);
   caret-color: var(--accent);
   background: var(--surface);
-  border-radius: 8px;
+  border-radius: 6px;
   border: 0;
   box-shadow: inset 0 0 0 1px var(--line2);
   outline: none;
@@ -234,7 +237,7 @@ select.tb-input {
 }
 
 .tb-card {
-  border-radius: 10px;
+  border-radius: 6px;
   background: var(--surface);
   box-shadow: var(--shadow);
 }
@@ -244,8 +247,8 @@ select.tb-input {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  padding: 3px 9px;
-  border-radius: 999px;
+  padding: 2px 8px;
+  border-radius: 4px;
   white-space: nowrap;
 }
 .tb-pill::before {

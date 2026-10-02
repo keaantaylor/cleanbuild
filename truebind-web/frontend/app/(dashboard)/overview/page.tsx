@@ -32,13 +32,13 @@ export default function OverviewPage() {
 
   if (loading && !o)
     return (
-      <div className="px-4 pt-8 sm:px-9">
+      <div className="px-4 pt-8 sm:px-6">
         <LoadingState label="Loading overview" rows={8} />
       </div>
     );
   if (error && !o)
     return (
-      <div className="px-4 pt-8 sm:px-9">
+      <div className="px-4 pt-8 sm:px-6">
         <ErrorState title="The overview could not be loaded" message={error} onRetry={reload} />
       </div>
     );
@@ -52,7 +52,7 @@ export default function OverviewPage() {
   const due = dueDates(obligations.data);
 
   return (
-    <div className="flex max-w-[1440px] flex-col gap-5 px-4 pb-10 pt-6 sm:px-9">
+    <div className="flex max-w-[1440px] flex-col gap-5 px-4 pb-10 pt-6 sm:px-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
           <span className="kicker">{today}</span>

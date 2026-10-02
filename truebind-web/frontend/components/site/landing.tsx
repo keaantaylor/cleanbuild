@@ -51,7 +51,6 @@ export function Landing() {
       {/* Side by side from 1024px; the headline and the workbook both scale with
           the viewport (clamp + HeroSheet's own fit-to-width), stacking only below lg. */}
       <section id="main" className="relative mx-auto grid max-w-[1320px] items-start gap-10 px-4 pb-[72px] pt-[120px] sm:px-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-[clamp(24px,3vw,48px)] lg:px-[clamp(32px,3.5vw,48px)] lg:pt-[clamp(110px,11vh,150px)]">
-        <div className="pointer-events-none absolute inset-y-0 -left-[50vw] -right-[50vw]" style={{ background: "radial-gradient(760px 520px at 60% 40%, var(--heroGlowA), transparent 70%), radial-gradient(640px 420px at 31% 0%, var(--heroGlowB), transparent 70%)" }} />
         <div className="relative flex max-w-[560px] flex-col gap-[clamp(16px,2vw,24px)] lg:max-w-[460px] lg:pt-[clamp(8px,3vh,40px)]">
           <span className={kicker} style={{ color: "var(--kicker)" }}>For coverholders, MGAs and TPAs</span>
           <h1 className="m-0 text-[clamp(38px,4.1vw,58px)] font-medium leading-[1.04] tracking-[-0.035em] [text-wrap:balance]">Send bordereaux that don’t come back.</h1>
@@ -59,10 +58,10 @@ export function Landing() {
             TrueBind checks your claims bordereau before it goes to the managing agent or insurer. You get your own workbook back with every problem marked, a corrected copy of the safe fixes, and a ready-to-send query letter for the rest.
           </p>
           <div className="flex flex-wrap gap-2.5">
-            <LeadButton kind="health" className="whitespace-nowrap rounded-lg px-[18px] py-[13px] text-[14.5px] font-medium transition-colors hover:bg-[rgba(145,132,217,.22)]" style={{ color: "var(--accentText)", background: "rgba(145,132,217,.12)", boxShadow: "inset 0 0 0 1px var(--accent), 0 0 24px rgba(145,132,217,.18)" }}>
+            <LeadButton kind="health" className="whitespace-nowrap rounded-md px-[18px] py-[13px] text-[14.5px] font-medium transition-colors hover:bg-[rgba(52,211,153,.22)]" style={{ color: "var(--accentText)", background: "rgba(52,211,153,.12)", boxShadow: "inset 0 0 0 1px var(--accent), 0 0 24px rgba(52,211,153,.18)" }}>
               Get a free Health Check
             </LeadButton>
-            <Link href="/demo" className="whitespace-nowrap rounded-lg px-4 py-[13px] text-[14.5px] font-medium transition-colors hover:bg-[rgba(233,233,237,.06)]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }}>
+            <Link href="/demo" className="whitespace-nowrap rounded-md px-4 py-[13px] text-[14.5px] font-medium transition-colors hover:bg-[rgba(233,233,237,.06)]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }}>
               See a sample report
             </Link>
           </div>
@@ -78,17 +77,17 @@ export function Landing() {
             <span className={`${kicker} whitespace-nowrap`} style={{ color: "var(--kicker)" }}>{STAGES[stage][0]}</span>
             <span className="text-[14.5px]" style={{ color: "var(--chromeText)" }}>{STAGES[stage][1]}</span>
           </div>
-          <div className="grid grid-cols-3 gap-1 rounded-xl p-[5px] xl:grid-cols-6" style={{ background: "var(--glass)", backdropFilter: "blur(20px) saturate(160%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.1), 0 0 0 1px var(--glassRing)" }}>
+          <div className="grid grid-cols-3 gap-1 rounded-md p-[5px] xl:grid-cols-6" style={{ background: "var(--glass)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.1), 0 0 0 1px var(--glassRing)" }}>
             {STAGES.map(([label], i) => (
               <button
                 key={label}
                 type="button"
                 onClick={() => setStage(i)}
                 aria-pressed={i === stage}
-                className="flex min-w-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2.5 text-[13px] font-medium"
+                className="flex min-w-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-md px-3 py-2.5 text-[13px] font-medium"
                 style={{
-                  background: i === stage ? "rgba(145,132,217,.16)" : "transparent",
-                  boxShadow: i === stage ? "inset 0 0 0 1px rgba(145,132,217,.5)" : "none",
+                  background: i === stage ? "rgba(52,211,153,.16)" : "transparent",
+                  boxShadow: i === stage ? "inset 0 0 0 1px rgba(52,211,153,.5)" : "none",
                   color: i === stage ? "var(--chromeStrong)" : i < stage ? "var(--chromeMuted)" : "var(--faint)",
                   transition: "background .5s, color .5s, box-shadow .5s",
                 }}
@@ -114,7 +113,7 @@ export function Landing() {
                 <span className="font-medium">{s.name}</span>
                 <span style={{ color: "var(--faint)" }}>{s.fmt}</span>
               </div>
-              <div className="overflow-hidden rounded-lg" style={{ background: "#f7f8f6", color: "#2a2f36", boxShadow: "0 20px 40px rgba(0,0,0,.3)" }}>
+              <div className="overflow-hidden rounded-md" style={{ background: "#f7f8f6", color: "#2a2f36", boxShadow: "0 0 0 1px var(--line)" }}>
                 <div className="grid" style={{ gridTemplateColumns: "repeat(4,minmax(0,1fr))", background: "oklch(0.96 0.02 150)", borderBottom: "1px solid #d5d9d3" }}>
                   {s.h.map((hh) => (
                     <div key={hh} className="overflow-hidden whitespace-nowrap px-2 py-[7px] text-[10.5px] font-semibold" style={{ borderRight: "1px solid #e1e4df" }}>{hh}</div>
@@ -135,7 +134,7 @@ export function Landing() {
         <div className="flex flex-wrap items-center gap-2.5 pt-3">
           {LOOP.map((t, i) => (
             <div key={t} className="flex items-center gap-2.5">
-              <span className="whitespace-nowrap rounded-lg px-3 py-2 text-[13.5px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)", color: "var(--chromeText)" }}>{t}</span>
+              <span className="whitespace-nowrap rounded-md px-3 py-2 text-[13.5px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)", color: "var(--chromeText)" }}>{t}</span>
               {i < LOOP.length - 1 && <ArrowRight size={14} style={{ color: "var(--chromeFaint)" }} />}
             </div>
           ))}
@@ -168,13 +167,13 @@ export function Landing() {
         <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))", borderTop: "1px solid var(--accent)" }}>
           {STEPS.map((p) => (
             <div key={p.n} className="flex flex-col gap-3 pb-6 pr-6 pt-6">
-              <span className="-mt-[29px] mb-2 h-[9px] w-[9px] rounded-full" style={{ background: "var(--accent)", boxShadow: "0 0 12px rgba(145,132,217,.6)" }} />
+              <span className="-mt-[29px] mb-2 h-[9px] w-[9px] rounded-full" style={{ background: "var(--accent)", boxShadow: "0 0 12px rgba(52,211,153,.6)" }} />
               <div className="flex items-baseline gap-2.5">
                 <span className="tnum text-[12px]" style={{ color: "var(--faint)" }}>{p.n}</span>
                 <span className="text-[22px] font-medium tracking-[-0.015em]">{p.name}</span>
               </div>
               <p className="m-0 text-[14px] leading-[1.6] [text-wrap:pretty]" style={{ color: "var(--chromeMuted)" }}>{p.d}</p>
-              <div className="flex flex-col gap-1.5 rounded-lg px-3.5 py-3" style={{ background: "var(--bg2)", boxShadow: "0 0 0 1px var(--line)" }}>
+              <div className="flex flex-col gap-1.5 rounded-md px-3.5 py-3" style={{ background: "var(--bg2)", boxShadow: "0 0 0 1px var(--line)" }}>
                 {p.ev.map(([t, col]) => (
                   <div key={t} className="tnum flex items-center gap-2 text-[12px]" style={{ color: "var(--chromeText)" }}>
                     <span className="h-1.5 w-1.5 flex-none rounded-full" style={{ background: col }} />
@@ -197,7 +196,7 @@ export function Landing() {
             <span className={kicker} style={{ color: "var(--kicker)" }}>Product</span>
             <h2 className={h2}>The application, not an illustration of it.</h2>
           </div>
-          <Link href="/overview" className="whitespace-nowrap rounded-lg px-4 py-[11px] text-[14px] font-medium transition-colors hover:bg-[rgba(145,132,217,.16)]" style={{ color: "var(--accentText)", boxShadow: "inset 0 0 0 1px var(--accent)" }}>
+          <Link href="/overview" className="whitespace-nowrap rounded-md px-4 py-[11px] text-[14px] font-medium transition-colors hover:bg-[rgba(52,211,153,.16)]" style={{ color: "var(--accentText)", boxShadow: "inset 0 0 0 1px var(--accent)" }}>
             Open the product →
           </Link>
         </div>
@@ -210,8 +209,8 @@ export function Landing() {
                 aria-selected={i === shot}
                 type="button"
                 onClick={() => setShot(i)}
-                className="flex min-w-[min(240px,72vw)] snap-start cursor-pointer flex-col gap-[3px] rounded-lg px-3.5 py-3 text-left lg:min-w-0"
-                style={{ background: i === shot ? "rgba(145,132,217,.10)" : "transparent", boxShadow: i === shot ? "inset 2px 0 0 var(--accent)" : "none" }}
+                className="flex min-w-[min(240px,72vw)] snap-start cursor-pointer flex-col gap-[3px] rounded-md px-3.5 py-3 text-left lg:min-w-0"
+                style={{ background: i === shot ? "rgba(52,211,153,.10)" : "transparent", boxShadow: i === shot ? "inset 2px 0 0 var(--accent)" : "none" }}
               >
                 <span className="text-[14.5px] font-medium" style={{ color: i === shot ? "var(--chromeStrong)" : "var(--chromeText)" }}>{label}</span>
                 <span className="text-[12.5px] leading-[1.45]" style={{ color: "var(--muted)" }}>{d}</span>
@@ -220,19 +219,19 @@ export function Landing() {
           </div>
           <Link
             href={SHOTS[shot][3]}
-            className="group block rounded-[14px] p-2.5"
-            style={{ background: "var(--glass)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px var(--glassRing), 0 40px 80px rgba(0,0,0,.35)" }}
+            className="group block rounded-md p-2.5"
+            style={{ background: "var(--glass)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px var(--glassRing)" }}
             aria-label={`Open ${SHOTS[shot][0]} in the product`}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img key={shot} src={SHOTS[shot][2]} alt={`TrueBind ${SHOTS[shot][0]}`} className="anim-fade w-full rounded-lg transition-opacity group-hover:opacity-95" />
+            <img key={shot} src={SHOTS[shot][2]} alt={`TrueBind ${SHOTS[shot][0]}`} className="anim-fade w-full rounded-md transition-opacity group-hover:opacity-95" />
           </Link>
         </div>
         <span className="text-[12px]" style={{ color: "var(--faint)" }}>Current TrueBind build, captured September 2026. Sign in to open it.</span>
       </section>
 
       {/* ── Health Check ─────────────────────────────────────────────────── */}
-      <section id="health" className="scroll-mt-16" style={{ background: "var(--section)", backgroundImage: "radial-gradient(800px 400px at 80% 0%, var(--sectionGlow), transparent 70%)" }}>
+      <section id="health" className="scroll-mt-16" style={{ background: "var(--section)", borderTop: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }}>
         <span id="trust" className="absolute scroll-mt-16" />
         <div className="mx-auto flex max-w-[1320px] flex-wrap items-center justify-between gap-12 px-4 py-20 sm:px-12">
           <div className="flex max-w-[560px] flex-[1_1_420px] flex-col gap-[18px]">
@@ -242,7 +241,7 @@ export function Landing() {
               A clear verdict (ready to submit, or fix first), the top fixes ranked by money at risk, your workbook annotated cell by cell, a corrected copy and a query letter for the sender. First file free.
             </p>
             <div className="flex flex-wrap gap-2.5">
-              <LeadButton kind="health" className="whitespace-nowrap rounded-lg px-[18px] py-[13px] text-[14.5px] font-medium transition-colors hover:bg-[rgba(245,244,255,.08)]" style={{ boxShadow: "inset 0 0 0 1px var(--accentText)" }}>
+              <LeadButton kind="health" className="whitespace-nowrap rounded-md px-[18px] py-[13px] text-[14.5px] font-medium transition-colors hover:bg-[rgba(245,244,255,.08)]" style={{ boxShadow: "inset 0 0 0 1px var(--accentText)" }}>
                 Get a free Health Check
               </LeadButton>
               <Link href="/demo" className="whitespace-nowrap px-1.5 py-[13px] text-[14.5px]" style={{ color: "var(--accentText)" }}>

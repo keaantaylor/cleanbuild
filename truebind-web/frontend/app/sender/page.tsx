@@ -27,7 +27,7 @@ function submissionStatus(s: string): { label: string; tone: Tone } {
 
 function Count({ n, label, bad }: { n: number; label: string; bad?: boolean }) {
   return (
-    <div className="flex flex-col gap-1 rounded-[10px] px-4 py-3" style={{ background: "var(--bg2)", boxShadow: "inset 0 0 0 1px var(--line)" }}>
+    <div className="flex flex-col gap-1 rounded-md px-4 py-3" style={{ background: "var(--bg2)", boxShadow: "inset 0 0 0 1px var(--line)" }}>
       <span className="tnum text-[22px] font-medium" style={{ color: bad && n > 0 ? "var(--warn)" : "var(--text)" }}>{n.toLocaleString("en-GB")}</span>
       <span className="text-[12.5px]" style={{ color: "var(--muted)" }}>{label}</span>
     </div>
@@ -48,7 +48,7 @@ function Result({ r }: { r: Preflight }) {
         <Count n={r.exact_duplicates} label="exact duplicate rows" bad />
       </div>
       <p className="m-0 text-[12.5px]" style={{ color: "var(--faint)" }}>{r.coverage_statement}</p>
-      <div className="overflow-x-auto rounded-[10px]" style={{ boxShadow: "inset 0 0 0 1px var(--line)" }}>
+      <div className="overflow-x-auto rounded-md" style={{ boxShadow: "inset 0 0 0 1px var(--line)" }}>
         <table className="w-full min-w-[560px] border-collapse text-[13px]">
           <caption className="sr-only">Sheets and the columns recognised</caption>
           <thead>
@@ -159,7 +159,7 @@ export default function SenderPage() {
         ) : subs.data.length === 0 ? (
           <EmptyState icon={<Tray />} title="Nothing sent yet" body="Files you send appear here with their status." />
         ) : (
-          <div className="overflow-x-auto rounded-[10px]" style={{ boxShadow: "inset 0 0 0 1px var(--line)" }}>
+          <div className="overflow-x-auto rounded-md" style={{ boxShadow: "inset 0 0 0 1px var(--line)" }}>
             <table className="w-full min-w-[520px] border-collapse text-[13px]">
               <caption className="sr-only">Your submissions, newest first</caption>
               <thead>

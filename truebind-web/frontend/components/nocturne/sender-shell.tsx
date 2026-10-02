@@ -19,8 +19,8 @@ export function SenderShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <header
-        className="sticky top-0 z-20 flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pb-2.5 pt-[max(10px,env(safe-area-inset-top))] sm:flex-nowrap sm:gap-x-5 sm:px-9"
-        style={{ background: "color-mix(in srgb, var(--bg) 85%, transparent)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", boxShadow: "0 1px 0 var(--line)" }}
+        className="sticky top-0 z-20 flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pb-2.5 pt-[max(10px,env(safe-area-inset-top))] sm:flex-nowrap sm:gap-x-5 sm:px-6"
+        style={{ background: "color-mix(in srgb, var(--bg) 85%, transparent)", boxShadow: "0 1px 0 var(--line)" }}
       >
         <Link href="/sender" className="flex flex-none items-center gap-2 text-[14px]">
           <Brand size={24} />

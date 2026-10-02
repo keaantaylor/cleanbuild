@@ -26,7 +26,7 @@ export function ThemeToggle({ className = "", style }: { className?: string; sty
       onClick={toggleTheme}
       title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
       aria-label="Switch theme"
-      className={`flex h-[34px] w-[34px] flex-none cursor-pointer items-center justify-center rounded-lg text-[17px] transition-colors hover:bg-[var(--accentTint)] ${className}`}
+      className={`flex h-[34px] w-[34px] flex-none cursor-pointer items-center justify-center rounded-md text-[17px] transition-colors hover:bg-[var(--accentTint)] ${className}`}
       style={{ color: "var(--muted)", ...style }}
     >
       {theme === "dark" ? <Sun /> : <Moon />}
@@ -69,7 +69,7 @@ export function Modal({
   return (
     <div
       className="anim-fade fixed inset-0 z-[60] grid place-items-center p-4"
-      style={{ background: "color-mix(in srgb, #0b0c14 55%, transparent)", backdropFilter: "blur(3px)" }}
+      style={{ background: "color-mix(in srgb, #0b0c14 55%, transparent)" }}
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
@@ -77,12 +77,12 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={id}
-        className="anim-pop flex max-h-[88vh] w-full flex-col gap-4 overflow-y-auto rounded-[14px] p-6"
+        className="anim-pop flex max-h-[88vh] w-full flex-col gap-4 overflow-y-auto rounded-md p-6"
         style={{
           maxWidth: width,
           background: "var(--surface)",
           color: "var(--text)",
-          boxShadow: "0 0 0 1px var(--line2), 0 24px 60px rgba(0,0,0,.45)",
+          boxShadow: "0 0 0 1px var(--line2)",
         }}
       >
         <div className="flex items-start justify-between gap-4">
@@ -105,7 +105,7 @@ export function Modal({
 
 const TONE = {
   ok: { icon: ShieldCheck, c: "oklch(0.76 0.12 155)" },
-  info: { icon: Info, c: "#b5abfc" },
+  info: { icon: Info, c: "#6fe3c1" },
   warn: { icon: Warning, c: "oklch(0.81 0.12 75)" },
   err: { icon: WarningCircle, c: "oklch(0.72 0.15 25)" },
 };
@@ -120,13 +120,11 @@ export function Toaster() {
         return (
           <div
             key={t.id}
-            className="anim-rise flex max-w-[calc(100vw-32px)] items-center gap-2.5 rounded-[10px] px-4 py-[11px] text-[13px]"
+            className="anim-rise flex max-w-[calc(100vw-32px)] items-center gap-2.5 rounded-md px-4 py-[11px] text-[13px]"
             style={{
               background: "rgba(35,37,50,.9)",
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
               color: "#e9e9ed",
-              boxShadow: "inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px rgba(145,132,217,.4), 0 16px 40px rgba(0,0,0,.4)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px rgba(52,211,153,.4)",
             }}
           >
             <T.icon style={{ color: T.c, flex: "none" }} size={16} weight="regular" />
@@ -223,7 +221,7 @@ export function StatTile({
     <Tag
       type={onClick ? "button" : undefined}
       onClick={onClick}
-      className={`relative flex flex-col gap-1.5 overflow-hidden rounded-[10px] px-[18px] pb-4 pt-[18px] text-left transition-colors ${onClick ? "cursor-pointer hover:bg-[var(--accentTint)]" : ""}`}
+      className={`relative flex flex-col gap-1.5 overflow-hidden rounded-md px-[18px] pb-4 pt-[18px] text-left transition-colors ${onClick ? "cursor-pointer hover:bg-[var(--accentTint)]" : ""}`}
       style={{
         background: active ? "var(--accentTint)" : "var(--surface)",
         boxShadow: active ? "var(--shadow), inset 0 0 0 1px var(--accent)" : "var(--shadow)",
@@ -254,7 +252,7 @@ export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boo
     >
       <span
         className="absolute top-[3px] h-[14px] w-[14px] rounded-full bg-white transition-all"
-        style={{ left: on ? 17 : 3, boxShadow: "0 1px 2px rgba(0,0,0,.3)" }}
+        style={{ left: on ? 17 : 3, boxShadow: "0 0 0 1px var(--line)" }}
       />
     </button>
   );
@@ -294,7 +292,7 @@ export function LoadingState({ label, rows = 4 }: { label: string; rows?: number
 /** Explained, retryable failure — never a blank screen. */
 export function ErrorState({ title, message, onRetry }: { title: string; message?: string | null; onRetry?: () => void }) {
   return (
-    <div className="flex flex-col items-start gap-2.5 rounded-[10px] px-5 py-4" role="alert" style={{ background: "var(--errT)", boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--err) 35%, transparent)" }}>
+    <div className="flex flex-col items-start gap-2.5 rounded-md px-5 py-4" role="alert" style={{ background: "var(--errT)", boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--err) 35%, transparent)" }}>
       <span className="flex items-center gap-2 text-[14px] font-medium" style={{ color: "var(--err)" }}>
         <WarningCircle size={16} />
         {title}

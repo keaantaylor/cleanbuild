@@ -16,7 +16,7 @@ from .database import get_session_factory, set_tenant
 from .models._util import utcnow
 from .models.exception_summary import ExceptionSummary
 from .models.identity import Tenant
-from .routes import (alerts, audit, auth, billing, checks, sanctions, scorecard, sender, exception_summary, findings, fx, inbound, mapping, mfa, obligations, ops, org,
+from .routes import (alerts, audit, auth, billing, checks, deliverables, sanctions, scorecard, sender, exception_summary, findings, fx, inbound, mapping, mfa, obligations, ops, org,
                      reports, sftp, sso, system, templates, webhooks)
 
 observability.configure_logging(LOG_LEVEL, LOG_JSON)
@@ -136,7 +136,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
         headers={**_cors_headers_for(request), observability.REQUEST_ID_HEADER: correlation_id})
 
 
-for router_module in (auth, reports, mapping, findings, exception_summary, obligations, alerts, audit, templates,
+for router_module in (auth, reports, mapping, findings, deliverables, exception_summary, obligations, alerts, audit, templates,
                       system, ops, org, mfa):
     app.include_router(router_module.router)
 app.include_router(org.public_router)

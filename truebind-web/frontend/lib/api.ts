@@ -1,4 +1,4 @@
-import type { Alert, AuditLogEntry, Billing, Binder, Preflight, SanctionsList, Scorecard, Submission, BinderInput, Disposition, ModuleFinding, ModuleRun, Channels, ClaimRow, Delivery, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Invitation, InvitationCreated, Job, Me, MappingField, Member, MfaChallenge, MfaStatus, Obligation, OrgSettings, Overview, Report, ReportSummary, Role, Sheet, SheetMapping, SftpDestination, SftpInput, SsoConfig, SsoConfigInput, SystemStatus, Template, WebhookDelivery, WebhookEndpoint, WebhookEvent, WorkQueue } from "./types";
+import type { Alert, AuditLogEntry, Billing, Binder, Preflight, SanctionsList, Scorecard, Submission, BinderInput, Disposition, ModuleFinding, ModuleRun, Channels, ClaimRow, Delivery, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Invitation, InvitationCreated, Job, Me, MappingField, MonthOnMonth, QueryLetter, Member, MfaChallenge, MfaStatus, Obligation, OrgSettings, Overview, Report, ReportSummary, Role, Sheet, SheetMapping, SftpDestination, SftpInput, SsoConfig, SsoConfigInput, SystemStatus, Template, WebhookDelivery, WebhookEndpoint, WebhookEvent, WorkQueue } from "./types";
 
 // Default: same hostname as the page, port 8000. Using the page's own host
 // matters: a page on localhost calling an API on 127.0.0.1 is cross-site, so
@@ -371,6 +371,11 @@ export const api = {
   exportClaimsUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/claims.csv`,
   exportExceptionsUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/exceptions.csv`,
   auditPackUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/audit-pack.zip`,
+  annotatedWorkbookUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/annotated.xlsx`,
+  correctedWorkbookUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/corrected.xlsx`,
+  queryLetter: (reportId: string) => request<QueryLetter>(`/reports/${reportId}/query-letter`),
+  compareReports: (reportId: string, previousId: string, pct: number, min: number) =>
+    request<MonthOnMonth>(`/reports/${reportId}/compare${qs({ previous_report_id: previousId, reserve_jump_pct: pct, reserve_jump_min: min })}`),
   exportAuditCsvUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/audit.csv`,
   exportByStatusUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/claims.csv`,
 };

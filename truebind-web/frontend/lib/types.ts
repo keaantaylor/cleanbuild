@@ -188,6 +188,25 @@ export interface CouldntCheck {
   fix: "mapping" | "data";
 }
 
+export interface QueryLetter {
+  subject: string;
+  body: string;
+  items: number;
+  groups: { rule: string; label: string; fix: string; outcome: string; severity: Severity; items: { where: string; claim_ref: string | null; sentence: string }[] }[];
+}
+
+export interface MonthOnMonth {
+  previous_report_id: string;
+  previous_file_name: string;
+  threshold_pct: number;
+  threshold_min: number;
+  claims_compared: number;
+  counts: { vanished: number; paid_down: number; reserve_jump: number };
+  vanished: { claim_ref: string; previous_status: string | null; previous: string; sentence: string }[];
+  paid_down: { claim_ref: string; where: string; previous: number; current: number; currency: string | null; sentence: string }[];
+  reserve_jump: { claim_ref: string; where: string; previous: number; current: number; currency: string | null; pct: number; sentence: string }[];
+}
+
 /** The health report's single view (backend app/services/health_view.py). */
 export interface HealthView {
   version: number;

@@ -109,6 +109,7 @@ def test_over_budget_is_not_assessed_not_silently_clean(monkeypatch: pytest.Monk
 def test_within_budget_is_assessed_and_unchanged() -> None:
     names = ["Fairwind Shipping Group", "FAIRWIND SHIPPING GROUP", "Harbour Freight Ltd"]
     df = _frame(names, ["2024-01-10", "2024-01-11", "2024-01-11"])
+    df[schema.INCURRED_CODE] = pd.array([1500.0, 1500.0, 900.0], dtype="Float64")  # the corroborating signal
     dups, check = dedupe.find_duplicates_assessed(df)
     assert check.assessed is True and check.reason is None and check.candidate_pairs == 1
     probable = dups[dups["match_type"] == "probable_duplicate"]

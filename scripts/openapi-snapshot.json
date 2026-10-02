@@ -7626,6 +7626,91 @@
     ]
    }
   },
+  "/api/v1/reports/{report_id}/compare": {
+   "get": {
+    "description": "Month-on-month check against an earlier report: claims that vanished\nwithout closing, paid to date going down, reserves rising above a threshold.",
+    "operationId": "month_on_month_api_v1_reports__report_id__compare_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "previous_report_id",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 36,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Previous Report Id"
+      }
+     },
+     {
+      "in": "query",
+      "name": "reserve_jump_pct",
+      "required": false,
+      "schema": {
+       "default": 50.0,
+       "maximum": 100000,
+       "minimum": 0,
+       "title": "Reserve Jump Pct",
+       "type": "number"
+      }
+     },
+     {
+      "in": "query",
+      "name": "reserve_jump_min",
+      "required": false,
+      "schema": {
+       "default": 0.0,
+       "minimum": 0,
+       "title": "Reserve Jump Min",
+       "type": "number"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Month On Month Api V1 Reports  Report Id  Compare Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Month On Month",
+    "tags": [
+     "deliverables"
+    ]
+   }
+  },
   "/api/v1/reports/{report_id}/deliveries": {
    "post": {
     "operationId": "create_delivery_api_v1_reports__report_id__deliveries_post",
@@ -8214,6 +8299,47 @@
     ]
    }
   },
+  "/api/v1/reports/{report_id}/export/annotated.xlsx": {
+   "get": {
+    "description": "The customer's own workbook with every claim-sheet cell coloured by\nresult, a Review notes column, hover notes with the fix, an Issues sheet and\na Review Summary. Source values are unchanged.",
+    "operationId": "annotated_workbook_api_v1_reports__report_id__export_annotated_xlsx_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Annotated Workbook",
+    "tags": [
+     "deliverables"
+    ]
+   }
+  },
   "/api/v1/reports/{report_id}/export/audit.csv": {
    "get": {
     "operationId": "export_audit_api_v1_reports__report_id__export_audit_csv_get",
@@ -8292,6 +8418,47 @@
     "summary": "Export Claims",
     "tags": [
      "reports"
+    ]
+   }
+  },
+  "/api/v1/reports/{report_id}/export/corrected.xlsx": {
+   "get": {
+    "description": "A copy with only safe, reversible fixes applied, each on the Change Log\nsheet. Duplicates, arithmetic, reserves and ambiguous values are never changed.",
+    "operationId": "corrected_workbook_api_v1_reports__report_id__export_corrected_xlsx_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Corrected Workbook",
+    "tags": [
+     "deliverables"
     ]
    }
   },
@@ -8488,6 +8655,51 @@
     "summary": "Process Report",
     "tags": [
      "mapping"
+    ]
+   }
+  },
+  "/api/v1/reports/{report_id}/query-letter": {
+   "get": {
+    "description": "A draft email to the sender: the findings only they can fix, grouped by\nissue, each with its sheet, cell and claim reference.",
+    "operationId": "query_letter_api_v1_reports__report_id__query_letter_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Query Letter Api V1 Reports  Report Id  Query Letter Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Query Letter",
+    "tags": [
+     "deliverables"
     ]
    }
   },

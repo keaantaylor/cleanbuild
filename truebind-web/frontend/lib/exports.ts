@@ -47,7 +47,7 @@ function sheetName(basename: string): string {
 export async function exportFile(url: string, basename: string, toast?: ToastFn) {
   try {
     const res = await fetchExport(url);
-    const ext = url.match(/\.(csv|zip)(\?|$)/)?.[1] ?? "csv";
+    const ext = url.match(/\.(csv|zip|xlsx)(\?|$)/)?.[1] ?? "csv";
     if (ext !== "csv") {
       saveBlob(await res.blob(), `${basename}.${ext}`);
       toast?.(`Downloaded ${basename}.${ext}`, "ok");

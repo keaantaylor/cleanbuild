@@ -1,0 +1,386 @@
+[
+ {
+  "file": "TrueBind_Stress_Test_500_rows.xlsx",
+  "label": "phase4",
+  "upload_s": 0.15,
+  "ingest_s": 0.78,
+  "sheets": [
+   {
+    "name": "Summary",
+    "status": "SKIPPED"
+   },
+   {
+    "name": "Q3 Bordereau",
+    "status": "PENDING_CONFIRMATION"
+   },
+   {
+    "name": "Late Reported",
+    "status": "PENDING_CONFIRMATION"
+   },
+   {
+    "name": "Lookups",
+    "status": "SKIPPED"
+   },
+   {
+    "name": "Notes",
+    "status": "SKIPPED"
+   }
+  ],
+  "confirm_s": 0.32,
+  "process_s": 1.27,
+  "total_s": 2.55,
+  "peak_rss_mb": 229,
+  "status": "COMPLETE",
+  "jobs": [
+   {
+    "kind": "INGEST",
+    "status": "SUCCEEDED",
+    "metrics": {
+     "progress": {
+      "sheets_found": 5,
+      "sheets_with_data": 4,
+      "rows_detected": 539,
+      "sheets_skipped": 1,
+      "ai_calls": 0
+     },
+     "parse_s": 0.6,
+     "mapping_s": 0.09,
+     "sheets": 5,
+     "rows": 539,
+     "peak_rss_mb": null,
+     "ai_calls": 0
+    }
+   },
+   {
+    "kind": "PROCESS",
+    "status": "SUCCEEDED",
+    "metrics": {
+     "progress": {
+      "sheets_found": 5,
+      "rows_detected": 530,
+      "rows_mapped": 530,
+      "row_findings": 127,
+      "arithmetic_mismatches": 10,
+      "duplicate_pairs": 4
+     },
+     "parse_s": 0.06,
+     "parse_cached": true,
+     "pipeline_s": 0.86,
+     "persist_s": 0.16,
+     "checks_s": 0.13,
+     "stage_timings": {
+      "mapping": 0.48,
+      "validation": 0.13,
+      "dedupe": 0.19,
+      "report": 0.05
+     },
+     "rows": 530,
+     "peak_rss_mb": null
+    }
+   }
+  ],
+  "rows": 551,
+  "counts": {
+   "missing_mandatory_rows": 1,
+   "arithmetic_mismatches": 10,
+   "arithmetic_not_evaluable": 1,
+   "exact_duplicates": 2,
+   "probable_duplicates": 2,
+   "development_pairs": 9,
+   "composite_score": 93.82
+  },
+  "health_view": {
+   "verdict": "fix",
+   "counts": {
+    "errors": 45,
+    "error_rows": 33,
+    "warnings": 86,
+    "couldnt_check": 1,
+    "couldnt_check_rows": 1
+   },
+   "duplicates": {
+    "exact_pairs": 2,
+    "probable_pairs": 2,
+    "probable_high_confidence": 4,
+    "repeat_period_unknown": 0,
+    "development_pairs": 9
+   }
+  },
+  "deliverables": {
+   "annotated": {
+    "status": 200,
+    "seconds": 1.13,
+    "bytes": 108766,
+    "peak_rss_mb": 237
+   },
+   "corrected": {
+    "status": 200,
+    "seconds": 0.97,
+    "bytes": 81503,
+    "peak_rss_mb": 238
+   },
+   "query_letter": {
+    "status": 200,
+    "seconds": 0.05,
+    "bytes": 28583,
+    "peak_rss_mb": 238
+   }
+  }
+ },
+ {
+  "file": "TrueBind_Stress_Test_2000_rows.xlsx",
+  "label": "phase4",
+  "upload_s": 0.09,
+  "ingest_s": 1.62,
+  "sheets": [
+   {
+    "name": "Summary",
+    "status": "SKIPPED"
+   },
+   {
+    "name": "Q3 Bordereau",
+    "status": "PENDING_CONFIRMATION"
+   },
+   {
+    "name": "Late Reported",
+    "status": "PENDING_CONFIRMATION"
+   },
+   {
+    "name": "Lookups",
+    "status": "SKIPPED"
+   },
+   {
+    "name": "Notes",
+    "status": "SKIPPED"
+   }
+  ],
+  "confirm_s": 0.29,
+  "process_s": 2.33,
+  "total_s": 4.37,
+  "peak_rss_mb": 252,
+  "status": "COMPLETE",
+  "jobs": [
+   {
+    "kind": "INGEST",
+    "status": "SUCCEEDED",
+    "metrics": {
+     "progress": {
+      "sheets_found": 5,
+      "sheets_with_data": 4,
+      "rows_detected": 2130,
+      "sheets_skipped": 1,
+      "ai_calls": 0
+     },
+     "parse_s": 1.32,
+     "mapping_s": 0.24,
+     "sheets": 5,
+     "rows": 2130,
+     "peak_rss_mb": null,
+     "ai_calls": 0
+    }
+   },
+   {
+    "kind": "PROCESS",
+    "status": "SUCCEEDED",
+    "metrics": {
+     "progress": {
+      "sheets_found": 5,
+      "rows_detected": 2121,
+      "rows_mapped": 2121,
+      "row_findings": 475,
+      "arithmetic_mismatches": 31,
+      "duplicate_pairs": 17
+     },
+     "parse_s": 0.08,
+     "parse_cached": true,
+     "pipeline_s": 1.44,
+     "persist_s": 0.42,
+     "checks_s": 0.3,
+     "stage_timings": {
+      "mapping": 0.63,
+      "validation": 0.23,
+      "dedupe": 0.5,
+      "report": 0.06
+     },
+     "rows": 2121,
+     "peak_rss_mb": null
+    }
+   }
+  ],
+  "rows": 2142,
+  "counts": {
+   "missing_mandatory_rows": 3,
+   "arithmetic_mismatches": 31,
+   "arithmetic_not_evaluable": 7,
+   "exact_duplicates": 8,
+   "probable_duplicates": 9,
+   "development_pairs": 35,
+   "composite_score": 94.65
+  },
+  "health_view": {
+   "verdict": "fix",
+   "counts": {
+    "errors": 146,
+    "error_rows": 114,
+    "warnings": 346,
+    "couldnt_check": 4,
+    "couldnt_check_rows": 7
+   },
+   "duplicates": {
+    "exact_pairs": 8,
+    "probable_pairs": 9,
+    "probable_high_confidence": 17,
+    "repeat_period_unknown": 0,
+    "development_pairs": 35
+   }
+  },
+  "deliverables": {
+   "annotated": {
+    "status": 200,
+    "seconds": 3.59,
+    "bytes": 356575,
+    "peak_rss_mb": 265
+   },
+   "corrected": {
+    "status": 200,
+    "seconds": 2.82,
+    "bytes": 283030,
+    "peak_rss_mb": 294
+   },
+   "query_letter": {
+    "status": 200,
+    "seconds": 0.05,
+    "bytes": 86736,
+    "peak_rss_mb": 293
+   }
+  }
+ },
+ {
+  "file": "TrueBind_Stress_Test_10000_rows.xlsx",
+  "label": "phase4",
+  "upload_s": 0.1,
+  "ingest_s": 6.08,
+  "sheets": [
+   {
+    "name": "Summary",
+    "status": "SKIPPED"
+   },
+   {
+    "name": "Q3 Bordereau",
+    "status": "PENDING_CONFIRMATION"
+   },
+   {
+    "name": "Late Reported",
+    "status": "PENDING_CONFIRMATION"
+   },
+   {
+    "name": "Lookups",
+    "status": "SKIPPED"
+   },
+   {
+    "name": "Notes",
+    "status": "SKIPPED"
+   }
+  ],
+  "confirm_s": 0.25,
+  "process_s": 11.97,
+  "total_s": 18.46,
+  "peak_rss_mb": 313,
+  "status": "COMPLETE",
+  "jobs": [
+   {
+    "kind": "INGEST",
+    "status": "SUCCEEDED",
+    "metrics": {
+     "progress": {
+      "sheets_found": 5,
+      "sheets_with_data": 4,
+      "rows_detected": 10616,
+      "sheets_skipped": 1,
+      "ai_calls": 0
+     },
+     "parse_s": 5.01,
+     "mapping_s": 1.0,
+     "sheets": 5,
+     "rows": 10616,
+     "peak_rss_mb": null,
+     "ai_calls": 0
+    }
+   },
+   {
+    "kind": "PROCESS",
+    "status": "SUCCEEDED",
+    "metrics": {
+     "progress": {
+      "sheets_found": 5,
+      "rows_detected": 10607,
+      "rows_mapped": 10607,
+      "row_findings": 2345,
+      "arithmetic_mismatches": 155,
+      "duplicate_pairs": 91
+     },
+     "parse_s": 0.21,
+     "parse_cached": true,
+     "pipeline_s": 8.48,
+     "persist_s": 1.65,
+     "checks_s": 1.45,
+     "stage_timings": {
+      "mapping": 1.31,
+      "validation": 0.75,
+      "dedupe": 6.24,
+      "report": 0.16
+     },
+     "rows": 10607,
+     "peak_rss_mb": null
+    }
+   }
+  ],
+  "rows": 10628,
+  "counts": {
+   "missing_mandatory_rows": 13,
+   "arithmetic_mismatches": 155,
+   "arithmetic_not_evaluable": 19,
+   "exact_duplicates": 40,
+   "probable_duplicates": 51,
+   "development_pairs": 173,
+   "composite_score": 94.45
+  },
+  "health_view": {
+   "verdict": "fix",
+   "counts": {
+    "errors": 756,
+    "error_rows": 596,
+    "warnings": 1680,
+    "couldnt_check": 4,
+    "couldnt_check_rows": 19
+   },
+   "duplicates": {
+    "exact_pairs": 40,
+    "probable_pairs": 51,
+    "probable_high_confidence": 87,
+    "repeat_period_unknown": 0,
+    "development_pairs": 173
+   }
+  },
+  "deliverables": {
+   "annotated": {
+    "status": 200,
+    "seconds": 15.8,
+    "bytes": 1674220,
+    "peak_rss_mb": 391
+   },
+   "corrected": {
+    "status": 200,
+    "seconds": 14.91,
+    "bytes": 1356848,
+    "peak_rss_mb": 433
+   },
+   "query_letter": {
+    "status": 200,
+    "seconds": 0.17,
+    "bytes": 388624,
+    "peak_rss_mb": 405
+   }
+  }
+ }
+]

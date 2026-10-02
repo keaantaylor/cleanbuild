@@ -28,6 +28,7 @@ ap.add_argument("files", nargs="+")
 ap.add_argument("--label", default="run")
 ap.add_argument("--out", required=True)
 ap.add_argument("--dump", help="folder to save each report's summary/exceptions/duplicates JSON")
+ap.add_argument("--deliverables", action="store_true", help="also time the annotated workbook, corrected copy and query letter")
 args = ap.parse_args()
 OUT = Path(args.out).resolve()
 DUMP = Path(args.dump).resolve() if args.dump else None
@@ -135,6 +136,22 @@ for f in FILES:
         rec["rows"] = rep.get("rows_total")
         rec["counts"] = {k: s.get(k) for k in ("missing_mandatory_rows", "arithmetic_mismatches", "arithmetic_not_evaluable",
                                               "exact_duplicates", "probable_duplicates", "development_pairs", "composite_score")}
+        hv = summ.get("summary", {}).get("health_view") or {}
+        rec["health_view"] = {"verdict": hv.get("verdict"), "counts": hv.get("counts"),
+                              "duplicates": hv.get("duplicates")}
+        if args.deliverables:
+            rec["deliverables"] = {}
+            for key, url in (("annotated", f"/api/v1/reports/{rid}/export/annotated.xlsx"),
+                             ("corrected", f"/api/v1/reports/{rid}/export/corrected.xlsx"),
+                             ("query_letter", f"/api/v1/reports/{rid}/query-letter")):
+                t = time.perf_counter()
+                with Peak() as dpeak:
+                    resp = c.get(url)
+                rec["deliverables"][key] = {"status": resp.status_code, "seconds": round(time.perf_counter() - t, 2),
+                                            "bytes": len(resp.content), "peak_rss_mb": round(dpeak.peak / 1024 / 1024)}
+                if DUMP and key != "query_letter" and resp.status_code == 200:
+                    DUMP.mkdir(parents=True, exist_ok=True)
+                    (DUMP / f"{f.stem}.{args.label}.{key}.xlsx").write_bytes(resp.content)
         if DUMP:
             DUMP.mkdir(parents=True, exist_ok=True)
             ex = c.get(f"/api/v1/reports/{rid}/exceptions", params={"limit": 100000}).json()

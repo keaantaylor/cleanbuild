@@ -102,9 +102,9 @@ PROBABLE_MIN_CONFIDENCE = 60
 _BASE = 25                      # similar name + loss dates within the window
 _EXACT_NAME = 10                # names identical once normalised
 _SAME_DAY, _NEXT_DAY = 10, 5    # loss dates equal / one day apart
-_POLICY_MATCH, _POLICY_DIFFER = 35, -10
+_POLICY_MATCH, _POLICY_DIFFER = 35, -30  # a different known policy is strong evidence of a different loss
 _AMOUNT_SAME, _AMOUNT_CLOSE, _AMOUNT_FAR = 35, 20, -20   # within 0.5% / within 5% / further apart
-_REF_NEAR = 35                  # claim references one edit or one transposition apart
+_REF_NEAR = 35                  # claim references one transposition / dropped or extra character apart
 
 _MONTHS = {m: i for i, m in enumerate(
     ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], start=1)}
@@ -470,10 +470,16 @@ def _pair_amounts(block: pd.DataFrame) -> list[float | None]:
 
 
 def _refs_near(a: str, b: str) -> bool:
-    """One substitution, insertion, deletion or adjacent transposition apart
-    (CLM-100123 vs CLM-100132), on references of a realistic length."""
+    """A typical re-keying slip between two references of a realistic length:
+    an adjacent transposition (CLM-100123 vs CLM-100132) or one dropped or extra
+    character. A single changed character is NOT counted: neighbouring claims are
+    numbered in sequence (CLM-0007 / CLM-0008), so it says nothing on its own."""
     if a == b or min(len(a), len(b)) < 5:
         return False
-    from rapidfuzz.distance import DamerauLevenshtein
+    from rapidfuzz.distance import DamerauLevenshtein, Levenshtein
 
-    return DamerauLevenshtein.distance(a, b) <= 1
+    if DamerauLevenshtein.distance(a, b) != 1:
+        return False
+    if len(a) != len(b):
+        return True  # one character dropped or added
+    return Levenshtein.distance(a, b) == 2  # same length, distance 1 only via a transposition

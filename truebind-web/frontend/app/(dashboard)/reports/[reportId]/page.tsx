@@ -152,7 +152,7 @@ function rec(s: ReportSummary) {
 function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
   const { toast } = useUi();
   const [send, setSend] = useState(false);
-  const [tab, setTab] = useState<"owner" | "duplicates" | "money" | "mapping" | "more">("owner");
+  const [tab, setTab] = useState<"owner" | "duplicates" | "money" | "mapping" | "compare" | "more">("owner");
   const [reprocessing, setReprocessing] = useState(false);
   const name = report.file_name.replace(/\.\w+$/, "");
   const hv = s.health_view;
@@ -279,9 +279,11 @@ function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
         </div>
       </article>
 
+      <Deliverables report={report} name={name} />
+
       <div className="no-print flex w-full max-w-[1100px] flex-col gap-5">
         <div role="tablist" aria-label="Report sections" className="flex flex-wrap gap-1 rounded-[9px] p-1" style={{ background: "var(--surface)", boxShadow: "inset 0 0 0 1px var(--line)" }}>
-          {([["owner", "Who must fix"], ["duplicates", "Duplicates"], ["money", "Money by currency"], ["mapping", "Mapping"], ["more", "Other checks & evidence"]] as const).map(([k, l]) => (
+          {([["owner", "Who must fix"], ["duplicates", "Duplicates"], ["money", "Money by currency"], ["mapping", "Mapping"], ["compare", "Month on month"], ["more", "Other checks & evidence"]] as const).map(([k, l]) => (
             <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className="cursor-pointer rounded-[7px] px-3 py-1.5 text-[13.5px]" style={{ background: tab === k ? "var(--accentTint)" : "transparent", color: tab === k ? "var(--text)" : "var(--muted)", fontWeight: tab === k ? 500 : 400 }}>{l}</button>
           ))}
         </div>
@@ -289,6 +291,7 @@ function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
         {tab === "duplicates" && <DuplicatesTab hv={hv} reportId={report.id} />}
         {tab === "money" && <MoneyTab hv={hv} />}
         {tab === "mapping" && <MappingTab report={report} s={s} />}
+        {tab === "compare" && <CompareTab report={report} />}
         {tab === "more" && (
           <>
             <Section id="checks" kicker="Checks" title="Binder, leakage and sanctions checks" sub="Each check says what it assessed and what it could not.">
@@ -438,6 +441,140 @@ function MappingTab({ report, s }: { report: Report; s: ReportSummary }) {
         </div>
       </div>
       <Sheets reportId={report.id} s={s} />
+    </div>
+  );
+}
+
+function Deliverables({ report, name }: { report: Report; name: string }) {
+  const { toast } = useUi();
+  const [letter, setLetter] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const dl = async (key: string, url: string, file: string) => {
+    setBusy(key);
+    await exportFile(url, file, toast);
+    setBusy(null);
+  };
+  const items = [
+    { key: "annotated", title: "Annotated workbook", body: "Your own workbook, every claim cell coloured (green OK, amber unusual, red error), a Review notes column, hover notes with the fix, and an Issues sheet with links to each cell. Your values are unchanged.", action: () => void dl("annotated", api.annotatedWorkbookUrl(report.id), `${name}_REVIEWED`), label: "Download .xlsx" },
+    { key: "corrected", title: "Corrected copy", body: "Only safe fixes: dates held as text, currency spellings, extra spaces, policy-number zeros, status wording, amounts held as text. Every change is on the Change Log sheet. Nothing else is touched.", action: () => void dl("corrected", api.correctedWorkbookUrl(report.id), `${name}_CORRECTED`), label: "Download .xlsx" },
+    { key: "letter", title: "Query letter", body: "A ready-to-send email to the sender with only the points they must fix, grouped by issue, each with its cell.", action: () => setLetter(true), label: "Open the letter" },
+  ];
+  return (
+    <section className="no-print flex w-full max-w-[1100px] flex-col gap-3" aria-labelledby="send-back">
+      <h2 id="send-back" className="m-0 text-[18px] font-medium">What to send back</h2>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-3">
+        {items.map((i) => (
+          <div key={i.key} className="tb-card flex flex-col gap-2 p-5">
+            <span className="text-[14.5px] font-medium">{i.title}</span>
+            <span className="flex-1 text-[13px] leading-[1.5]" style={{ color: "var(--muted)" }}>{i.body}</span>
+            <button type="button" className="tb-btn self-start" disabled={busy === i.key} onClick={i.action}>{busy === i.key ? "Preparing…" : i.label}</button>
+          </div>
+        ))}
+      </div>
+      <QueryLetterModal open={letter} onClose={() => setLetter(false)} report={report} name={name} />
+    </section>
+  );
+}
+
+function QueryLetterModal({ open, onClose, report, name }: { open: boolean; onClose: () => void; report: Report; name: string }) {
+  const { toast } = useUi();
+  const letter = useApi(() => (open ? api.queryLetter(report.id) : Promise.resolve(null)), [open, report.id]);
+  const l = letter.data;
+  const copy = async () => {
+    if (!l) return;
+    try {
+      await navigator.clipboard.writeText(`Subject: ${l.subject}\n\n${l.body}`);
+      toast("Letter copied", "ok");
+    } catch {
+      toast("Copy failed: select the text and copy it instead.", "warn");
+    }
+  };
+  const pdf = () => {
+    if (!l) return;
+    downloadPdf(`${name}_Query_Letter.pdf`, [{ kind: "heading", text: l.subject }, { kind: "space", h: 6 }, ...l.body.split("\n").map((line) => (line.trim() ? ({ kind: "text", text: line } as PdfBlock) : ({ kind: "space", h: 6 } as PdfBlock)))], `TrueBind query letter · ${report.file_name}`);
+  };
+  const mailto = l ? `mailto:?subject=${encodeURIComponent(l.subject)}&body=${encodeURIComponent(l.body.length > 1800 ? `${l.body.slice(0, 1800)}\n\n[Shortened: the full letter is in the attached PDF.]` : l.body)}` : "#";
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      kicker="Query letter"
+      title={l ? `${l.items} point${l.items === 1 ? "" : "s"} for the sender` : "Query letter"}
+      actions={
+        <>
+          <button className="tb-btn" onClick={onClose}>Close</button>
+          <button className="tb-btn" disabled={!l} onClick={pdf}><FilePdf />PDF</button>
+          <a className="tb-btn" href={mailto}><EnvelopeSimple />Open in email</a>
+          <button className="tb-btn tb-btn-solid" disabled={!l} onClick={() => void copy()}>Copy</button>
+        </>
+      }
+    >
+      {letter.error ? <ErrorState title="The letter could not be drafted" message={letter.error} onRetry={letter.reload} /> : !l ? <LoadingState label="Drafting the letter" rows={6} /> : (
+        <div className="flex flex-col gap-2">
+          <span className="text-[13px]" style={{ color: "var(--muted)" }}>Subject: {l.subject}</span>
+          <textarea readOnly className="tb-input min-h-[360px] font-mono text-[12.5px] leading-[1.5]" value={l.body} aria-label="Letter text" />
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function CompareTab({ report }: { report: Report }) {
+  const reports = useApi(() => api.listReports(), []);
+  const earlier = (reports.data ?? []).filter((r) => r.id !== report.id && r.status === "COMPLETE" && new Date(r.created_at) <= new Date(report.created_at));
+  const [prev, setPrev] = useState("");
+  const [pct, setPct] = useState(50);
+  const [min, setMin] = useState(0);
+  const chosen = prev || earlier[0]?.id || "";
+  const cmp = useApi(() => (chosen ? api.compareReports(report.id, chosen, pct, min) : Promise.resolve(null)), [report.id, chosen, pct, min]);
+  const c = cmp.data;
+  const list = (title: string, sub: string, rows: { claim_ref: string; sentence: string; where?: string; previous?: unknown }[]) => (
+    <div className="tb-card flex flex-col gap-2 p-5">
+      <span className="flex items-center justify-between text-[14px] font-medium">{title}<StatusPill tone={rows.length ? "warn" : "ok"}>{formatNumber(rows.length)}</StatusPill></span>
+      <span className="text-[12.5px]" style={{ color: "var(--muted)" }}>{sub}</span>
+      <ul className="m-0 flex max-h-[320px] list-none flex-col overflow-y-auto p-0 text-[13px]">
+        {rows.length === 0 && <li style={{ color: "var(--faint)" }}>None.</li>}
+        {rows.slice(0, 500).map((r, i) => (
+          <li key={`${r.claim_ref}-${i}`} className="py-1.5" style={{ boxShadow: "0 1px 0 var(--line)" }}><b className="tnum font-medium">{r.claim_ref}</b>{r.where ? <span className="tnum" style={{ color: "var(--muted)" }}> · {r.where}</span> : null}<br />{r.sentence}</li>
+        ))}
+      </ul>
+    </div>
+  );
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="tb-card flex flex-wrap items-end gap-3 p-5">
+        <div className="min-w-[240px] flex-1">
+          <label className="tb-label" htmlFor="cmp-prev">Compare with</label>
+          <select id="cmp-prev" className="tb-input" value={chosen} onChange={(e) => setPrev(e.target.value)}>
+            {earlier.length === 0 && <option value="">No earlier processed report</option>}
+            {earlier.map((r) => <option key={r.id} value={r.id}>{r.file_name} · {formatDateTime(r.created_at)}</option>)}
+          </select>
+        </div>
+        <div className="w-[150px]">
+          <label className="tb-label" htmlFor="cmp-pct">Reserve rise above (%)</label>
+          <input id="cmp-pct" className="tb-input" type="number" min={0} value={pct} onChange={(e) => setPct(Math.max(0, Number(e.target.value) || 0))} />
+        </div>
+        <div className="w-[170px]">
+          <label className="tb-label" htmlFor="cmp-min">and at least (amount)</label>
+          <input id="cmp-min" className="tb-input" type="number" min={0} value={min} onChange={(e) => setMin(Math.max(0, Number(e.target.value) || 0))} />
+        </div>
+      </div>
+      {!chosen ? (
+        <span className="text-[13px]" style={{ color: "var(--muted)" }}>Process last month’s bordereau too, then compare the two here.</span>
+      ) : cmp.error ? (
+        <ErrorState title="The comparison could not be run" message={cmp.error} onRetry={cmp.reload} />
+      ) : !c ? (
+        <LoadingState label="Comparing" rows={4} />
+      ) : (
+        <>
+          <span className="text-[13px]" style={{ color: "var(--muted)" }}>{formatNumber(c.claims_compared)} claims appear in both files. Only the same claim in the same currency is compared.</span>
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-3">
+            {list("Vanished without closing", `Open last time (${c.previous_file_name}), missing now.`, c.vanished)}
+            {list("Paid to date went down", "Paid to date should never fall between reports.", c.paid_down)}
+            {list("Reserve jumped", `Rose by more than ${c.threshold_pct}%${c.threshold_min ? ` and at least ${formatNumber(c.threshold_min)}` : ""}.`, c.reserve_jump)}
+          </div>
+        </>
+      )}
     </div>
   );
 }

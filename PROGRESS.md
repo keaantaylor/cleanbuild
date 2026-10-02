@@ -11,8 +11,8 @@ Running unattended: approval items are listed under "Waiting for Kealan" and ski
 | 1 Reliability (10k rows < 2 min, no hangs, durable originals, timeout, hosting map) | done |
 | 2 Trust in the findings | done (app screens for the catalogue and 'Not mapped' land with the Phase 3 report rewrite) |
 | 3 Health report redesign | done |
-| 4 Deliverables: annotated workbook, corrected copy, query letter, month-on-month | in progress |
-| 5 Adoption and trust: anonymise option, 30-day deletion, true security page, DPA draft, logout bug | remaining |
+| 4 Deliverables: annotated workbook, corrected copy, query letter, month-on-month | done |
+| 5 Adoption and trust: anonymise option, 30-day deletion, true security page, DPA draft, logout bug | in progress |
 | 6 Sales path: home wording, demo page, pricing, Health Check upload form (reuse launch-readiness branch) | remaining |
 | 7 Design docs: docs/next-products.md | remaining |
 | 8 Verify: generator, 500/2k/10k runs, recall, false positives, agreement, all tests, locked preview | remaining |
@@ -32,6 +32,11 @@ only (2 operations, 7 optional fields; scripts/openapi_compat.py). Backend 366 p
 Phase 3 evidence: report page 1 = verdict, Errors / Warnings / Couldn't check (with reasons + Fix mapping), top 5
 fixes by severity and money; tabs for who must fix, duplicates, money by currency, mapping, other checks. Same
 structure in the PDF (lib/pdf.ts callout + tones). Build OK, e2e 6/6.
+
+Phase 4 evidence: annotated/corrected/query letter/month-on-month endpoints + UI (What to send back, Month on month
+tab); tests/test_deliverables.py. 10k rows: process 18.5s; annotated workbook 15.8s, corrected copy 14.9s (built on
+request; on Render's free CPU expect ~2x - candidate for background build if slow). 2k-row probable duplicates 9,
+10k 51 (before this pass: thousands).
 
 ## Waiting for Kealan
 1. Render instance size: 512 MB is tight for 30,000-row files (peak ~430 MB in one process). Cheapest safe

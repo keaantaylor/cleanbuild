@@ -15,7 +15,7 @@ Running unattended: approval items are listed under "Waiting for Kealan" and ski
 | 5 Adoption and trust: anonymise option, 30-day deletion, true security page, DPA draft, logout bug | done |
 | 6 Sales path: home wording, demo page, pricing, Health Check upload form (reuse launch-readiness branch) | done (full backend re-run pending: stopped by low memory, see Waiting) |
 | 7 Design docs: docs/next-products.md | done (docs/next-products.md) |
-| 8 Verify: generator, 500/2k/10k runs, recall, false positives, agreement, all tests, locked preview | in progress |
+| 8 Verify: generator, 500/2k/10k runs, recall, false positives, agreement, all tests, locked preview | done |
 
 Phase 1 evidence: local timings 500/2k/10k/30k rows 3.8/5.5/23.1/56.2s -> 1.1/1.6/6.1/10.4s (parse once,
 memoised normalisation, lxml, originals + parse cache in PostgreSQL, 10-minute timeout). Hosting map:
@@ -45,6 +45,14 @@ logout bug fixed (tests/e2e/session.spec.ts). Backend 376 passed, e2e 7/7.
 Phase 6 evidence: home/pricing/demo pages, Health Check upload form + POST /leads/health-check (tests/test_leads.py
 8/8), e2e 9/9 incl. tests/e2e/sales.spec.ts. Generated 500-row sample: recall 15/15, 0 false positives, report
 and list counts agree.
+
+Phase 8 evidence: docs/stress-pass/verify_phase8.json (generated 500/2k/10k: recall 100%, 0 false positives, counts
+agree; 10k in 24s), reviewed_score_500/2000.json (87-88% of reviewed issues TrueBind checks), bench_phase8.json.
+Backend 384 passed (1 regression fixed, re-run), engine 94, e2e 9/9, build OK. Locked preview:
+https://cleanbuild-3vibbdz1b-keaantaylors-projects.vercel.app (frontend only; it calls the live backend, which does
+not have this branch's API yet). Rollback point: main is untouched; this branch starts at d264702.
+Later session: remaining launch-readiness items (SEO/OG images, cookie consent, FAQ, terms, DB-role startup check
+from branch launch-readiness); accounting-style negatives ('1,234.56-') and blank-currency flag (from REVIEWED scoring).
 
 ## Waiting for Kealan
 1. Render instance size: 512 MB is tight for 30,000-row files (peak ~430 MB in one process). Cheapest safe

@@ -216,7 +216,7 @@ def _build_reconciliation(
 
     mapped_rows = sum(rec.rows_processed for rec in sheet_audit if rec.status in ("mapped", "partial"))
     unmapped_rows = sum(rec.rows_processed for rec in sheet_audit if rec.status == "unmapped")
-    rejected_rows = sum(rec.rows_rejected for rec in sheet_audit if rec.status not in ("empty", "error"))
+    rejected_rows = sum(rec.rows_rejected for rec in sheet_audit if not rec.is_empty)  # skipped sheets are not read
     non_claim_summary_rows = sum(rec.rows_processed for rec in sheet_audit if rec.status == "non_claim_summary")
 
     dup_row_positions: set = set()

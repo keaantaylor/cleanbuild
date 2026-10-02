@@ -1,0 +1,235 @@
+{
+ "reviewed_issues_checked_by_truebind": 127,
+ "found": 111,
+ "recall": 0.874,
+ "by_type": {
+  "Amount stored as text": {
+   "reviewed": 3,
+   "found": 3
+  },
+  "Amount unreadable": {
+   "reviewed": 1,
+   "found": 1
+  },
+  "Claim reference format": {
+   "reviewed": 1,
+   "found": 1
+  },
+  "Closed claim still holds a reserve": {
+   "reviewed": 13,
+   "found": 13
+  },
+  "Currency problem": {
+   "reviewed": 6,
+   "found": 1
+  },
+  "Date problem": {
+   "reviewed": 5,
+   "found": 2
+  },
+  "Date sequence error": {
+   "reviewed": 4,
+   "found": 3
+  },
+  "Date stored as text or serial": {
+   "reviewed": 11,
+   "found": 8
+  },
+  "Exact duplicate row": {
+   "reviewed": 2,
+   "found": 2
+  },
+  "Excel serial date": {
+   "reviewed": 50,
+   "found": 50
+  },
+  "Incurred exceeds policy limit": {
+   "reviewed": 1,
+   "found": 1
+  },
+  "Loss outside policy period": {
+   "reviewed": 5,
+   "found": 4
+  },
+  "Missing claim reference": {
+   "reviewed": 1,
+   "found": 1
+  },
+  "Missing policy number": {
+   "reviewed": 1,
+   "found": 1
+  },
+  "Negative reserve": {
+   "reviewed": 3,
+   "found": 3
+  },
+  "Paid exceeds incurred": {
+   "reviewed": 4,
+   "found": 3
+  },
+  "Policy limit missing": {
+   "reviewed": 1,
+   "found": 1
+  },
+  "Policy number format": {
+   "reviewed": 2
+  },
+  "Possible duplicate under a different reference": {
+   "reviewed": 2,
+   "found": 2
+  },
+  "Status not recognised": {
+   "reviewed": 1,
+   "found": 1
+  },
+  "Total incurred does not reconcile": {
+   "reviewed": 10,
+   "found": 10
+  }
+ },
+ "misses": {
+  "Date problem": [
+   {
+    "cell": "Q3 Bordereau!=HYPERLINK(\"#'Q3 Bordereau'!H314\",\"H314\")",
+    "value": "2027-03-14",
+    "truebind_on_row": [
+     "date_in_future",
+     "date_order",
+     "loss_outside_policy_period"
+    ]
+   },
+   {
+    "cell": "Q3 Bordereau!=HYPERLINK(\"#'Q3 Bordereau'!J398\",\"J398\")",
+    "value": "1900-01-01",
+    "truebind_on_row": []
+   },
+   {
+    "cell": "Q3 Bordereau!=HYPERLINK(\"#'Q3 Bordereau'!H493\",\"H493\")",
+    "value": "2026-12-20",
+    "truebind_on_row": [
+     "date_in_future",
+     "date_order",
+     "loss_outside_policy_period"
+    ]
+   }
+  ],
+  "Loss outside policy period": [
+   {
+    "cell": "Q3 Bordereau!=HYPERLINK(\"#'Q3 Bordereau'!H518\",\"H518\")",
+    "value": "2026-05-21",
+    "truebind_on_row": [
+     "expiry_before_inception"
+    ]
+   }
+  ],
+  "Date sequence error": [
+   {
+    "cell": "Q3 Bordereau!=HYPERLINK(\"#'Q3 Bordereau'!K518\",\"K518\")",
+    "value": "2025-12-20",
+    "truebind_on_row": [
+     "expiry_before_inception"
+    ]
+   }
+  ],
+  "Paid exceeds incurred": [
+   {
+    "cell": "Q3 Bordereau!=HYPERLINK(\"#'Q3 Bordereau'!O495\",\"O495\")",
+    "value": "5945.21",
+    "truebind_on_row": [
+     "amount_stored_as_text",
+     "arithmetic_mismatch"
+    ]
+   }
+  ],
+  "Currency problem": [
+   {
+    "cell": "Q3 Bordereau!=HYPERLINK(\"#'Q3 Bordereau'!M169\",\"M169\")",
+    "value": "None",
+    "truebind_on_row": []
+   },
+   {
+    "cell": "Q3 Bordereau!=HYPERLINK(\"#'Q3 Bordereau'!M343\",\"M343\")",
+    "value": "None",
+    "truebind_on_row": [
+     "arithmetic_mismatch",
+     "loss_outside_policy_period",
+     "negative_reserve"
+    ]
+   },
+   {
+    "cell": "Q3 Bordereau!=HYPERLINK(\"#'Q3 Bordereau'!M242\",\"M242\")",
+    "value": "EURO",
+    "truebind_on_row": [
+     "currency_normalised"
+    ]
+   },
+   {
+    "cell": "Q3 Bordereau!=HYPERLINK(\"#'Q3 Bordereau'!M274\",\"M274\")",
+    "value": "\u20ac",
+    "truebind_on_row": [
+     "currency_normalised"
+    ]
+   },
+   {
+    "cell": "Q3 Bordereau!=HYPERLINK(\"#'Q3 Bordereau'!M498\",\"M498\")",
+    "value": "eur",
+    "truebind_on_row": [
+     "currency_normalised"
+    ]
+   }
+  ],
+  "Date stored as text or serial": [
+   {
+    "cell": "Q3 Bordereau!=HYPERLINK(\"#'Q3 Bordereau'!K151\",\"K151\")",
+    "value": "2026-10-17",
+    "truebind_on_row": []
+   },
+   {
+    "cell": "Q3 Bordereau!=HYPERLINK(\"#'Q3 Bordereau'!J348\",\"J348\")",
+    "value": "2026-01-12",
+    "truebind_on_row": []
+   },
+   {
+    "cell": "Q3 Bordereau!=HYPERLINK(\"#'Q3 Bordereau'!I484\",\"I484\")",
+    "value": "2026-07-18 10:01:00",
+    "truebind_on_row": []
+   }
+  ],
+  "Policy number format": [
+   {
+    "cell": "Q3 Bordereau!=HYPERLINK(\"#'Q3 Bordereau'!B172\",\"B172\")",
+    "value": "2489862",
+    "truebind_on_row": []
+   },
+   {
+    "cell": "Q3 Bordereau!=HYPERLINK(\"#'Q3 Bordereau'!B217\",\"B217\")",
+    "value": "1916858",
+    "truebind_on_row": []
+   }
+  ]
+ },
+ "reviewed_types_truebind_does_not_check": {
+  "Late Reported: GBP amounts": 22,
+  "Summary does not match detail": 16,
+  "Late-reported claim already on main tab": 7,
+  "Unsafe text (formula/script/SQL)": 4,
+  "Binder blank or inherited": 4,
+  "Insured name formatting": 4,
+  "Possible sanctions match": 2,
+  "Prompt-injection text": 2,
+  "Reporting period problem": 2,
+  "Same claim reference, different values": 2,
+  "Non-EUR currency in EUR file": 2,
+  "Binder not in Lookups": 2,
+  "Same policy, different insured": 2,
+  "Binder formatting": 1,
+  "Status formatting": 1,
+  "Open claim with nothing reserved or paid": 1,
+  "Gross/Net unclear": 1,
+  "Excess exceeds incurred": 1,
+  "Hidden row": 1,
+  "Recoveries exceed paid": 1,
+  "Very long text": 1,
+  "Hidden sheet instructions": 1
+ }
+}

@@ -1,0 +1,154 @@
+[
+ {
+  "file": "Generated_500_rows.xlsx",
+  "claim_rows": 502,
+  "total_s": 5.12,
+  "process_s": 2.84,
+  "peak_rss_mb": 225,
+  "deliverables": {
+   "annotated": {
+    "status": 200,
+    "seconds": 1.46,
+    "bytes": 61628,
+    "peak_rss_mb": 230
+   },
+   "corrected": {
+    "status": 200,
+    "seconds": 1.36,
+    "bytes": 50773,
+    "peak_rss_mb": 231
+   },
+   "query_letter": {
+    "status": 200,
+    "seconds": 0.05,
+    "bytes": 8937,
+    "peak_rss_mb": 231
+   }
+  },
+  "recall": 0.9333,
+  "planted": 15,
+  "found": 14,
+  "missed": [
+   {
+    "kind": "bad_currency",
+    "row": 433,
+    "cell": "J433",
+    "found_on_row": [
+     "currency_normalised"
+    ]
+   }
+  ],
+  "false_positives": 0,
+  "false_positives_by_rule": {},
+  "agreement": {
+   "report_errors": 12,
+   "list_errors": 12,
+   "report_warnings": 5,
+   "list_warnings": 5,
+   "errors_agree": true,
+   "warnings_agree": true,
+   "exceptions_complete": true
+  },
+  "health_view": {
+   "verdict": "fix",
+   "counts": {
+    "errors": 12,
+    "error_rows": 10,
+    "warnings": 5,
+    "couldnt_check": 0,
+    "couldnt_check_rows": 0
+   },
+   "duplicates": {
+    "exact_pairs": 1,
+    "probable_pairs": 1,
+    "probable_high_confidence": 1,
+    "repeat_period_unknown": 0,
+    "development_pairs": 0
+   }
+  }
+ },
+ {
+  "file": "Generated_2000_rows.xlsx",
+  "claim_rows": 2008,
+  "total_s": 6.8,
+  "process_s": 3.22,
+  "peak_rss_mb": 243,
+  "deliverables": {
+   "annotated": {
+    "status": 200,
+    "seconds": 4.25,
+    "bytes": 208240,
+    "peak_rss_mb": 250
+   },
+   "corrected": {
+    "status": 200,
+    "seconds": 3.54,
+    "bytes": 181479,
+    "peak_rss_mb": 267
+   },
+   "query_letter": {
+    "status": 200,
+    "seconds": 0.11,
+    "bytes": 22863,
+    "peak_rss_mb": 265
+   }
+  },
+  "recall": 0.95,
+  "planted": 60,
+  "found": 57,
+  "missed": [
+   {
+    "kind": "bad_currency",
+    "row": 822,
+    "cell": "J822",
+    "found_on_row": [
+     "currency_normalised"
+    ]
+   },
+   {
+    "kind": "bad_currency",
+    "row": 70,
+    "cell": "J70",
+    "found_on_row": [
+     "currency_normalised"
+    ]
+   },
+   {
+    "kind": "bad_currency",
+    "row": 349,
+    "cell": "J349",
+    "found_on_row": [
+     "currency_normalised"
+    ]
+   }
+  ],
+  "false_positives": 0,
+  "false_positives_by_rule": {},
+  "agreement": {
+   "report_errors": 46,
+   "list_errors": 46,
+   "report_warnings": 21,
+   "list_warnings": 21,
+   "errors_agree": true,
+   "warnings_agree": true,
+   "exceptions_complete": true
+  },
+  "health_view": {
+   "verdict": "fix",
+   "counts": {
+    "errors": 46,
+    "error_rows": 40,
+    "warnings": 21,
+    "couldnt_check": 0,
+    "couldnt_check_rows": 0
+   },
+   "duplicates": {
+    "exact_pairs": 4,
+    "probable_pairs": 4,
+    "probable_high_confidence": 4,
+    "repeat_period_unknown": 0,
+    "development_pairs": 0
+   }
+  }
+ }
+]

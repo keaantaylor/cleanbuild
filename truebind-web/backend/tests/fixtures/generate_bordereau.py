@@ -90,7 +90,7 @@ def generate(rows: int, out: Path, seed: int = 7, rate: float = 0.03) -> dict:
         elif kind == "missing_name":
             r[COL["Insured Name"] - 1] = None
         elif kind == "bad_currency":
-            r[COL["Currency"] - 1] = rng.choice(["XXX", "GPB", "EU"])
+            r[COL["Currency"] - 1] = rng.choice(["XXX", "GPB", "EUD"])  # "EU" is a recognised EUR variant
         elif kind == "currency_variant":
             r[COL["Currency"] - 1] = rng.choice(["Euro", "eur", "€", "Sterling"])
         elif kind == "notified_before_loss":

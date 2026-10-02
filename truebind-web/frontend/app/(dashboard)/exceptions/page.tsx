@@ -16,7 +16,7 @@ import { SEV, SHEET } from "@/components/nocturne/status";
 import { exportFile } from "@/lib/exports";
 import { resultTone, TONE, type ResultTone } from "@/lib/severity";
 
-const PAGE = 50;
+const PAGE = 50; // findings per page inside an open issue group
 const OUTCOME_DOT: Record<ResultTone, string> = { err: "var(--err)", warn: "var(--warn)", muted: "var(--muted)", ok: "var(--ok)" };
 const REVIEW_LABEL: Record<string, string> = { open: "Open", in_review: "In review", resolved: "Resolved", accepted: "Accepted as reported", false_positive: "Dismissed · not an issue" };
 const CHECKS = [
@@ -51,6 +51,9 @@ function Exceptions() {
   const [status, setStatus] = useState(params.get("status") ?? "");
   const [q, setQ] = useState("");
   const [sort, setSort] = useState("severity");
+  const [sheetF, setSheetF] = useState("");
+  const [columnF, setColumnF] = useState("");
+  const [openRule, setOpenRule] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [selId, setSelId] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -63,9 +66,11 @@ function Exceptions() {
   };
   const [modal, setModal] = useState<null | "accept" | "followup">(null);
 
+  const filters = { severity: severity || undefined, checkType: checkType || undefined, status: status || undefined, q: q || undefined, sheetId: sheetF || undefined, column: columnF || undefined };
+  const groups = useApi(() => (reportId ? api.exceptionGroups(reportId, filters) : Promise.resolve(null)), [reportId, severity, checkType, status, q, sheetF, columnF]);
   const list = useApi(
-    () => (reportId ? api.searchExceptions(reportId, { severity: severity || undefined, checkType: checkType || undefined, status: status || undefined, q: q || undefined, sort, limit: PAGE, offset }) : Promise.resolve(null)),
-    [reportId, severity, checkType, status, q, sort, offset],
+    () => (reportId && openRule ? api.searchExceptions(reportId, { ...filters, rule: openRule, sort, limit: PAGE, offset }) : Promise.resolve(null)),
+    [reportId, severity, checkType, status, q, sheetF, columnF, openRule, sort, offset],
   );
   const counts = useApi(async () => {
     if (!reportId) return null;
@@ -78,6 +83,12 @@ function Exceptions() {
   const sel = items.find((e) => e.validation_result_id === selId) ?? items[0] ?? null;
   const setFilter = (fn: () => void) => {
     fn();
+    setOffset(0);
+    setSelId(null);
+    setOpenRule(null);
+  };
+  const toggleGroup = (rule: string) => {
+    setOpenRule((r) => (r === rule ? null : rule));
     setOffset(0);
     setSelId(null);
   };
@@ -97,12 +108,13 @@ function Exceptions() {
         await api.reviewException(reportId, sel.validation_result_id, { review_status: review, assignee: assignee === undefined ? sel.assignee ?? null : assignee, note: note ?? null });
         toast(`${successText ?? REVIEW_LABEL[review]} · recorded in the audit trail`, "ok");
         list.reload();
+        groups.reload();
         if (review !== "open") setTimeout(() => move(1), 350);
       } catch (e) {
         toast(e instanceof ApiError ? e.message : "The decision could not be saved.", "err");
       }
     },
-    [reportId, sel, list, move, toast],
+    [reportId, sel, list, groups, move, toast],
   );
 
   useEffect(() => {
@@ -189,6 +201,14 @@ function Exceptions() {
             <option value="REVIEW">Warnings</option>
             <option value="NOT_EVALUABLE">Couldn’t check</option>
           </select>
+          <select className="tb-input !min-h-[34px] !py-1 text-[13px] sm:!w-auto" value={sheetF} onChange={(e) => setFilter(() => setSheetF(e.target.value))} aria-label="Sheet">
+            <option value="">All sheets</option>
+            {(groups.data?.sheets ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          <select className="tb-input !min-h-[34px] !py-1 text-[13px] sm:!w-auto" value={columnF} onChange={(e) => setFilter(() => setColumnF(e.target.value))} aria-label="Column">
+            <option value="">All columns</option>
+            {(groups.data?.columns ?? []).map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
           <select className="tb-input !min-h-[34px] !py-1 text-[13px] sm:!w-auto" value={sort} onChange={(e) => setFilter(() => setSort(e.target.value))} aria-label="Sort">
             <option value="severity">Most severe first</option>
             <option value="row">Source order</option>
@@ -201,35 +221,63 @@ function Exceptions() {
 
       <div className="flex min-h-[620px] flex-wrap overflow-hidden rounded-xl" style={{ background: "var(--surface)", boxShadow: "var(--shadow)" }}>
         <div ref={listRef} className="flex max-h-[420px] min-w-[240px] flex-[1_1_260px] flex-col overflow-y-auto overflow-x-hidden lg:max-h-[760px]" style={{ boxShadow: "1px 0 0 var(--line)" }}>
-          {list.error ? (
-            <div className="p-4"><ErrorState title="Findings could not be loaded" message={list.error} onRetry={list.reload} /></div>
-          ) : !page ? (
+          {groups.error ? (
+            <div className="p-4"><ErrorState title="Findings could not be loaded" message={groups.error} onRetry={groups.reload} /></div>
+          ) : !groups.data ? (
             <div className="p-4"><LoadingState label="Loading findings" rows={8} /></div>
-          ) : items.length === 0 ? (
+          ) : groups.data.groups.length === 0 ? (
             <EmptyState icon={<CheckCircle />} title="No findings match" body="Change the filters — or this report has nothing here." />
           ) : (
-            items.map((x) => {
-              const g = findingGuide(x.rule, x.status);
-              const on = x.validation_result_id === sel?.validation_result_id;
-              const reviewed = x.review_status && x.review_status !== "open";
-              return (
-                <button key={x.validation_result_id} type="button" onClick={() => pick(x.validation_result_id)} className="grid cursor-pointer grid-cols-[10px_minmax(0,1fr)] gap-3 px-4 py-3.5 text-left transition-colors hover:bg-[var(--accentTint)]" style={{ background: on ? "var(--accentTint)" : "transparent", boxShadow: on ? "inset 2px 0 0 var(--accent)" : "inset 0 -1px 0 var(--line)" }}>
-                  <span className="mt-[5px] h-2 w-2 rounded-full" style={{ background: OUTCOME_DOT[resultTone(x.status)] }} title={TONE[resultTone(x.status)].label} />
-                  <span className="flex min-w-0 flex-col gap-1">
-                    <span className="text-[13px] font-medium leading-[1.35]">{g.title}</span>
-                    <span className="tnum text-[12px]" style={{ color: "var(--faint)" }}>{x.claim_reference ?? "no claim ref"} · {x.cell && !x.cell.startsWith("row ") ? `${x.sheet_name}!${x.cell}` : `${x.sheet_name} row ${x.source_row_number ?? "—"}`}</span>
-                    <span className="text-[11.5px]" style={{ color: reviewed ? "var(--ok)" : "var(--faint)" }}>{x.review_status ? REVIEW_LABEL[x.review_status] : "Open"}{x.assignee ? ` · ${x.assignee}` : ""}</span>
-                  </span>
-                </button>
-              );
-            })
-          )}
-          {page && page.total > PAGE && (
-            <div className="mt-auto flex items-center justify-between gap-2 px-3 py-2.5 text-[12px]" style={{ boxShadow: "0 -1px 0 var(--line)", color: "var(--faint)" }}>
-              <button type="button" className="tb-btn !px-2 !py-1 text-[12px]" disabled={offset === 0} onClick={() => { setOffset(Math.max(0, offset - PAGE)); setSelId(null); }}>Previous</button>
-              <span className="tnum">{offset + 1}–{Math.min(offset + PAGE, page.total)} of {formatNumber(page.total)}</span>
-              <button type="button" className="tb-btn !px-2 !py-1 text-[12px]" disabled={offset + PAGE >= page.total} onClick={() => { setOffset(offset + PAGE); setSelId(null); }}>Next</button>
-            </div>
+            <ul className="m-0 list-none p-0" aria-label="Findings by issue type">
+              {groups.data.groups.map((g) => {
+                const open = openRule === g.rule;
+                const tone = resultTone(g.status);
+                return (
+                  <li key={`${g.rule}-${g.status}`} style={{ boxShadow: "inset 0 -1px 0 var(--line)" }}>
+                    <button type="button" aria-expanded={open} onClick={() => toggleGroup(g.rule)} className="flex w-full cursor-pointer items-center gap-2.5 px-4 py-3 text-left hover:bg-[var(--accentTint)]">
+                      <span className="h-2 w-2 flex-none rounded-full" style={{ background: OUTCOME_DOT[tone] }} title={TONE[tone].label} />
+                      <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium">{g.label}</span>
+                      <span className="tnum rounded px-1.5 py-0.5 text-[12px] font-medium" style={{ background: "var(--line)", color: "var(--text)" }}>{formatNumber(g.count)}</span>
+                      <span className="text-[12px]" style={{ color: "var(--faint)" }}>{open ? "−" : "+"}</span>
+                    </button>
+                    {open && (
+                      <div className="pb-1">
+                        {list.error ? (
+                          <div className="px-4 py-2 text-[12.5px]" style={{ color: "var(--err)" }}>{list.error}</div>
+                        ) : !page ? (
+                          <div className="px-4 py-2 text-[12.5px]" style={{ color: "var(--faint)" }}>Loading…</div>
+                        ) : (
+                          items.map((x) => {
+                            const on = x.validation_result_id === sel?.validation_result_id;
+                            const reviewed = x.review_status && x.review_status !== "open";
+                            const where = x.cell && !x.cell.startsWith("row ") ? `${x.sheet_name}!${x.cell}` : `${x.sheet_name} row ${x.source_row_number ?? "—"}`;
+                            return (
+                              <button key={x.validation_result_id} type="button" onClick={() => pick(x.validation_result_id)} className="flex w-full cursor-pointer flex-col gap-0.5 py-2 pl-[34px] pr-4 text-left hover:bg-[var(--accentTint)]" style={{ background: on ? "var(--accentTint)" : "transparent", boxShadow: on ? "inset 2px 0 0 var(--accent)" : "none" }}>
+                                <span className="tnum text-[12.5px] font-medium">{where} · {x.claim_reference ?? "no claim ref"}</span>
+                                {on && (
+                                  <span className="flex flex-col gap-0.5 text-[12.5px]">
+                                    <span>{x.sentence ?? x.message}</span>
+                                    <span className="tnum" style={{ color: "var(--muted)" }}>Source row {x.source_row_number ?? "—"}{x.source_column ? ` · column “${x.source_column}”` : ""}{x.amount != null ? ` · amount ${formatMoney(x.amount, x.currency ?? "")}` : ""}</span>
+                                  </span>
+                                )}
+                                <span className="text-[11.5px]" style={{ color: reviewed ? "var(--ok)" : "var(--faint)" }}>{x.review_status ? REVIEW_LABEL[x.review_status] : "Open"}{x.assignee ? ` · ${x.assignee}` : ""}</span>
+                              </button>
+                            );
+                          })
+                        )}
+                        {page && page.total > PAGE && (
+                          <div className="flex items-center justify-between gap-2 py-2 pl-[34px] pr-3 text-[12px]" style={{ color: "var(--faint)" }}>
+                            <button type="button" className="tb-btn !px-2 !py-1 text-[12px]" disabled={offset === 0} onClick={() => { setOffset(Math.max(0, offset - PAGE)); setSelId(null); }}>Previous</button>
+                            <span className="tnum">{offset + 1}–{Math.min(offset + PAGE, page.total)} of {formatNumber(page.total)}</span>
+                            <button type="button" className="tb-btn !px-2 !py-1 text-[12px]" disabled={offset + PAGE >= page.total} onClick={() => { setOffset(offset + PAGE); setSelId(null); }}>Next</button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
         {sel && reportId ? (

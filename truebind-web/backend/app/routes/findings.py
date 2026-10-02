@@ -31,24 +31,13 @@ CHECK_TYPES = tuple(dict.fromkeys(["MANDATORY_FIELD", "ARITHMETIC", "MAPPING_COM
                                    "STATUS", "OTHER", *(r.check_type for r in RULES.values())]))
 
 
-@router.get("/{report_id}/exceptions", response_model=Page[ExceptionRowOut])
-def list_exceptions(
-    report_id: str,
-    check_type: str | None = Query(default=None, max_length=32),
-    status: str | None = Query(default=None, pattern="^(FAIL|NOT_EVALUABLE|REVIEW)$"),
-    severity: str | None = Query(default=None, pattern="^(CRITICAL|HIGH|MEDIUM|INFO)$"),
-    sheet_id: str | None = Query(default=None, max_length=36),
-    q_ref: str | None = Query(default=None, max_length=100, alias="q"),
-    sort: str = Query(default="row", pattern="^(row|severity)$"),
-    paging: Paging = Depends(), ctx: Context = Depends(require_reader), db: Session = Depends(get_db),
-) -> Page[ExceptionRowOut]:
-    report = get_report_or_404(db, ctx, report_id)
+def _filtered(q, report_id: str, check_type, status, severity, sheet_id, q_ref, rule, column):
+    """The exceptions list's filters, shared by the list and the grouped counts."""
     if check_type and check_type not in CHECK_TYPES:
         raise HTTPException(status_code=422, detail=f"check_type must be one of {', '.join(CHECK_TYPES)}.")
-    q = (db.query(ValidationResult, ClaimRow, Sheet.sheet_name)
-         .join(ClaimRow, ValidationResult.claim_row_id == ClaimRow.id)
+    q = (q.join(ClaimRow, ValidationResult.claim_row_id == ClaimRow.id)
          .outerjoin(Sheet, Sheet.id == ClaimRow.sheet_id)
-         .filter(ValidationResult.report_id == report.id, ValidationResult.check_type != "DUPLICATE"))
+         .filter(ValidationResult.report_id == report_id, ValidationResult.check_type != "DUPLICATE"))
     if check_type:
         q = q.filter(ValidationResult.check_type == check_type)
     if status:
@@ -57,8 +46,67 @@ def list_exceptions(
         q = q.filter(ValidationResult.severity == severity)
     if sheet_id:
         q = q.filter(ClaimRow.sheet_id == sheet_id)
+    if rule:
+        q = q.filter(ValidationResult.rule == rule)
+    if column:
+        q = q.filter(ValidationResult.extra["column"].as_string() == column)
     if q_ref:
         q = q.filter(ClaimRow.claim_reference.ilike(f"%{q_ref.replace('%', '').replace('_', '')}%"))
+    return q
+
+
+@router.get("/{report_id}/exceptions/groups")
+def exception_groups(
+    report_id: str,
+    check_type: str | None = Query(default=None, max_length=32),
+    status: str | None = Query(default=None, pattern="^(FAIL|NOT_EVALUABLE|REVIEW)$"),
+    severity: str | None = Query(default=None, pattern="^(CRITICAL|HIGH|MEDIUM|INFO)$"),
+    sheet_id: str | None = Query(default=None, max_length=36),
+    q_ref: str | None = Query(default=None, max_length=100, alias="q"),
+    column: str | None = Query(default=None, max_length=255),
+    ctx: Context = Depends(require_reader), db: Session = Depends(get_db),
+) -> dict:
+    """Findings grouped by issue type (rule) with counts, for the grouped list;
+    plus the sheets and source columns that have findings, for the filters."""
+    report = get_report_or_404(db, ctx, report_id)
+    base = _filtered(db.query(ValidationResult.rule, ValidationResult.status, ValidationResult.severity,
+                              func.count(ValidationResult.id)),
+                     report.id, check_type, status, severity, sheet_id, q_ref, None, column)
+    groups = []
+    for rule_code, st, sev, n in base.group_by(ValidationResult.rule, ValidationResult.status,
+                                                ValidationResult.severity).all():
+        r = RULES.get(rule_code or "")
+        groups.append({"rule": rule_code, "label": r.label if r and st != "NOT_EVALUABLE" else
+                       ("Couldn't check: " + (rule_code or "").replace("_", " ")) if st == "NOT_EVALUABLE" else
+                       (rule_code or "").replace("_", " ").capitalize(),
+                       "status": st, "severity": sev, "count": n, "fix": r.fix if r else ""})
+    order = {"FAIL": 0, "REVIEW": 1, "NOT_EVALUABLE": 2}
+    sev_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "INFO": 3}
+    groups.sort(key=lambda g: (order.get(g["status"], 3), sev_order.get(g["severity"], 4), -g["count"]))
+    every = _filtered(db.query(Sheet.id, Sheet.sheet_name, ValidationResult.extra), report.id,
+                      None, None, None, None, None, None, None).all()
+    sheets = sorted({(sid, name) for sid, name, _ in every if sid}, key=lambda x: x[1])
+    columns = sorted({(x or {}).get("column") for _, _, x in every if (x or {}).get("column")})
+    return {"groups": groups, "total": sum(g["count"] for g in groups),
+            "sheets": [{"id": s, "name": n} for s, n in sheets], "columns": columns}
+
+
+@router.get("/{report_id}/exceptions", response_model=Page[ExceptionRowOut])
+def list_exceptions(
+    report_id: str,
+    check_type: str | None = Query(default=None, max_length=32),
+    status: str | None = Query(default=None, pattern="^(FAIL|NOT_EVALUABLE|REVIEW)$"),
+    severity: str | None = Query(default=None, pattern="^(CRITICAL|HIGH|MEDIUM|INFO)$"),
+    sheet_id: str | None = Query(default=None, max_length=36),
+    q_ref: str | None = Query(default=None, max_length=100, alias="q"),
+    rule: str | None = Query(default=None, max_length=64),
+    column: str | None = Query(default=None, max_length=255),
+    sort: str = Query(default="row", pattern="^(row|severity)$"),
+    paging: Paging = Depends(), ctx: Context = Depends(require_reader), db: Session = Depends(get_db),
+) -> Page[ExceptionRowOut]:
+    report = get_report_or_404(db, ctx, report_id)
+    q = _filtered(db.query(ValidationResult, ClaimRow, Sheet.sheet_name), report.id, check_type, status, severity,
+                  sheet_id, q_ref, rule, column)
     total = q.with_entities(func.count(ValidationResult.id)).scalar()
     order = ([_SEVERITY_RANK, ClaimRow.sheet_id, ClaimRow.row_index] if sort == "severity"
              else [ClaimRow.sheet_id, ClaimRow.row_index, ValidationResult.check_type])

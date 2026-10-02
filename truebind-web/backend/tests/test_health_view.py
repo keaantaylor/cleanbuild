@@ -91,3 +91,18 @@ def test_duplicate_counts_agree_everywhere(api):
     assert exact_listed >= 2
     probable = summary["probable_duplicates"] or 0
     assert sum(1 for p in listed["items"] if p["match_type"] == "probable_duplicate") == probable
+
+
+def test_exception_groups_and_filters(api):
+    rows = _rows() + [["CLM-0200", "Neg Ltd", "2024-01-15", "Open", "GBP", 100, -50, 50],
+                      ["CLM-0201", "Neg2 Ltd", "2024-01-15", "Open", "GBP", 100, -60, 40]]
+    rid, _ = api.full_run("groups.xlsx", xlsx_bytes(rows))
+    g = api.get(f"/api/v1/reports/{rid}/exceptions/groups").json()
+    neg = next(x for x in g["groups"] if x["rule"] == "negative_reserve")
+    assert neg["count"] == 2 and neg["label"] == "Negative reserve" and neg["fix"]
+    assert g["groups"][0]["status"] == "FAIL"  # errors first
+    assert "Reserve" in g["columns"] and g["sheets"][0]["name"] == "Claims"
+    page = api.get(f"/api/v1/reports/{rid}/exceptions", params={"rule": "negative_reserve", "limit": 50}).json()
+    assert page["total"] == 2 and {i["cell"] for i in page["items"]} == {"G12", "G13"}
+    by_col = api.get(f"/api/v1/reports/{rid}/exceptions", params={"column": "Currency"}).json()
+    assert by_col["total"] >= 1 and all(i["source_column"] == "Currency" for i in by_col["items"])

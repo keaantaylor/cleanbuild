@@ -56,7 +56,7 @@ test("sign up, upload the golden workbook, confirm mapping, read the report, sig
   await expect(page.getByText("Field completeness")).toBeVisible();
 
   await page.goto(`/exceptions?reportId=${reportId}`);
-  await expect(page.locator("main")).toContainText(/arithmetic/i);
+  await expect(page.getByRole("button", { name: /Total incurred does not reconcile/ })).toBeVisible();
 
   await signOut(page);
   const after = await request.get(`/api/v1/reports/${reportId}`);

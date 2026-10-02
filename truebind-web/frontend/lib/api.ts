@@ -1,4 +1,4 @@
-import type { Alert, AuditLogEntry, Billing, Binder, Preflight, SanctionsList, Scorecard, Submission, BinderInput, Disposition, ModuleFinding, ModuleRun, Channels, ClaimRow, Delivery, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Invitation, InvitationCreated, Job, Me, MappingField, GridPage, MonthOnMonth, QueryLetter, Member, MfaChallenge, MfaStatus, Obligation, OrgSettings, Overview, Report, ReportSummary, Role, Sheet, SheetMapping, SftpDestination, SftpInput, SsoConfig, SsoConfigInput, SystemStatus, Template, WebhookDelivery, WebhookEndpoint, WebhookEvent, WorkQueue } from "./types";
+import type { Alert, AuditLogEntry, Billing, Binder, Preflight, SanctionsList, Scorecard, Submission, BinderInput, Disposition, ModuleFinding, ModuleRun, Channels, ClaimRow, Delivery, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Invitation, InvitationCreated, Job, Me, MappingField, ExceptionGroups, GridPage, MonthOnMonth, QueryLetter, Member, MfaChallenge, MfaStatus, Obligation, OrgSettings, Overview, Report, ReportSummary, Role, Sheet, SheetMapping, SftpDestination, SftpInput, SsoConfig, SsoConfigInput, SystemStatus, Template, WebhookDelivery, WebhookEndpoint, WebhookEvent, WorkQueue } from "./types";
 
 // Default: same hostname as the page, port 8000. Using the page's own host
 // matters: a page on localhost calling an API on 127.0.0.1 is cross-site, so
@@ -292,8 +292,10 @@ export const api = {
     request<Delivery>(`/reports/${reportId}/deliveries`, { method: "POST", body: JSON.stringify({ kind, channel: "email", recipient }) }),
   reviewException: (reportId: string, validationResultId: string, body: { review_status: string; assignee?: string | null; note?: string | null }) =>
     request<{ review_status: string }>(`/reports/${reportId}/exceptions/${validationResultId}`, { method: "PATCH", body: JSON.stringify(body) }),
-  searchExceptions: (reportId: string, p: { checkType?: string; status?: string; severity?: string; q?: string; sort?: string; limit?: number; offset?: number }) =>
-    request<Page<ExceptionRow>>(`/reports/${reportId}/exceptions${qs({ check_type: p.checkType, status: p.status, severity: p.severity, q: p.q, sort: p.sort, limit: p.limit ?? 100, offset: p.offset ?? 0 })}`),
+  searchExceptions: (reportId: string, p: { checkType?: string; status?: string; severity?: string; q?: string; sort?: string; limit?: number; offset?: number; rule?: string; sheetId?: string; column?: string }) =>
+    request<Page<ExceptionRow>>(`/reports/${reportId}/exceptions${qs({ check_type: p.checkType, status: p.status, severity: p.severity, q: p.q, sort: p.sort, limit: p.limit ?? 100, offset: p.offset ?? 0, rule: p.rule, sheet_id: p.sheetId, column: p.column })}`),
+  exceptionGroups: (reportId: string, p: { checkType?: string; status?: string; severity?: string; q?: string; sheetId?: string; column?: string }) =>
+    request<ExceptionGroups>(`/reports/${reportId}/exceptions/groups${qs({ check_type: p.checkType, status: p.status, severity: p.severity, q: p.q, sheet_id: p.sheetId, column: p.column })}`),
   tenantAudit: (limit = 200) => items(request<Page<AuditLogEntry>>(`/audit?limit=${limit}`)),
   verifyAudit: () => request<{ intact: boolean; entries: number; first_bad_seq: number | null }>("/audit/verify"),
   /** Upload with REAL byte-level progress (XHR upload events). */

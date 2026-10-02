@@ -192,6 +192,13 @@ export interface GridCell { v: string | null; tone: "ok" | "warn" | "err" | "gre
 export interface GridRow { row: number; kind: "header" | "structural" | "claim" | "other"; cells: GridCell[]; row_notes: GridCell["notes"] }
 export interface GridPage { sheet_id: string; sheet_name: string; total_rows: number; columns: number; header_row: number; offset: number; rows: GridRow[] }
 
+export interface ExceptionGroups {
+  groups: { rule: string; label: string; status: ValidationStatus; severity: Severity; count: number; fix: string }[];
+  total: number;
+  sheets: { id: string; name: string }[];
+  columns: string[];
+}
+
 export interface QueryLetter {
   subject: string;
   body: string;

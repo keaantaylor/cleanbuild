@@ -12,8 +12,8 @@ Running unattended: approval items are listed under "Waiting for Kealan" and ski
 | 2 Trust in the findings | done (app screens for the catalogue and 'Not mapped' land with the Phase 3 report rewrite) |
 | 3 Health report redesign | done |
 | 4 Deliverables: annotated workbook, corrected copy, query letter, month-on-month | done |
-| 5 Adoption and trust: anonymise option, 30-day deletion, true security page, DPA draft, logout bug | in progress |
-| 6 Sales path: home wording, demo page, pricing, Health Check upload form (reuse launch-readiness branch) | remaining |
+| 5 Adoption and trust: anonymise option, 30-day deletion, true security page, DPA draft, logout bug | done |
+| 6 Sales path: home wording, demo page, pricing, Health Check upload form (reuse launch-readiness branch) | in progress |
 | 7 Design docs: docs/next-products.md | remaining |
 | 8 Verify: generator, 500/2k/10k runs, recall, false positives, agreement, all tests, locked preview | remaining |
 
@@ -38,6 +38,10 @@ tab); tests/test_deliverables.py. 10k rows: process 18.5s; annotated workbook 15
 request; on Render's free CPU expect ~2x - candidate for background build if slow). 2k-row probable duplicates 9,
 10k 51 (before this pass: thousands).
 
+Phase 5 evidence: retention 30 days default + purge (tests/test_privacy.py, test_db_storage purge), anonymise
+names (test_anonymise_names), security/privacy pages rewritten to current facts, docs/legal/dpa-template.md,
+logout bug fixed (tests/e2e/session.spec.ts). Backend 376 passed, e2e 7/7.
+
 ## Waiting for Kealan
 1. Render instance size: 512 MB is tight for 30,000-row files (peak ~430 MB in one process). Cheapest safe
    option: Render Standard (2 GB, 1 CPU). Not changed.
@@ -45,6 +49,9 @@ request; on Render's free CPU expect ~2x - candidate for background build if slo
    Choose: move to Frankfurt (plan in hosting-map.md, needs a paid Render database) or correct the wording.
 3. Rotate the production database password (it appeared once in a working log) and delete
    C:\Users\keala\truebind-db-url.txt.
+4. Existing organisations keep their 90-day retention; new ones get 30. Should existing ones move to 30? (one SQL update, not done).
+5. DPA (docs/legal/dpa-template.md): fill in the legal entity, confirm the backup retention and encryption-at-rest statements with Render, and have a solicitor review. The privacy page now says transfers outside the EEA rely on providers' Standard Contractual Clauses - please confirm that is right for Render and Vercel.
+6. Migration 0019_privacy_controls is new (additive). It runs on the next backend deploy; nothing has been deployed to production.
 
 ---
 

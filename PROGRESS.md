@@ -11,7 +11,7 @@ Continue from the first item not marked done. Branch fix/strategy-pass; locked p
 | 5 Faster spreadsheet animation (landing + onboarding) | done: hero stage 3.4s -> 2.1s, transitions ~half (1.3s -> 0.7s); onboarding progress bars 500 -> 200ms |
 | 6 Front-end overhaul (navy, green accent, borders, Inter, density) | done: navy #0F172A, mint-green accent from the logo, amber/red only for severity; gradients, glass and drop shadows removed (1px borders); radii 6px; tighter padding; Inter only; 'Planned' placeholder cards removed. Icons stay Phosphor (already one consistent set) |
 | 7 Use design files (Prototype.dc.html, nocturne.css) | done: no 'TrueBind Prototype.dc.html' in the repo or Downloads; nocturne.css (the purple system) retuned to the new palette |
-| 8 Verify: tests, build, 500-row upload, locked preview | remaining |
+| 8 Verify: tests, build, 500-row upload, locked preview | done: backend 386 passed, engine 94, e2e 9/9 (logo from 3 pages, workbook preview red cells), build OK; 500-row stress file COMPLETE in 10.7s with 43 red / 84 amber cells; locked preview https://cleanbuild-jazfksvk5-keaantaylors-projects.vercel.app |
 
 # Strategy + build pass — progress (resume point)
 

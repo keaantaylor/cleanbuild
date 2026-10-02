@@ -13,9 +13,9 @@ Running unattended: approval items are listed under "Waiting for Kealan" and ski
 | 3 Health report redesign | done |
 | 4 Deliverables: annotated workbook, corrected copy, query letter, month-on-month | done |
 | 5 Adoption and trust: anonymise option, 30-day deletion, true security page, DPA draft, logout bug | done |
-| 6 Sales path: home wording, demo page, pricing, Health Check upload form (reuse launch-readiness branch) | in progress |
-| 7 Design docs: docs/next-products.md | remaining |
-| 8 Verify: generator, 500/2k/10k runs, recall, false positives, agreement, all tests, locked preview | remaining |
+| 6 Sales path: home wording, demo page, pricing, Health Check upload form (reuse launch-readiness branch) | done (full backend re-run pending: stopped by low memory, see Waiting) |
+| 7 Design docs: docs/next-products.md | done (docs/next-products.md) |
+| 8 Verify: generator, 500/2k/10k runs, recall, false positives, agreement, all tests, locked preview | in progress |
 
 Phase 1 evidence: local timings 500/2k/10k/30k rows 3.8/5.5/23.1/56.2s -> 1.1/1.6/6.1/10.4s (parse once,
 memoised normalisation, lxml, originals + parse cache in PostgreSQL, 10-minute timeout). Hosting map:
@@ -42,6 +42,10 @@ Phase 5 evidence: retention 30 days default + purge (tests/test_privacy.py, test
 names (test_anonymise_names), security/privacy pages rewritten to current facts, docs/legal/dpa-template.md,
 logout bug fixed (tests/e2e/session.spec.ts). Backend 376 passed, e2e 7/7.
 
+Phase 6 evidence: home/pricing/demo pages, Health Check upload form + POST /leads/health-check (tests/test_leads.py
+8/8), e2e 9/9 incl. tests/e2e/sales.spec.ts. Generated 500-row sample: recall 15/15, 0 false positives, report
+and list counts agree.
+
 ## Waiting for Kealan
 1. Render instance size: 512 MB is tight for 30,000-row files (peak ~430 MB in one process). Cheapest safe
    option: Render Standard (2 GB, 1 CPU). Not changed.
@@ -55,6 +59,7 @@ logout bug fixed (tests/e2e/session.spec.ts). Backend 376 passed, e2e 7/7.
 7. Pricing page shows [PRICE] and [N] placeholders on purpose: set the per-file and monthly prices and row limits (components/site/pricing.tsx).
 8. Health Check form: set LEADS_NOTIFY_EMAIL (where requests and their files are emailed), LEADS_ADMIN_EMAILS (who can read them in the app) and SMTP_* on Render. Until SMTP is set, requests are stored but no email is sent. Migration 0020_leads adds the leads tables.
 9. Anthropic AI mapping (docs/next-products.md section 3) is design only: it would send masked column headers to a new external service, so it needs your approval, an Anthropic account with the right data terms, and a sub-processor notice to customers.
+10. The full backend test run was stopped by Claude Code because the laptop ran low on memory (251 passed, 0 product failures when it stopped). Close other apps and re-run: see the test command in PROGRESS.md / FINAL_REPORT.md.
 
 ---
 

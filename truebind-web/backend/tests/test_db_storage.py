@@ -126,3 +126,20 @@ def test_derived_keys_cannot_escape_their_tenant() -> None:
             storage.check_derived_key(bad)
     with pytest.raises(ValueError):
         storage.derived_key(tid, "a" * 64, "../evil")
+
+
+def test_purge_removes_the_original_and_parse_cache_from_the_database(db_store, api: Api) -> None:
+    from app.services import retention_service
+
+    rid = _upload_and_ingest(api)
+    tid = api.me["tenant"]["id"]
+    with _session(tid) as s:
+        assert s.query(StoredBlob).filter(StoredBlob.tenant_id == tid).count() >= 2, "original + parse cache"
+    assert api.delete(f"/api/v1/reports/{rid}").status_code in (200, 204)
+    s = get_session_factory()()
+    try:
+        assert retention_service.purge_deleted_reports(s) == 1
+    finally:
+        s.close()
+    with _session(tid) as s:
+        assert s.query(StoredBlob).filter(StoredBlob.tenant_id == tid).count() == 0

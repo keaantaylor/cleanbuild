@@ -53,12 +53,16 @@ class OrgOut(BaseModel):
     org_type: str
     require_2fa: bool
     retention_days: int
+    anonymise_names: bool = False
 
 
 class OrgPatch(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     org_type: OrgType | None = None
     require_2fa: bool | None = None
+    # Files and their data are deleted this many days after upload (default 30).
+    retention_days: int | None = Field(default=None, ge=1, le=365)
+    anonymise_names: bool | None = None
 
 
 class MemberOut(BaseModel):
@@ -100,7 +104,8 @@ class AcceptIn(BaseModel):
 
 def _org_out(t: Tenant) -> OrgOut:
     return OrgOut(
-        id=t.id, name=t.name, org_type=t.org_type, require_2fa=bool(t.require_2fa), retention_days=t.retention_days
+        id=t.id, name=t.name, org_type=t.org_type, require_2fa=bool(t.require_2fa), retention_days=t.retention_days,
+        anonymise_names=bool(t.anonymise_names),
     )
 
 
@@ -165,7 +170,7 @@ def patch_org(body: OrgPatch, ctx: Context = Depends(_org_manage), db: Session =
         )
     before: dict[str, object] = {}
     after: dict[str, object] = {}
-    for field in ("name", "org_type", "require_2fa"):
+    for field in ("name", "org_type", "require_2fa", "retention_days", "anonymise_names"):
         new = getattr(body, field)
         old = getattr(t, field)
         if new is not None and new != old:
@@ -176,6 +181,14 @@ def patch_org(body: OrgPatch, ctx: Context = Depends(_org_manage), db: Session =
             db, t.id, None, "SETTINGS_CHANGED", "ORGANISATION", t.id, before=before, after=after,
             actor=ctx.actor, actor_user_id=ctx.user_id,
         )  # fmt: skip
+    if "retention_days" in after:
+        # Live reports follow the new period from their upload date.
+        from datetime import timedelta
+
+        from ..models.reports import Report
+
+        for r in db.query(Report).filter(Report.tenant_id == t.id):
+            r.expires_at = r.created_at + timedelta(days=t.retention_days)
     db.commit()
     return _org_out(t)
 

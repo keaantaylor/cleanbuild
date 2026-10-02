@@ -134,6 +134,22 @@ class LocalObjectStore:
                 os.unlink(tmp)  # the staging name only; the stored original is `dest`
         return StoredObject(key, digest, size)
 
+    def delete_source(self, key: str, tenant_id: str, source_sha256: str, db: Any = None) -> int:
+        """Retention purge: remove one original and everything derived from it."""
+        n = 0
+        if key:
+            check_key(key)
+            p = self._path(key)
+            if p.exists():
+                p.chmod(0o600)
+                p.unlink()
+                n += 1
+        d = self._derived_path(derived_key(tenant_id, source_sha256, "x")).parent
+        for f in d.glob(f"{source_sha256}-*") if d.exists() else []:
+            f.unlink()
+            n += 1
+        return n
+
     def _derived_path(self, key: str) -> Path:
         check_derived_key(key)
         p = (self.root / key).resolve()
@@ -210,6 +226,16 @@ class S3ObjectStore:
             if head.get("Metadata", {}).get("sha256") != digest:  # pragma: no cover
                 raise
         return StoredObject(key, digest, size)
+
+    def delete_source(self, key: str, tenant_id: str, source_sha256: str, db: Any = None) -> int:
+        """Retention purge: remove one original and everything derived from it."""
+        prefix = derived_key(tenant_id, source_sha256, "x").rsplit("/", 1)[0] + f"/{source_sha256}-"
+        keys = [key] if key else []
+        resp = self.client.list_objects_v2(Bucket=self.bucket, Prefix=prefix)
+        keys += [o["Key"] for o in resp.get("Contents", [])]
+        for k in keys:
+            self.client.delete_object(Bucket=self.bucket, Key=k)
+        return len(keys)
 
     def put_derived(self, key: str, data: bytes, db: Any = None) -> None:
         check_derived_key(key)
@@ -301,6 +327,18 @@ class DbObjectStore:
             else:
                 row.sha256, row.size, row.content = digest, len(data), data
             s.flush()
+
+    def delete_source(self, key: str, tenant_id: str, source_sha256: str, db: Any = None) -> int:
+        """Retention purge: remove one original and everything derived from it
+        (rows in stored_blobs, plus any legacy copy on local disk)."""
+        from ..models.blobs import StoredBlob
+
+        prefix = derived_key(tenant_id, source_sha256, "x").rsplit("/", 1)[0] + f"/{source_sha256}-"
+        with self._session(prefix + "x", db) as s:
+            q = s.query(StoredBlob).filter(StoredBlob.tenant_id == tenant_id,
+                                           (StoredBlob.key == key) | StoredBlob.key.startswith(prefix))
+            n = q.delete(synchronize_session=False)
+        return n + self.legacy.delete_source(key, tenant_id, source_sha256)
 
     def get_derived(self, key: str, db: Any = None) -> bytes | None:
         from ..models.blobs import StoredBlob

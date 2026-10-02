@@ -125,12 +125,12 @@ const ORG_TYPES: { value: OrgType; label: string }[] = [
 export function OrganisationSettings({ canManage }: { canManage: boolean }) {
   const { toast } = useUi();
   const { data, error, loading, reload } = useApi(() => api.getOrg());
-  const [draft, setDraft] = useState<{ name: string; org_type: OrgType; require_2fa: boolean } | null>(null);
+  const [draft, setDraft] = useState<{ name: string; org_type: OrgType; require_2fa: boolean; retention_days: number; anonymise_names: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   if (loading && !data) return <Panel title="Organisation"><LoadingState label="Loading organisation" rows={3} /></Panel>;
   if (error || !data) return <ErrorState title="Organisation settings could not be loaded" message={error} onRetry={reload} />;
-  const form = draft ?? { name: data.name, org_type: data.org_type, require_2fa: data.require_2fa };
-  const dirty = form.name !== data.name || form.org_type !== data.org_type || form.require_2fa !== data.require_2fa;
+  const form = draft ?? { name: data.name, org_type: data.org_type, require_2fa: data.require_2fa, retention_days: data.retention_days, anonymise_names: !!data.anonymise_names };
+  const dirty = form.name !== data.name || form.org_type !== data.org_type || form.require_2fa !== data.require_2fa || form.retention_days !== data.retention_days || form.anonymise_names !== !!data.anonymise_names;
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -159,7 +159,11 @@ export function OrganisationSettings({ canManage }: { canManage: boolean }) {
           </F>
         </div>
         <Check on={form.require_2fa} disabled={!canManage} onChange={(v) => setDraft({ ...form, require_2fa: v })} label="Require two-step verification for every member" help="Members without it are asked to set it up before they can continue. Single sign-on users rely on your identity provider’s MFA. Turn it on for your own account first." />
-        <span className="text-[12.5px]" style={{ color: "var(--faint)" }}>Data retention: {data.retention_days} days.</span>
+        <F label="Delete files and their data after (days)" id="org-retention">
+          <input id="org-retention" className="tb-input max-w-[140px]" type="number" min={1} max={365} value={form.retention_days} disabled={!canManage} onChange={(e) => setDraft({ ...form, retention_days: Math.min(365, Math.max(1, Number(e.target.value) || 1)) })} />
+          <span className="mt-1 block text-[12.5px]" style={{ color: "var(--muted)" }}>The uploaded file, its rows and findings are permanently deleted this many days after upload (default 30). Deleting a report does the same straight away. The audit trail keeps only the file name and its fingerprint.</span>
+        </F>
+        <Check on={form.anonymise_names} disabled={!canManage} onChange={(v) => setDraft({ ...form, anonymise_names: v })} label="Anonymise insured names" help="Names are replaced by a stable code (for example “Insured 7F3A21”) in everything TrueBind keeps: rows, findings, exports. The same insured always gets the same code, so duplicates and month-on-month still work. Applies to files processed after you turn it on." />
         {canManage && (
           <div className="flex gap-2">
             <button type="submit" className="tb-btn tb-btn-solid" disabled={busy || !dirty}>{busy ? "Saving…" : "Save changes"}</button>

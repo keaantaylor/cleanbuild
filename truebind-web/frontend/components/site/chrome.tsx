@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { api, mayHaveSession } from "@/lib/api";
 import { List, X } from "@phosphor-icons/react";
 import { Brand, Mark, ThemeToggle } from "@/components/nocturne/ui";
 import { LeadButton } from "./lead-form";
@@ -14,8 +15,24 @@ const LINKS = [
 ];
 
 /** The prototype's floating glass pill nav. */
+/** True once /auth/me confirms this browser holds a live session. Marketing
+ * pages only read the session; they never end it. */
+export function useSignedIn(): boolean {
+  const [signedIn, setSignedIn] = useState(false);
+  useEffect(() => {
+    if (!mayHaveSession()) return;
+    let live = true;
+    api.me().then(() => live && setSignedIn(true)).catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+  return signedIn;
+}
+
 export function SiteNav() {
   const [open, setOpen] = useState(false);
+  const signedIn = useSignedIn();
   return (
     // The wrapper is zero-height so the pill floats over the hero; items-start stops
     // the pill being stretched to that zero height (the pill sizes to its content).
@@ -44,8 +61,8 @@ export function SiteNav() {
         </div>
         <div className="ml-auto flex items-center gap-1">
           <span className="contents max-[359px]:hidden"><ThemeToggle className="!h-9 !w-9 !rounded-full" style={{ color: "var(--chromeMuted)" }} /></span>
-          <Link href="/login" className="hidden h-9 items-center rounded-full px-3 text-[13.5px] transition-colors hover:text-[var(--chromeStrong)] sm:flex" style={{ color: "var(--chromeMuted)" }}>
-            Sign in
+          <Link href={signedIn ? "/overview" : "/login"} className="hidden h-9 items-center rounded-full px-3 text-[13.5px] transition-colors hover:text-[var(--chromeStrong)] sm:flex" style={{ color: "var(--chromeMuted)" }}>
+            {signedIn ? "Open TrueBind" : "Sign in"}
           </Link>
           <LeadButton
             kind="demo"
@@ -64,7 +81,7 @@ export function SiteNav() {
           className="anim-pop absolute left-4 right-4 top-[62px] flex flex-col rounded-2xl p-2 lg:hidden"
           style={{ background: "var(--popover)", backdropFilter: "blur(24px)", boxShadow: "0 0 0 1px var(--glassRing), 0 16px 40px rgba(0,0,0,.35)" }}
         >
-          {[...LINKS, ["Sign in", "/login"]].map(([l, h]) => (
+          {[...LINKS, signedIn ? ["Open TrueBind", "/overview"] : ["Sign in", "/login"]].map(([l, h]) => (
             <a key={h} href={h} onClick={() => setOpen(false)} className="rounded-lg px-3 py-2.5 text-[14px] hover:bg-[var(--accentTint)]" style={{ color: "var(--chromeStrong)" }}>
               {l}
             </a>

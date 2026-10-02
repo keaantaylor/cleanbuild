@@ -14,6 +14,7 @@ Rules:
 
 from __future__ import annotations
 
+import json
 import math
 from collections import Counter, defaultdict
 
@@ -26,6 +27,7 @@ from sqlalchemy.orm import Session
 
 from ..models._util import new_uuid, utcnow
 from ..models.alerts import Alert
+from ..models.identity import Tenant
 from ..models.reports import (
     ClaimRow,
     ExcludedRow,
@@ -34,7 +36,7 @@ from ..models.reports import (
     Sheet,
     ValidationResult,
 )
-from . import alert_service, audit_service, health_view, pipeline_service
+from . import alert_service, anonymise, audit_service, health_view, pipeline_service
 from .pipeline_service import FIELDS, FIELDS_BY_CODE, classify_sheet_status, mapping_mod
 from .pipeline_service import REQUIRED_CODES as _REQUIRED
 
@@ -102,6 +104,8 @@ def persist_ingest(db: Session, report: Report, sheets, proposals, ai_meta: dict
     for model in (ExcludedRow, Mapping, Sheet):
         db.execute(delete(model).where(model.report_id == report.id))
     proposal_by_sheet = {p.sheet.sheet_name: p for p in proposals}
+    tenant = db.get(Tenant, tid)
+    anon = bool(tenant and tenant.anonymise_names)
     excluded: list[dict] = []
     mappings: list[dict] = []
     for i, s in enumerate(sheets):
@@ -128,6 +132,8 @@ def persist_ingest(db: Session, report: Report, sheets, proposals, ai_meta: dict
                              "sheet_name": er.sheet_name[:255], "row_number": er.row_number, "row_count": er.count,
                              "reason": er.reason, "detail": er.detail[:500],
                              "values": {str(k)[:255]: str(v)[:500] for k, v in er.values.items()}})
+        if anon and proposal is not None and not s.skipped:
+            _anonymise_sheet_samples(db, tid, sheet_id, s, proposal, excluded)
         if proposal is None:
             continue
         by_field = {sg.field_code: sg for sg in proposal.mapping.suggestions if sg.field_code}
@@ -293,6 +299,10 @@ def persist_pipeline_result(db: Session, report: Report, sheets, result, sheet_i
     src_rows = canonical["_source_row"].tolist() if "_source_row" in canonical.columns else [None] * n
     extras = canonical["_unmapped_values"].tolist() if "_unmapped_values" in canonical.columns else [None] * n
     sheets_col = canonical["_source_sheet"].tolist() if n else []
+    tenant = db.get(Tenant, tid)
+    anon = None
+    if tenant is not None and tenant.anonymise_names and "CR0035M" in canonical.columns:
+        anon = anonymise.Replacer(tid, canonical["CR0035M"].dropna().unique().tolist())
     rows = []
     for i in range(n):
         r = {"id": ids[i], "tenant_id": tid, "report_id": report.id, "sheet_id": sheet_id_by_name.get(sheets_col[i]),
@@ -309,6 +319,10 @@ def persist_pipeline_result(db: Session, report: Report, sheets, result, sheet_i
             r[col] = v
         if r["source_row_number"] is not None:
             r["source_row_number"] = int(r["source_row_number"])
+        if anon is not None:
+            r["insured_name"] = anonymise.pseudonym(tid, r["insured_name"])
+            if r["unmapped_values"]:
+                r["unmapped_values"] = {k: anon(v) for k, v in r["unmapped_values"].items()}
         rows.append(r)
     _bulk(db, ClaimRow, rows)
 
@@ -349,6 +363,10 @@ def persist_pipeline_result(db: Session, report: Report, sheets, result, sheet_i
             extra["confidence"] = int(conf)
         vr(int(a), "DUPLICATE", rr.outcome, rr.severity, detail, mt, extra, field_code="CR0104M")
     alerts = _mapping_completeness(result, canonical, ids, vr, tid, report.id)
+    if anon is not None:
+        for v in vrs:
+            v["message"] = anon(v["message"])
+            v["extra"] = {k: anon(x) for k, x in v["extra"].items()}
     _bulk(db, ValidationResult, vrs)
 
     cov, health = result.coverage, result.health
@@ -370,6 +388,8 @@ def persist_pipeline_result(db: Session, report: Report, sheets, result, sheet_i
     summary["health_view"] = health_view.build(
         result, canonical, summary, locator,
         partly_mapped=[{"sheet_name": a["_sheet"], "message": a["message"]} for a in alerts if "_sheet" in a])
+    if anon is not None:
+        summary = json.loads(anon(json.dumps(summary, default=str)))
     report.summary = summary
     # Reverse mapping audit: every source column no canonical field claimed
     # gets its own entry (mirror of the per-field UNMAPPED mapping rows).
@@ -381,6 +401,21 @@ def persist_pipeline_result(db: Session, report: Report, sheets, result, sheet_i
                                             "mapping_state": "UNMAPPED", "data_retained": True})
     for a in alerts + _report_alerts(health, cov):
         db.add(Alert(tenant_id=tid, report_id=report.id, **{k: v for k, v in a.items() if not k.startswith("_")}))
+
+
+def _anonymise_sheet_samples(db: Session, tid: str, sheet_id: str, s, proposal, excluded: list[dict]) -> None:
+    """Anonymise option at ingest: the insured-name column's sample values and
+    any excluded-row values that hold a name are replaced by their codes."""
+    col = next((sg.source_column for sg in proposal.mapping.suggestions if sg.field_code == "CR0035M"), None)
+    if col is None or col not in s.raw.columns:
+        return
+    rep = anonymise.Replacer(tid, s.raw[col].dropna().unique().tolist())
+    sheet = next((o for o in db.new if isinstance(o, Sheet) and o.id == sheet_id), None)
+    if sheet is not None and sheet.samples:
+        sheet.samples = {k: [rep(v) for v in vals] for k, vals in sheet.samples.items()}
+    for e in excluded:
+        if e["sheet_name"] == s.sheet_name[:255]:
+            e["values"] = {k: rep(v) for k, v in e["values"].items()}
 
 
 def _cell_locator(db: Session, report: Report) -> health_view.CellLocator:

@@ -64,7 +64,7 @@ export function AuthShell({
         <div className="relative mt-auto flex flex-col gap-2 text-[12px] leading-[1.5]" style={{ color: "var(--chromeFaint)" }}>
           <span className="flex items-center gap-2" style={{ color: "var(--ok)" }}>
             <ShieldCheck size={14} />
-            EU-hosted · source files never rewritten
+            Source files never rewritten · deleted after 30 days by default
           </span>
         </div>
       </aside>

@@ -161,7 +161,7 @@ export const api = {
 
   // ---- organisation
   getOrg: () => request<OrgSettings>("/org"),
-  updateOrg: (body: Partial<Pick<OrgSettings, "name" | "org_type" | "require_2fa">>) =>
+  updateOrg: (body: Partial<Pick<OrgSettings, "name" | "org_type" | "require_2fa" | "retention_days" | "anonymise_names">>) =>
     request<OrgSettings>("/org", { method: "PATCH", body: JSON.stringify(body) }),
   listMembers: () => request<Member[]>("/org/members"),
   changeRole: (membershipId: string, role: Role) =>

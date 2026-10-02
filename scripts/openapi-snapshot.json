@@ -2808,6 +2808,11 @@
    },
    "OrgOut": {
     "properties": {
+     "anonymise_names": {
+      "default": false,
+      "title": "Anonymise Names",
+      "type": "boolean"
+     },
      "id": {
       "title": "Id",
       "type": "string"
@@ -2841,6 +2846,17 @@
    },
    "OrgPatch": {
     "properties": {
+     "anonymise_names": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Anonymise Names"
+     },
      "name": {
       "anyOf": [
        {
@@ -2880,6 +2896,19 @@
        }
       ],
       "title": "Require 2Fa"
+     },
+     "retention_days": {
+      "anyOf": [
+       {
+        "maximum": 365.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Retention Days"
      }
     },
     "title": "OrgPatch",

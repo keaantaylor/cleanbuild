@@ -69,7 +69,7 @@ export interface Me {
 /** Returned by /auth/login instead of a session when a second factor is needed. */
 export interface MfaChallenge { mfa_required: true; mfa_token: string; methods: string[] }
 
-export interface OrgSettings { id: string; name: string; org_type: OrgType; require_2fa: boolean; retention_days: number }
+export interface OrgSettings { id: string; name: string; org_type: OrgType; require_2fa: boolean; retention_days: number; anonymise_names?: boolean }
 export interface Member { membership_id: string; user_id: string; email: string; display_name: string; role: Role; created_at: string }
 export interface Invitation { id: string; email: string; role: Role; created_at: string; expires_at: string }
 export interface InvitationCreated extends Invitation { accept_token: string }

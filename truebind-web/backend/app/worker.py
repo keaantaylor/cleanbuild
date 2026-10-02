@@ -205,6 +205,7 @@ class Worker:
             db = self.factory()
             try:
                 retention_service.expire_due_reports(db)
+                retention_service.purge_deleted_reports(db)
             except Exception:  # noqa: BLE001 -- housekeeping must not stop the worker
                 log.exception("retention sweep failed")
             finally:

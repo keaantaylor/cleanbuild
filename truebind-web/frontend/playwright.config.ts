@@ -40,6 +40,7 @@ export default defineConfig({
         TRUEBIND_NO_DOTENV: "1",
         TRUEBIND_EMBEDDED_WORKER: "1",
         ALLOW_SIGNUP: "1",
+        SIGNUP_LIMIT_PER_HOUR: "50",
         DATABASE_URL: process.env.E2E_DATABASE_URL ?? `sqlite:///${path.join(dataDir, "e2e.db")}`,
         TRUEBIND_DATA_DIR: path.join(dataDir, "data"),
         TRUEBIND_STORAGE_DIR: path.join(dataDir, "objects"),

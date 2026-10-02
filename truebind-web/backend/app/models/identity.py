@@ -26,7 +26,11 @@ class Tenant(Base):
     name: Mapped[str] = mapped_column(String(200))
     # Uploaded files and derived data are deleted after this many days unless
     # the tenant changes it (AI/ARCHITECTURE/TRUEBIND_SECURITY_MODEL.md).
-    retention_days: Mapped[int] = mapped_column(Integer, default=90)
+    retention_days: Mapped[int] = mapped_column(Integer, default=30)
+    # Insured names are replaced by a stable code (e.g. "Insured 7F3A21") in
+    # everything TrueBind stores about a file; the customer's own workbook is
+    # returned unchanged.
+    anonymise_names: Mapped[bool] = mapped_column(Boolean, default=False, server_default=sa_false())
     # capacity_provider (Lloyd's managing agent / fronting carrier) | mga | tpa
     org_type: Mapped[str] = mapped_column(String(32), default="capacity_provider", server_default="capacity_provider")
     # Every member must use a second factor (TOTP) to sign in (P1.4).

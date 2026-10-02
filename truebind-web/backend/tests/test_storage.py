@@ -46,11 +46,17 @@ def test_originals_are_content_addressed_and_idempotent(tmp_path: Path) -> None:
         assert p.read_bytes() == content
 
 
-def test_storage_has_no_delete_or_overwrite_path() -> None:
+def test_storage_has_no_overwrite_path_and_one_retention_delete() -> None:
+    """Originals are write-once. The only removal path is delete_source, used by
+    the retention purge (retention_service.purge_report) when a report's
+    retention period ends or it is deleted."""
     forbidden = ("delete", "remove", "unlink", "purge", "overwrite", "rmtree")
-    for cls in (storage.LocalObjectStore, storage.S3ObjectStore):
+    for cls in (storage.LocalObjectStore, storage.S3ObjectStore, storage.DbObjectStore):
         public = [n for n in dir(cls) if not n.startswith("_")]
-        assert not [n for n in public if any(w in n.lower() for w in forbidden)], (cls.__name__, public)
+        assert [n for n in public if any(w in n.lower() for w in forbidden)] == ["delete_source"], (cls.__name__, public)
+    callers = [p for p in Path(storage.__file__).parents[1].rglob("*.py")
+               if "delete_source(" in p.read_text(encoding="utf-8") and p.name != "storage.py"]
+    assert [p.name for p in callers] == ["retention_service.py"]
 
 
 def test_tampered_original_is_refused(tmp_path: Path) -> None:

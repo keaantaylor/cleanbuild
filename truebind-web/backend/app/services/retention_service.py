@@ -1,11 +1,13 @@
-"""Deletion and retention -- both are SOFT (P1.5, non-negotiable #7).
+"""Deletion and retention.
 
-Deleting a report, or its retention period ending, hides it everywhere in the
-application (models/reports.py filters ``deleted_at``) and writes an audit
-entry. The original file and the derived rows are kept: originals are
-immutable and the application has no delete path. Physically purging data
-after the retention period is an operator-run storage lifecycle rule and
-database purge (docs/RETENTION.md), not application code."""
+Deleting a report, or its retention period (default 30 days, set per
+organisation) ending, first hides it everywhere (models/reports.py filters
+``deleted_at``) with an audit entry. The worker's next sweep then PURGES it:
+the original file, everything derived from it, the claim rows, findings,
+samples and summary are physically deleted. The report record keeps only its
+file name, SHA-256, dates and status, and the hash-chained audit trail is kept,
+so what happened stays provable without keeping the data. Database backups
+expire on the hosting provider's schedule (see the security page)."""
 
 from __future__ import annotations
 
@@ -16,8 +18,16 @@ from sqlalchemy.orm import Session
 from ..database import set_tenant
 from ..models._util import utcnow
 from ..models.identity import Tenant
-from ..models.reports import Report
+from ..models.alerts import Alert
+from ..models.exception_summary import ExceptionSummary
+from ..models.leakage import LeakageFlag
+from ..models.modules import Finding, ModuleRun
+from ..models.reports import ClaimRow, ExcludedRow, Mapping, Report, Sheet, ValidationResult
 from . import audit_service, job_service
+from .storage import get_store
+
+_PURGED_TABLES = (ValidationResult, ClaimRow, ExcludedRow, Mapping, Sheet, ExceptionSummary, Alert, LeakageFlag,
+                  Finding, ModuleRun)
 
 log = logging.getLogger("truebind.retention")
 
@@ -56,4 +66,47 @@ def expire_due_reports(db: Session, limit: int = 200) -> int:
                 db.rollback()
     if n:
         log.info("retention: deleted %d expired report(s)", n)
+    return n
+
+
+def purge_report(db: Session, report: Report) -> int:
+    """Physically delete a deleted/expired report's data. Caller commits.
+    The original is kept only while another live report of the same
+    organisation was uploaded from the very same file."""
+    from sqlalchemy import delete as sa_delete
+
+    for model in _PURGED_TABLES:
+        db.execute(sa_delete(model).where(model.report_id == report.id))
+    shared = (db.query(Report.id).filter(Report.tenant_id == report.tenant_id, Report.id != report.id,
+                                         Report.source_sha256 == report.source_sha256,
+                                         Report.purged_at.is_(None)).first())
+    removed = 0
+    if not shared and report.source_sha256:
+        removed = get_store().delete_source(report.storage_key or "", report.tenant_id, report.source_sha256, db=db)
+    report.summary = None
+    report.ingest_notes = None
+    report.storage_key = None if not shared else report.storage_key
+    report.purged_at = utcnow()
+    audit_service.log_action(db, report.tenant_id, report.id, "REPORT_PURGED", "REPORT", report.id,
+                             after={"objects_deleted": removed, "original_kept_for_other_report": bool(shared)})
+    db.flush()
+    return removed
+
+
+def purge_deleted_reports(db: Session, limit: int = 100) -> int:
+    """Purge every report that was deleted or expired and not yet purged."""
+    n = 0
+    tenants = [t.id for t in db.query(Tenant.id).all()]
+    db.commit()
+    for tid in tenants:
+        set_tenant(db, tid)
+        due = (db.query(Report).execution_options(include_deleted=True)
+               .filter(Report.tenant_id == tid, Report.deleted_at.is_not(None), Report.purged_at.is_(None))
+               .limit(limit).all())
+        for report in due:
+            purge_report(db, report)
+            db.commit()
+            n += 1
+    if n:
+        log.info("retention: purged %d report(s)", n)
     return n

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { Key, SignIn } from "@phosphor-icons/react";
-import { api, ApiError, isMfaChallenge } from "@/lib/api";
+import { api, ApiError, isMfaChallenge, mayHaveSession } from "@/lib/api";
 import { safeNext, ssoErrorMessage } from "@/lib/auth";
 import { AuthShell, Field, FormError } from "@/components/nocturne/auth-shell";
 import { Modal } from "@/components/nocturne/ui";
@@ -33,6 +33,12 @@ function Login() {
   // Old sign-up links (?mode=signup) now start the guided set-up.
   useEffect(() => {
     if (params.get("mode") === "signup") router.replace("/onboarding");
+  }, [params, router]);
+
+  // Already signed in: go straight to the app instead of showing the form again.
+  useEffect(() => {
+    if (!mayHaveSession()) return;
+    api.me().then(() => router.replace(safeNext(params.get("next")))).catch(() => undefined);
   }, [params, router]);
 
   const done = () => router.replace(safeNext(params.get("next")));

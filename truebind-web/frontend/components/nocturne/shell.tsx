@@ -119,7 +119,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       className="flex h-full flex-col gap-[18px] overflow-y-auto px-3 py-[18px]"
       style={{ background: "var(--chrome)", color: "var(--chromeText)", boxShadow: "1px 0 0 var(--chromeLine)", scrollbarWidth: "thin", scrollbarColor: "rgba(233,233,237,.12) transparent" }}
     >
-      <Link href="/" className="flex items-center gap-[9px] px-2 py-0.5 text-[15px] font-semibold" style={{ color: "var(--chromeStrong)" }} title="TrueBind home">
+      <Link href="/overview" className="flex items-center gap-[9px] px-2 py-0.5 text-[15px] font-semibold" style={{ color: "var(--chromeStrong)" }} title="Overview">
         <Mark size={26} radius={7} />
         TrueBind
       </Link>

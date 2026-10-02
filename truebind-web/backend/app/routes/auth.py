@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+import os
+
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -26,6 +28,9 @@ from ..security.auth import Context, _aware, clear_cookie, create_session, get_c
 from ..security.permissions import Permission, has_permission, permissions_for
 from ..security.ratelimit import client_ip, limiter
 from ..services import audit_service
+
+# Sign-ups per IP per hour (raised only for the end-to-end suite, which signs up many owners from one IP).
+_SIGNUPS_PER_HOUR = int(os.environ.get("SIGNUP_LIMIT_PER_HOUR", "5"))
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -53,7 +58,7 @@ def me_out(db: Session, user: User, tenant_id: str, role: str, csrf: str, auth_m
 def signup(body: SignupRequest, request: Request, response: Response, db: Session = Depends(get_db)) -> MeOut:
     if not ALLOW_SIGNUP:
         raise HTTPException(status_code=403, detail="Self-service sign-up is disabled. Ask your administrator.")
-    limiter.check("signup", client_ip(request), limit=5, window_s=3600)
+    limiter.check("signup", client_ip(request), limit=_SIGNUPS_PER_HOUR, window_s=3600)
     problems = passwords.password_problems(body.password)
     if problems:
         raise HTTPException(status_code=422, detail=" ".join(problems))

@@ -73,6 +73,8 @@ class Report(Base):
     # Soft delete (P1.5): the record, its derived rows and the original file are
     # kept; the report is hidden from every query unless include_deleted is set.
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Set when the report's data (original file, rows, findings) was physically deleted.
+    purged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     deleted_by: Mapped[str | None] = mapped_column(String(320), nullable=True)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     binder_id: Mapped[str | None] = mapped_column(  # P3: the binder this bordereau is reported under

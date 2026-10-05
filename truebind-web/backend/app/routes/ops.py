@@ -27,7 +27,7 @@ from ..models.reports import Report, Sheet, ValidationResult
 from ..schemas.reports import AlertOut, AuditLogOut, JobOut, Page, UtcDatetime
 from ..security.auth import Context, require_reader, require_writer
 from ..security.ratelimit import limiter
-from ..services import audit_service, delivery_service, job_service, sftp_service
+from ..services import issues, audit_service, delivery_service, job_service, sftp_service
 from .deps import Paging, get_report_or_404, report_out
 
 router = APIRouter(prefix="/api/v1", tags=["operations"])
@@ -322,6 +322,15 @@ def review_exception(report_id: str, validation_result_id: str, body: ExceptionR
         after["assignee"] = body.assignee or None
     if body.note:
         after["note"] = body.note
+    # Keep the issue record in step: the decision moves its status and is added to its history.
+    target = issues.REVIEW_TO_STATUS[body.review_status]
+    try:
+        after = issues.transition(after, target, ctx.actor, body.note or f"Review decision: {body.review_status}")
+    except issues.TransitionError:
+        history = list(after.get("history") or [])
+        history.append({"at": utcnow().isoformat(), "status": target, "from": after.get("issue_status"),
+                        "actor": ctx.actor, "note": body.note or f"Review decision: {body.review_status}"})
+        after = {**after, "issue_status": target, "history": history}
     vr.extra = after
     audit_service.log_action(db, ctx.tenant_id, report.id, "EXCEPTION_STATUS_CHANGED", "EXCEPTION", vr.id,
                              before={k: before.get(k) for k in ("review_status", "assignee")},

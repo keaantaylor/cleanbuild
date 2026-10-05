@@ -16,7 +16,9 @@ from . import ingest, schema
 from .iso4217 import VALID_CURRENCY_CODES
 
 # field_code: the field (and so the source cell) the finding is about, when there is one.
-EXCEPTION_COLUMNS = ["row_index", "claim_ref", "rule", "detail", "field_code"]
+# expected / actual: the compared values, when the rule compares one (numbers
+# as floats, dates as ISO text); None when the rule is a presence or format check.
+EXCEPTION_COLUMNS = ["row_index", "claim_ref", "rule", "detail", "field_code", "expected", "actual"]
 
 # sheet_field_state: {sheet_name: {field_code: "alias" | "ai" | "unmapped"}}.
 # A field UNMAPPED on a given sheet must never be treated as "present on
@@ -49,8 +51,8 @@ def add_row_findings(result: "ValidationResult", findings: list[tuple[int, str, 
     ValidationResult without touching its arithmetic counts."""
     if not findings:
         return result
-    extra = pd.DataFrame([{"row_index": i, "claim_ref": None, "rule": r, "detail": d, "field_code": None}
-                          for i, r, d in findings])
+    extra = pd.DataFrame([{"row_index": i, "claim_ref": None, "rule": r, "detail": d, "field_code": None,
+                           "expected": None, "actual": None} for i, r, d in findings])
     exc = pd.concat([result.exceptions, extra], ignore_index=True) if not result.exceptions.empty else extra
     return dataclasses.replace(result, exceptions=exc)
 
@@ -62,7 +64,7 @@ def validate(df: pd.DataFrame, sheet_field_state: SheetFieldState | None = None)
     sheet_field_state = sheet_field_state or {}
     exceptions: list[dict] = []
 
-    def flag(idx, rule: str, detail: str, field: str | None = None) -> None:
+    def flag(idx, rule: str, detail: str, field: str | None = None, expected=None, actual=None) -> None:
         claim_ref = df.at[idx, schema.CLAIM_REF_CODE] if schema.CLAIM_REF_CODE in df.columns else None
         exceptions.append({
             "row_index": idx,
@@ -70,6 +72,8 @@ def validate(df: pd.DataFrame, sheet_field_state: SheetFieldState | None = None)
             "rule": rule,
             "detail": detail,
             "field_code": field,
+            "expected": _plain(expected),
+            "actual": _plain(actual),
         })
 
     _check_mandatory_fields(df, flag, sheet_field_state)
@@ -143,6 +147,25 @@ _SHORT = {
     schema.FEES_PAID_MONTH_CODE: "fees_paid_this_month", schema.FEES_PREV_PAID_CODE: "fees_previously_paid",
     schema.FEES_RESERVE_CODE: "fees_reserve", schema.FEES_PAID_TD_CODE: "fees_paid_to_date",
 }
+
+
+def _plain(v):
+    """A compared value as plain JSON: float for amounts, ISO text for dates."""
+    if v is None:
+        return None
+    try:
+        if pd.isna(v):
+            return None
+    except (TypeError, ValueError):
+        pass
+    if hasattr(v, "date") and callable(v.date):
+        return v.date().isoformat()
+    if isinstance(v, str):
+        return v
+    try:
+        return round(float(v), 2)
+    except (TypeError, ValueError):
+        return str(v)
 
 
 def _fmt(v) -> str:
@@ -273,7 +296,8 @@ def _check_arithmetic(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState
                 else:
                     fee_note = " (no fee columns in this file: checked as nil fees; if the total includes fees the difference may be fees)"
             flag(i, "arithmetic_mismatch",
-                 f"{label}={_fmt(tgt.at[i])} but " + " + ".join(parts) + f" = {_fmt(exp.at[i])}{fee_note}", code)
+                 f"{label}={_fmt(tgt.at[i])} but " + " + ".join(parts) + f" = {_fmt(exp.at[i])}{fee_note}", code,
+                 expected=exp.at[i], actual=tgt.at[i])
         # Combine per row: any mismatch wins; else match if evaluated; else keep first NE reason.
         status = status.mask(mism, "MISMATCH")
         status = status.mask(computable & ~mism & (status == ""), "MATCH")
@@ -298,7 +322,7 @@ def _check_arithmetic(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState
         flag(i, "arithmetic_mismatch",
              f"paid to date={_fmt(val[S.PAID_TD_CODE].at[i])} but paid this month "
              f"{_fmt(val[S.PAID_MONTH_CODE].at[i])} + previously paid {_fmt(val[S.PREV_PAID_CODE].at[i])} "
-             f"= {_fmt(comp_sum.at[i])}", S.PAID_TD_CODE)
+             f"= {_fmt(comp_sum.at[i])}", S.PAID_TD_CODE, expected=comp_sum.at[i], actual=val[S.PAID_TD_CODE].at[i])
 
     claim_ref_col = schema.CLAIM_REF_CODE
     rows = []
@@ -328,7 +352,7 @@ def _check_dates(df: pd.DataFrame, flag) -> None:
     for idx in df.index[order_bad]:
         flag(idx, "date_order",
              f"date of loss {loss.at[idx].date()} is after date first notified {notified.at[idx].date()}",
-             schema.NOTIFIED_DATE_CODE)
+             schema.NOTIFIED_DATE_CODE, expected=f"on or after {loss.at[idx].date()}", actual=notified.at[idx])
 
     for idx in df.index[loss.notna() & (loss > today)]:
         flag(idx, "date_in_future", f"date of loss {loss.at[idx].date()} is in the future", schema.LOSS_DATE_CODE)
@@ -407,14 +431,16 @@ def _check_amounts(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState) -
     S = schema
     reserve = _num(df, S.RESERVE_CODE)
     for idx in df.index[reserve < -S.ARITHMETIC_TOLERANCE]:
-        flag(idx, "negative_reserve", f"reserve is {_fmt(reserve.at[idx])}; a reserve cannot be negative", S.RESERVE_CODE)
+        flag(idx, "negative_reserve", f"reserve is {_fmt(reserve.at[idx])}; a reserve cannot be negative", S.RESERVE_CODE,
+             expected=0.0, actual=reserve.at[idx])
 
     paid = _num(df, S.PAID_TD_CODE)
     incurred = _num(df, S.INCURRED_CODE)
     over = paid.notna() & incurred.notna() & (incurred >= 0) & (paid - incurred > S.ARITHMETIC_TOLERANCE)
     for idx in df.index[over]:
         flag(idx, "paid_exceeds_incurred",
-             f"paid to date {_fmt(paid.at[idx])} is more than total incurred {_fmt(incurred.at[idx])}", S.PAID_TD_CODE)
+             f"paid to date {_fmt(paid.at[idx])} is more than total incurred {_fmt(incurred.at[idx])}", S.PAID_TD_CODE,
+             expected=incurred.at[idx], actual=paid.at[idx])
 
     status = df[S.STATUS_CODE] if S.STATUS_CODE in df.columns else pd.Series(pd.NA, index=df.index)
     closed = status.fillna("").astype(str).str.lower().eq("closed")
@@ -445,10 +471,11 @@ def _check_policy(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState) ->
     for idx in df.index[before]:
         flag(idx, "loss_outside_policy_period",
              f"date of loss {loss.at[idx].date()} is before policy inception {inception.at[idx].date()}",
-             S.LOSS_DATE_CODE)
+             S.LOSS_DATE_CODE, expected=f"on or after {inception.at[idx].date()}", actual=loss.at[idx])
     for idx in df.index[after & ~before]:
         flag(idx, "loss_outside_policy_period",
-             f"date of loss {loss.at[idx].date()} is after policy expiry {expiry.at[idx].date()}", S.LOSS_DATE_CODE)
+             f"date of loss {loss.at[idx].date()} is after policy expiry {expiry.at[idx].date()}", S.LOSS_DATE_CODE,
+             expected=f"on or before {expiry.at[idx].date()}", actual=loss.at[idx])
 
     limit_mapped = _explicitly_mapped(df, S.POLICY_LIMIT_CODE, sheet_field_state)
     limit = _num(df, S.POLICY_LIMIT_CODE)
@@ -456,7 +483,7 @@ def _check_policy(df: pd.DataFrame, flag, sheet_field_state: SheetFieldState) ->
     for idx in df.index[limit_mapped & limit.notna() & (limit > 0) & incurred.notna() & (incurred - limit > S.ARITHMETIC_TOLERANCE)]:
         flag(idx, "incurred_over_limit",
              f"total incurred {_fmt(incurred.at[idx])} is above the policy limit {_fmt(limit.at[idx])}",
-             S.INCURRED_CODE)
+             S.INCURRED_CODE, expected=limit.at[idx], actual=incurred.at[idx])
     unparse = ingest.unparseable_flag_column(S.POLICY_LIMIT_CODE)
     unreadable_limit = df[unparse].astype(bool) if unparse in df.columns else pd.Series(False, index=df.index)
     for idx in df.index[limit_mapped & ~unreadable_limit & (limit.isna() | (limit <= 0))]:

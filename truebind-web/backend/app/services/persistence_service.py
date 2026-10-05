@@ -36,7 +36,7 @@ from ..models.reports import (
     Sheet,
     ValidationResult,
 )
-from . import alert_service, anonymise, audit_service, health_view, pipeline_service
+from . import alert_service, anonymise, audit_service, health_view, issues, pipeline_service
 from .pipeline_service import FIELDS, FIELDS_BY_CODE, classify_sheet_status, mapping_mod
 from .pipeline_service import REQUIRED_CODES as _REQUIRED
 
@@ -329,7 +329,7 @@ def persist_pipeline_result(db: Session, report: Report, sheets, result, sheet_i
     vrs: list[dict] = []
     locator = _cell_locator(db, report)
 
-    def vr(pos, check_type, status, severity, message, rule, extra=None, field_code=None):
+    def vr(pos, check_type, status, severity, message, rule, extra=None, field_code=None, expected=None, actual=None):
         if pos >= n:
             raise RuntimeError(f"finding references row {pos} but only {n} rows were persisted (integrity bug)")
         extra = dict(extra or {"rule": rule})
@@ -337,17 +337,21 @@ def persist_pipeline_result(db: Session, report: Report, sheets, result, sheet_i
         sentence = (health_view.sentence(rule, str(message)) if status in ("FAIL", "REVIEW")
                     else f"Couldn't check: {str(message).rstrip('.')}.")
         extra.update(field_code=field_code, cell=cell, column=column, sentence=sentence[:2000],
-                     owner=catalogue_rule(rule).owner if status in ("FAIL", "REVIEW") else "us")
+                     owner=catalogue_rule(rule).owner if status in ("FAIL", "REVIEW") else "us",
+                     **issues.issue_fields(status, rule, expected, actual, column, field_code))
         vrs.append({"id": new_uuid(), "tenant_id": tid, "report_id": report.id, "claim_row_id": ids[pos],
                     "check_type": check_type, "rule": rule, "status": status, "severity": severity,
                     "message": str(message)[:2000], "delta": None, "extra": extra})
 
     exc = result.validation_result.exceptions
     fields = exc["field_code"].tolist() if "field_code" in exc.columns else [None] * len(exc)
-    for pos, rule, detail, field in zip(exc["row_index"].tolist(), exc["rule"].tolist(), exc["detail"].tolist(),
-                                        fields):
+    exps = exc["expected"].tolist() if "expected" in exc.columns else [None] * len(exc)
+    acts = exc["actual"].tolist() if "actual" in exc.columns else [None] * len(exc)
+    for pos, rule, detail, field, e_v, a_v in zip(exc["row_index"].tolist(), exc["rule"].tolist(),
+                                                  exc["detail"].tolist(), fields, exps, acts):
         rr = catalogue_rule(rule)
-        vr(int(pos), rr.check_type, rr.outcome, rr.severity, detail, rule, field_code=field)
+        vr(int(pos), rr.check_type, rr.outcome, rr.severity, detail, rule, field_code=field,
+           expected=_clean(e_v), actual=_clean(a_v))
     ne = result.validation_result.not_evaluable_detail
     for pos, reason, detail in zip(ne["row_index"].tolist(), ne["reason"].tolist(), ne["detail"].tolist()):
         vr(int(pos), "ARITHMETIC", "NOT_EVALUABLE", "MEDIUM", detail, reason, field_code="CR0155CM")

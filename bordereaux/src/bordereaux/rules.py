@@ -23,6 +23,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+# The rule set as a whole. Bump when any rule's logic, tolerance or wording of
+# its outcome changes; each rule also carries its own version, recorded on
+# every finding, so a result can always be traced to the logic that made it.
+RULESET_VERSION = "2026.10.1"
+
+
 @dataclass(frozen=True)
 class Rule:
     code: str
@@ -32,6 +38,10 @@ class Rule:
     outcome: str  # FAIL | REVIEW
     fix: str
     owner: str = "sender"  # sender | us
+    version: str = "1.0"
+    # A deterministic, reversible formatting fix exists (applied only as a
+    # proposed correction, never to the source file).
+    auto_fix: bool = False
 
 
 _RULES = [
@@ -42,13 +52,13 @@ _RULES = [
          "Ask the sender for the policy number."),
     # Amounts
     Rule("arithmetic_mismatch", "Total incurred does not reconcile", "ARITHMETIC", "HIGH", "FAIL",
-         "Total incurred should equal paid plus reserve (plus fees). Ask the sender which figure is right."),
+         "Total incurred should equal paid plus reserve (plus fees). Ask the sender which figure is right.", version="1.1"),
     Rule("paid_exceeds_incurred", "Paid exceeds total incurred", "ARITHMETIC", "HIGH", "FAIL",
          "Paid to date cannot be more than total incurred. Ask the sender to correct the figures."),
     Rule("negative_reserve", "Negative reserve", "AMOUNT", "HIGH", "FAIL",
          "Reserves cannot be negative. Ask the sender for the correct outstanding amount."),
     Rule("amount_stored_as_text", "Amount stored as text", "AMOUNT", "INFO", "REVIEW",
-         "Read correctly, but the cell holds text. The corrected copy converts it to a number.", "us"),
+         "Read correctly, but the cell holds text. The corrected copy converts it to a number.", "us", auto_fix=True),
     # Dates
     Rule("date_order", "Notified before the loss date", "DATE", "MEDIUM", "FAIL",
          "The claim was notified before it happened. Check both dates with the sender."),
@@ -58,7 +68,7 @@ _RULES = [
          "The cell is not a recognisable date, so the date checks could not run. Ask for a real date."),
     Rule("date_stored_as_text", "Date stored as text or a number", "DATE", "INFO", "REVIEW",
          "Read correctly, but stored as text or an Excel serial number. The corrected copy converts it to a "
-         "real date.", "us"),
+         "real date.", "us", auto_fix=True),
     # Policy
     Rule("loss_outside_policy_period", "Loss outside the policy period", "POLICY", "HIGH", "FAIL",
          "The date of loss is before inception or after expiry. Check the dates and the policy."),
@@ -73,14 +83,14 @@ _RULES = [
     # References
     Rule("claim_ref_format", "Claim reference formatting", "REFERENCE", "INFO", "REVIEW",
          "The reference has extra spaces or hidden characters. The corrected copy trims them; check any "
-         "capitalisation difference with the sender.", "us"),
+         "capitalisation difference with the sender.", "us", auto_fix=True),
     # Currency
     Rule("invalid_currency", "Currency code not recognised", "CURRENCY", "HIGH", "FAIL",
          "Use a valid ISO currency code (EUR, GBP, USD...). Confirm which currency the amounts are in."),
     Rule("currency_inconsistency", "Claim reported in several currencies", "CURRENCY", "HIGH", "FAIL",
          "The same claim appears in more than one currency. Confirm the settlement currency."),
     Rule("currency_normalised", "Currency written non-standardly", "CURRENCY", "INFO", "REVIEW",
-         "Read as the ISO code shown. The corrected copy writes the ISO code.", "us"),
+         "Read as the ISO code shown. The corrected copy writes the ISO code.", "us", auto_fix=True),
     # Status
     Rule("invalid_status", "Status not recognised", "STATUS", "MEDIUM", "FAIL",
          "Use one of the agreed statuses (Open, Closed, Reopened...), or add it to the accepted list."),
@@ -98,7 +108,7 @@ _RULES = [
     Rule("repeat_period_unknown", "Repeated with no reporting period", "DUPLICATE", "MEDIUM", "REVIEW",
          "The same claim appears on two sheets with identical figures and no period. Confirm which applies."),
     Rule("probable_duplicate", "Probable duplicate", "DUPLICATE", "MEDIUM", "REVIEW",
-         "Compare the two rows side by side; confirm whether they are the same loss."),
+         "Compare the two rows side by side; confirm whether they are the same loss.", version="2.0"),
 ]
 
 RULES: dict[str, Rule] = {r.code: r for r in _RULES}

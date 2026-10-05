@@ -135,6 +135,21 @@ def test_every_state_change_is_audited_and_the_chain_holds(monkeypatch: pytest.M
         trail.step("POST", "/api/v1/reports/{report_id}/sheets/{sheet_id}/mapping", confirm)
     trail.step("POST", "/api/v1/reports/{report_id}/process", lambda: owner.post(f"/api/v1/reports/{rid}/process"))
     run_jobs()
+    # --- issues, corrections and workbook versions
+    base = "/api/v1/reports/{report_id}"
+    sheet_id = owner.get(f"/api/v1/reports/{rid}/sheets").json()[0]["id"]
+    target = next(i for i in owner.get(f"/api/v1/reports/{rid}/issues").json()["items"] if i["rule"] == "arithmetic_mismatch")
+    trail.step("POST", base + "/issues/{issue_id}/status", lambda: owner.post(
+        f"/api/v1/reports/{rid}/issues/{target['id']}/status", json={"status": "REQUIRES_HUMAN_REVIEW", "note": "check"}))
+    corr = trail.step("POST", base + "/corrections", lambda: owner.post(f"/api/v1/reports/{rid}/corrections", json={
+        "sheet_id": sheet_id, "cell": target["cell"], "after_value": "150", "reason": "Sender confirmed",
+        "issue_id": target["id"]})).json()
+    trail.step("POST", base + "/corrections/{correction_id}/decision", lambda: owner.post(
+        f"/api/v1/reports/{rid}/corrections/{corr['id']}/decision", json={"approve": True}))
+    ver = trail.step("POST", base + "/versions", lambda: owner.post(f"/api/v1/reports/{rid}/versions")).json()
+    trail.step("POST", base + "/versions/{version_id}/approve", lambda: owner.post(
+        f"/api/v1/reports/{rid}/versions/{ver['id']}/approve", json={"note": "ok"}))
+    trail.step("POST", base + "/corrections/auto", lambda: owner.post(f"/api/v1/reports/{rid}/corrections/auto"))
     pair = owner.get(f"/api/v1/reports/{rid}/duplicates").json()["items"][0]
     trail.step("PATCH", "/api/v1/reports/{report_id}/duplicates/{validation_result_id}/review", lambda: owner.patch(
         f"/api/v1/reports/{rid}/duplicates/{pair['validation_result_id']}/review",

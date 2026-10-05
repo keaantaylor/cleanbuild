@@ -19,6 +19,7 @@ from ..database import set_tenant
 from ..models._util import utcnow
 from ..models.identity import Tenant
 from ..models.alerts import Alert
+from ..models.corrections import Correction, WorkbookVersion
 from ..models.exception_summary import ExceptionSummary
 from ..models.leakage import LeakageFlag
 from ..models.modules import Finding, ModuleRun
@@ -26,7 +27,7 @@ from ..models.reports import ClaimRow, ExcludedRow, Mapping, Report, Sheet, Vali
 from . import audit_service, job_service
 from .storage import get_store
 
-_PURGED_TABLES = (ValidationResult, ClaimRow, ExcludedRow, Mapping, Sheet, ExceptionSummary, Alert, LeakageFlag,
+_PURGED_TABLES = (Correction, WorkbookVersion, ValidationResult, ClaimRow, ExcludedRow, Mapping, Sheet, ExceptionSummary, Alert, LeakageFlag,
                   Finding, ModuleRun)
 
 log = logging.getLogger("truebind.retention")

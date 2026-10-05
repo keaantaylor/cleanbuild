@@ -54,6 +54,10 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     ("post", "/api/v1/reports/{report_id}/sheets/{sheet_id}/mapping"): {"mappings": {"CR0035M": None}},
     ("put", "/api/v1/reports/{report_id}/binder"): {"binder_id": None},
     ("patch", "/api/v1/reports/{report_id}/checks/findings/{finding_id}"): {"disposition": "CONFIRMED"},
+    ("post", "/api/v1/reports/{report_id}/issues/{issue_id}/status"): {"status": "RESOLVED"},
+    ("post", "/api/v1/reports/{report_id}/corrections"): {"sheet_id": "x", "cell": "A1", "reason": "x"},
+    ("post", "/api/v1/reports/{report_id}/corrections/{correction_id}/decision"): {"approve": True},
+    ("post", "/api/v1/reports/{report_id}/versions/{version_id}/approve"): {"note": "x"},
 }
 
 
@@ -90,7 +94,14 @@ def _tenant_a(api: Api) -> dict[str, str]:
     slist = api.post(
         "/api/v1/sanctions/lists", files={"file": ("l.csv", b"Name\nHarrow Quay\n", "text/csv")}, data={"name": "L"}
     ).json()
+    corr = api.post(f"/api/v1/reports/{rid}/corrections", json={"sheet_id": sheet["id"], "cell": "B3",
+                                                                 "after_value": "Named Ltd", "reason": "x"}).json()
+    api.post(f"/api/v1/reports/{rid}/corrections/{corr['id']}/decision", json={"approve": True})
+    version = api.post(f"/api/v1/reports/{rid}/versions").json()
     return {
+        "issue_id": exc["validation_result_id"],
+        "correction_id": corr["id"],
+        "version_id": version["id"],
         "report_id": rid,
         "sheet_id": sheet["id"],
         "validation_result_id": exc["validation_result_id"],

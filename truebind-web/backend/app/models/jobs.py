@@ -15,7 +15,9 @@ from ..database import Base
 from ._util import created_at_col, uuid_pk
 
 JOB_KINDS = ("INGEST", "PROCESS")
-JOB_STATUSES = ("QUEUED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED")
+JOB_STATUSES = ("QUEUED", "RUNNING", "RETRYING", "SUCCEEDED", "FAILED", "CANCELLED")
+# Waiting to run: new (QUEUED) or scheduled again after a retryable failure (RETRYING).
+PENDING_JOB_STATUSES = ("QUEUED", "RETRYING")
 TERMINAL_JOB_STATUSES = ("SUCCEEDED", "FAILED", "CANCELLED")
 
 

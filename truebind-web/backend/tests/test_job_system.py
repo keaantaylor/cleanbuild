@@ -41,7 +41,7 @@ def test_expired_lease_is_requeued_then_failed_never_stuck(api, db):
     db.expire_all()
     set_tenant(db, job.tenant_id)
     j = db.get(Job, job.id)
-    assert j.status == "QUEUED" and j.error_code == "worker_lost" and j.attempts == 1
+    assert j.status == "RETRYING" and j.error_code == "worker_lost" and j.attempts == 1
     assert db.get(Report, rid).status == "QUEUED"
     # second loss exhausts max_attempts (2) -> FAILED with a safe message
     j.run_after = None

@@ -36,7 +36,7 @@ export function stagesFor(job: Job | null | undefined): StageDef[] {
 /** Index of the job's current stage within its list. */
 export function stageIndex(job: Job | null | undefined): number {
   const steps = stagesFor(job);
-  if (!job || job.status === "QUEUED") return 1;
+  if (!job || job.status === "QUEUED" || job.status === "RETRYING") return 1;
   if (job.status === "SUCCEEDED") return steps.length - 1;
   const key = ALIASES[`${job.kind}:${job.stage}`] ?? job.stage;
   const i = steps.findIndex((s) => s.key === key);
@@ -45,6 +45,7 @@ export function stageIndex(job: Job | null | undefined): number {
 
 export function stageLabel(job: Job | null | undefined): string {
   if (!job) return "Queued";
+  if (job.status === "RETRYING") return "Retrying after an interruption";
   if (job.status === "QUEUED") return "Waiting for the engine";
   return stagesFor(job)[stageIndex(job)]?.short ?? "Working";
 }

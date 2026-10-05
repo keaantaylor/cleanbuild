@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from ..config import JOB_LEASE_S, JOB_MAX_ATTEMPTS, MAX_CONCURRENT_JOBS_PER_TENANT, WORKER_STALE_S
 from ..database import set_tenant
 from ..models._util import utcnow
-from ..models.jobs import TERMINAL_JOB_STATUSES, Job, WorkerHeartbeat
+from ..models.jobs import PENDING_JOB_STATUSES, TERMINAL_JOB_STATUSES, Job, WorkerHeartbeat
 from ..models.reports import Report
 from . import alert_service, audit_service, job_signal, report_state, webhooks
 
@@ -37,7 +37,7 @@ class JobConflict(Exception):
 
 
 def active_job(db: Session, report_id: str) -> Job | None:
-    return (db.query(Job).filter(Job.report_id == report_id, Job.status.in_(("QUEUED", "RUNNING")))
+    return (db.query(Job).filter(Job.report_id == report_id, Job.status.in_(("QUEUED", "RETRYING", "RUNNING")))
             .order_by(Job.created_at.desc()).first())
 
 
@@ -64,7 +64,7 @@ def claim_next(db: Session, worker_id: str) -> Job | None:
     running = (select(Job.tenant_id, func.count().label("n")).where(Job.status == "RUNNING")
                .group_by(Job.tenant_id).subquery())
     q = (select(Job).outerjoin(running, running.c.tenant_id == Job.tenant_id)
-         .where(Job.status == "QUEUED", (Job.run_after.is_(None)) | (Job.run_after <= now),
+         .where(Job.status.in_(PENDING_JOB_STATUSES), (Job.run_after.is_(None)) | (Job.run_after <= now),
                 func.coalesce(running.c.n, 0) < MAX_CONCURRENT_JOBS_PER_TENANT)
          .order_by(Job.created_at).limit(1))
     if db.get_bind().dialect.name == "postgresql":
@@ -76,7 +76,7 @@ def claim_next(db: Session, worker_id: str) -> Job | None:
     # Compare-and-set: even where SKIP LOCKED is unavailable (SQLite), two
     # workers can never both win the same job.
     won = db.execute(
-        update(Job).where(Job.id == job.id, Job.status == "QUEUED")
+        update(Job).where(Job.id == job.id, Job.status.in_(PENDING_JOB_STATUSES))
         .values(status="RUNNING", attempts=Job.attempts + 1, lease_owner=worker_id,
                 lease_expires_at=now + timedelta(seconds=JOB_LEASE_S), heartbeat_at=now, started_at=now,
                 stage="starting")
@@ -157,7 +157,7 @@ def finish(db: Session, job: Job, ok: bool, code: str | None = None, message: st
             report_state.transition(db, report, "CANCELLED", reason="cancelled")
         audit_service.log_action(db, job.tenant_id, job.report_id, "JOB_CANCELLED", "JOB", job.id)
     elif retryable and job.attempts < job.max_attempts:
-        job.status = "QUEUED"
+        job.status = "RETRYING"
         # A lost worker says nothing about the file: retry at once. Other
         # retryable errors (e.g. a database blip) back off briefly.
         delay = 0 if code == "worker_lost" else 15 * job.attempts

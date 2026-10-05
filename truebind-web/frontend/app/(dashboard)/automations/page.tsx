@@ -101,7 +101,7 @@ export default function AutomationsPage() {
           ))}
         </ol>
         <span className="text-[12.5px]" style={{ color: "var(--faint)" }}>
-          Upload limit {data.limits.max_upload_mb} MB · AI-assisted mapping {data.limits.ai_mapping ? `on${data.services?.ai.provider ? ` (${data.services.ai.provider}${data.services.ai.region ? `, ${data.services.ai.region}` : ""})` : ""} — headers only, never cell values` : "off — deterministic alias rules only"}
+          Upload limit {data.limits.max_upload_mb} MB · AI-assisted mapping {data.limits.ai_mapping ? `on${data.services?.ai.provider ? ` (${data.services.ai.provider}${data.services.ai.region ? `, ${data.services.ai.region}` : ""})` : ""} - headers only, never cell values` : "off - deterministic alias rules only"}
           {data.services?.fx ? ` · ${data.services.fx.source}${data.services.fx.latest_rate_date ? `, latest ${data.services.fx.latest_rate_date}` : ", not loaded yet"}` : ""}
         </span>
       </section>

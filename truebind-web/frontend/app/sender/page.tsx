@@ -173,7 +173,7 @@ export default function SenderPage() {
                   return (
                     <tr key={s.id} style={{ boxShadow: "0 -1px 0 var(--line)" }}>
                       <th scope="row" className="px-4 py-2.5 text-left font-medium">{s.file_name}</th>
-                      <td className="tnum px-4 py-2.5">{s.rows_total ? s.rows_total.toLocaleString("en-GB") : "—"}</td>
+                      <td className="tnum px-4 py-2.5">{s.rows_total ? s.rows_total.toLocaleString("en-GB") : "-"}</td>
                       <td className="tnum px-4 py-2.5">{formatDateTime(s.created_at)}</td>
                       <td className="px-4 py-2.5"><StatusPill tone={st.tone}>{st.label}</StatusPill></td>
                     </tr>

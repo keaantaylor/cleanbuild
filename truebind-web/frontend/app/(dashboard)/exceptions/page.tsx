@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowCounterClockwise, CheckCircle, DownloadSimple, LockSimple, MagnifyingGlass, ShieldCheck, Sparkle, Warning } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, CheckCircle, DownloadSimple, LockSimple, MagnifyingGlass, ShieldCheck, ListChecks, Warning } from "@phosphor-icons/react";
 import { api, ApiError } from "@/lib/api";
 import type { ClaimRow, ExceptionRow, ExceptionSummary } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
@@ -226,7 +226,7 @@ function Exceptions() {
           ) : !groups.data ? (
             <div className="p-4"><LoadingState label="Loading findings" rows={8} /></div>
           ) : groups.data.groups.length === 0 ? (
-            <EmptyState icon={<CheckCircle />} title="No findings match" body="Change the filters — or this report has nothing here." />
+            <EmptyState icon={<CheckCircle />} title="No findings match" body="Change the filters - or this report has nothing here." />
           ) : (
             <ul className="m-0 list-none p-0" aria-label="Findings by issue type">
               {groups.data.groups.map((g) => {
@@ -250,14 +250,14 @@ function Exceptions() {
                           items.map((x) => {
                             const on = x.validation_result_id === sel?.validation_result_id;
                             const reviewed = x.review_status && x.review_status !== "open";
-                            const where = x.cell && !x.cell.startsWith("row ") ? `${x.sheet_name}!${x.cell}` : `${x.sheet_name} row ${x.source_row_number ?? "—"}`;
+                            const where = x.cell && !x.cell.startsWith("row ") ? `${x.sheet_name}!${x.cell}` : `${x.sheet_name} row ${x.source_row_number ?? "-"}`;
                             return (
                               <button key={x.validation_result_id} type="button" onClick={() => pick(x.validation_result_id)} className="flex w-full cursor-pointer flex-col gap-0.5 py-2 pl-[34px] pr-4 text-left hover:bg-[var(--accentTint)]" style={{ background: on ? "var(--accentTint)" : "transparent", boxShadow: on ? "inset 2px 0 0 var(--accent)" : "none" }}>
                                 <span className="tnum text-[12.5px] font-medium">{where} · {x.claim_reference ?? "no claim ref"}</span>
                                 {on && (
                                   <span className="flex flex-col gap-0.5 text-[12.5px]">
                                     <span>{x.sentence ?? x.message}</span>
-                                    <span className="tnum" style={{ color: "var(--muted)" }}>Source row {x.source_row_number ?? "—"}{x.source_column ? ` · column “${x.source_column}”` : ""}{x.amount != null ? ` · amount ${formatMoney(x.amount, x.currency ?? "")}` : ""}</span>
+                                    <span className="tnum" style={{ color: "var(--muted)" }}>Source row {x.source_row_number ?? "-"}{x.source_column ? ` · column “${x.source_column}”` : ""}{x.amount != null ? ` · amount ${formatMoney(x.amount, x.currency ?? "")}` : ""}</span>
                                   </span>
                                 )}
                                 <span className="text-[11.5px]" style={{ color: reviewed ? "var(--ok)" : "var(--faint)" }}>{x.review_status ? REVIEW_LABEL[x.review_status] : "Open"}{x.assignee ? ` · ${x.assignee}` : ""}</span>
@@ -318,7 +318,7 @@ function FindingPanels({ reportId, fileName, f, onAccept, onFollowup, onDismiss,
   const sheet = SHEET[f.severity];
   const rows = useApi(() => (f.claim_reference ? api.listClaimsByRef(reportId, f.claim_reference) : Promise.resolve([] as ClaimRow[])), [reportId, f.claim_reference]);
   const hitField = FIELD_FOR_CHECK[f.check_type] ?? (f.check_type === "MANDATORY_FIELD" ? COLS.find(([k]) => /insured/.test(f.message.toLowerCase()) && k === "insured_name")?.[0] : undefined);
-  const certainty = g.certainty === "certain" ? "Deterministic check — the evidence is conclusive for this row." : g.certainty === "signal" ? "A signal, not proof — confirm before acting." : "Undetermined — TrueBind doesn’t have enough evidence to decide.";
+  const certainty = g.certainty === "certain" ? "Deterministic check - the evidence is conclusive for this row." : g.certainty === "signal" ? "A signal, not proof - confirm before acting." : "Undetermined - TrueBind doesn’t have enough evidence to decide.";
   const fmt = (v: unknown, k: keyof ClaimRow, ccy?: string | null) => (v == null || v === "" ? "" : typeof v === "number" && /amount|fees/.test(String(k)) ? formatMoney(v, ccy ?? "").replace(/^[^\d-]+/, "") : String(v));
   const decided = f.review_status && f.review_status !== "open";
 
@@ -347,7 +347,7 @@ function FindingPanels({ reportId, fileName, f, onAccept, onFollowup, onDismiss,
           </div>
           <div className="overflow-x-auto">
             {!f.claim_reference ? (
-              <p className="m-0 px-4 py-4 text-[12.5px]" style={{ color: "#5e656d" }}>This row has no claim reference, so its other periods can’t be shown. Source row {f.source_row_number ?? "—"} on sheet {f.sheet_name}.</p>
+              <p className="m-0 px-4 py-4 text-[12.5px]" style={{ color: "#5e656d" }}>This row has no claim reference, so its other periods can’t be shown. Source row {f.source_row_number ?? "-"} on sheet {f.sheet_name}.</p>
             ) : rows.error ? (
               <p className="m-0 px-4 py-4 text-[12.5px]" style={{ color: "#5e656d" }}>The source rows could not be loaded.</p>
             ) : !rows.data ? (
@@ -370,7 +370,7 @@ function FindingPanels({ reportId, fileName, f, onAccept, onFollowup, onDismiss,
                     const target = r.id === f.claim_row_id;
                     return (
                       <tr key={r.id} style={{ borderBottom: "1px solid #e6e8e4", background: target ? "#fff" : "transparent" }}>
-                        <td className="tnum px-1 text-center text-[10.5px]" style={{ borderRight: "1px solid #e1e4df", background: "#eff1ee", color: target ? "#1c1e2a" : "#8a9098", fontWeight: target ? 600 : 400 }}>{r.source_row_number ?? "—"}</td>
+                        <td className="tnum px-1 text-center text-[10.5px]" style={{ borderRight: "1px solid #e1e4df", background: "#eff1ee", color: target ? "#1c1e2a" : "#8a9098", fontWeight: target ? 600 : 400 }}>{r.source_row_number ?? "-"}</td>
                         {COLS.map(([k]) => {
                           const hit = target && k === hitField;
                           const v = fmt(r[k], k, r.currency);
@@ -406,11 +406,11 @@ function FindingPanels({ reportId, fileName, f, onAccept, onFollowup, onDismiss,
       <div className="flex min-w-0 flex-[1_1_300px] flex-col gap-5 px-[22px] py-6" style={{ boxShadow: "-1px 0 0 var(--line), 0 -1px 0 var(--line)", background: "var(--bg2)" }}>
         <div className="grid grid-cols-[84px_1fr] gap-y-[9px] text-[13px]">
           <span style={{ color: "var(--faint)" }}>Claim</span>
-          <span className="tnum font-medium">{f.claim_reference ?? "—"}</span>
+          <span className="tnum font-medium">{f.claim_reference ?? "-"}</span>
           <span style={{ color: "var(--faint)" }}>Worksheet</span>
-          <span className="truncate">{f.sheet_name ?? "—"}</span>
+          <span className="truncate">{f.sheet_name ?? "-"}</span>
           <span style={{ color: "var(--faint)" }}>Row</span>
-          <span className="tnum">{f.source_row_number ?? "—"}</span>
+          <span className="tnum">{f.source_row_number ?? "-"}</span>
           <span style={{ color: "var(--faint)" }}>Check</span>
           <span>{f.check_type.toLowerCase().replace(/_/g, " ")}</span>
           <span style={{ color: "var(--faint)" }}>Status</span>
@@ -433,7 +433,7 @@ function FindingPanels({ reportId, fileName, f, onAccept, onFollowup, onDismiss,
         {decided && (
           <div className="anim-rise flex items-start gap-2 rounded-md px-3 py-2.5 text-[12.5px] leading-[1.45]" style={{ background: "var(--okT)", color: "var(--ok)" }}>
             <CheckCircle size={15} className="mt-px flex-none" />
-            <span className="flex-1">{REVIEW_LABEL[f.review_status!]}{f.note ? ` — “${f.note}”` : ""}. Recorded in the audit trail. Source value unchanged.</span>
+            <span className="flex-1">{REVIEW_LABEL[f.review_status!]}{f.note ? ` - “${f.note}”` : ""}. Recorded in the audit trail. Source value unchanged.</span>
             <button type="button" title="Reopen" aria-label="Reopen this finding" className="tb-hit cursor-pointer" onClick={onReopen}>
               <ArrowCounterClockwise size={14} />
             </button>
@@ -521,7 +521,7 @@ function AcceptModal({ open, onClose, onSave }: { open: boolean; onClose: () => 
     >
       <div className="flex flex-col gap-3">
         The value stays as the sender reported it and the finding is closed. Your note is kept with the decision in the audit trail.
-        <textarea className="tb-input min-h-[96px]" value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} placeholder="e.g. Confirmed with the sender — fee posted after the total was run." aria-label="Note" />
+        <textarea className="tb-input min-h-[96px]" value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} placeholder="e.g. Confirmed with the sender - fee posted after the total was run." aria-label="Note" />
         <span className="text-[12px]" style={{ color: "var(--faint)" }}>At least 5 characters.</span>
       </div>
     </Modal>
@@ -535,11 +535,11 @@ function FollowupModal({ open, onClose, reportId, f, onDone }: { open: boolean; 
   const [deadline, setDeadline] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
-  const draft = `${g.title} — claim ${f.claim_reference ?? "(none)"}, sheet ${f.sheet_name}, row ${f.source_row_number ?? "—"}.\n\n${f.message}\n\nCould you confirm the correct value or send a corrected file?`;
+  const draft = `${g.title} - claim ${f.claim_reference ?? "(none)"}, sheet ${f.sheet_name}, row ${f.source_row_number ?? "-"}.\n\n${f.message}\n\nCould you confirm the correct value or send a corrected file?`;
   const save = async () => {
     setBusy(true);
     try {
-      await api.createObligation(reportId, { claim_row_id: f.claim_row_id, owner: owner.trim() || null, deadline: deadline || null, note: `${g.title}: ${f.claim_reference ?? `row ${f.source_row_number}`}${note ? ` — ${note}` : ""}` });
+      await api.createObligation(reportId, { claim_row_id: f.claim_row_id, owner: owner.trim() || null, deadline: deadline || null, note: `${g.title}: ${f.claim_reference ?? `row ${f.source_row_number}`}${note ? ` - ${note}` : ""}` });
       await api.reviewException(reportId, f.validation_result_id, { review_status: "in_review", assignee: owner.trim() || f.assignee || null, note: note || null });
       toast("Follow-up created in the work queue · recorded in the audit trail", "ok");
       onDone();
@@ -559,13 +559,13 @@ function FollowupModal({ open, onClose, reportId, f, onDone }: { open: boolean; 
       actions={
         <>
           <button className="tb-btn" onClick={onClose}>Cancel</button>
-          <button className="tb-btn" onClick={() => { void navigator.clipboard?.writeText(draft); toast("Message copied — paste it into your email to the sender", "info"); }}>Copy message</button>
+          <button className="tb-btn" onClick={() => { void navigator.clipboard?.writeText(draft); toast("Message copied - paste it into your email to the sender", "info"); }}>Copy message</button>
           <button className="tb-btn tb-btn-solid" onClick={() => void save()} disabled={busy}>{busy ? "Saving…" : "Create follow-up"}</button>
         </>
       }
     >
       <div className="flex flex-col gap-3">
-        <span>Creates a tracked follow-up in the Work queue and marks the finding “In review”. TrueBind doesn’t email the sender for you — copy the message below into your own email.</span>
+        <span>Creates a tracked follow-up in the Work queue and marks the finding “In review”. TrueBind doesn’t email the sender for you - copy the message below into your own email.</span>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="tb-label" htmlFor="fu-owner">Owner</label>
@@ -638,9 +638,9 @@ function AiTriage({ reportId, onFilter }: { reportId: string; onFilter: (checkTy
   return (
     <section className="tb-card flex flex-col" aria-labelledby="ai-triage">
       <button type="button" onClick={() => setOpen((v) => !v)} className="flex cursor-pointer items-center gap-3 px-5 py-4 text-left" aria-expanded={open}>
-        <Sparkle size={18} style={{ color: "var(--accentText)" }} />
+        <ListChecks size={18} style={{ color: "var(--muted)" }} />
         <span id="ai-triage" className="flex-1 text-[15px] font-medium">Exception triage</span>
-        <StatusPill tone={st === "COMPLETE" ? "med" : st === "FAILED" ? "err" : "muted"}>{busy || st === "GENERATING" ? "Generating…" : st === "COMPLETE" ? "AI-generated summary" : st === "UNAVAILABLE" ? "AI not configured" : st === "FAILED" ? "AI summary failed" : "Summary"}</StatusPill>
+        <StatusPill tone={st === "COMPLETE" ? "med" : st === "FAILED" ? "err" : "muted"}>{busy || st === "GENERATING" ? "Generating…" : st === "COMPLETE" ? "Drafted summary" : st === "UNAVAILABLE" ? "AI not configured" : st === "FAILED" ? "AI summary failed" : "Summary"}</StatusPill>
       </button>
       {open && (
         <div className="flex flex-col gap-4 px-5 pb-5">
@@ -656,7 +656,7 @@ function AiTriage({ reportId, onFilter }: { reportId: string; onFilter: (checkTy
             <div className="tnum grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
                 [formatNumber(a.total_exceptions), "total exceptions"],
-                [a.total_value_at_stake.map((m) => formatMoney(m.amount, m.currency)).join(" · ") || "—", "value at stake"],
+                [a.total_value_at_stake.map((m) => formatMoney(m.amount, m.currency)).join(" · ") || "-", "value at stake"],
                 [`${formatNumber(a.root_cause_split.ingestion.count)} · ${formatPct(a.root_cause_split.ingestion.pct_of_total_exceptions)}`, "likely ingestion issues"],
                 [`${formatNumber(a.root_cause_split.data_quality.count)} · ${formatPct(a.root_cause_split.data_quality.pct_of_total_exceptions)}`, "likely data issues"],
               ].map(([v, l]) => (

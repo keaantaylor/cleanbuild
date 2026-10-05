@@ -7,110 +7,76 @@
    (TrueBind Prototype.dc.html, `.tb` block). The theme lives on <html
    data-theme>, so every page — site, onboarding and app — follows the toggle.
    ───────────────────────────────────────────────────────────────────────── */
-/* TrueBind theme (round 2): a restrained palette. Dark navy ground, white and
-   slate text, ONE accent (the logo's mint green), amber and red only for
-   severity. No gradients, no glass, no drop shadows: 1px borders. */
-:root,
-[data-theme="dark"] {
-  --bg: #0f172a;
-  --bg2: #111b31;
-  --surface: #131d33;
-  --surface2: #1a253d;
-  --line: rgba(148, 163, 184, 0.14);
-  --line2: rgba(148, 163, 184, 0.26);
-  --text: #f1f5f9;
-  --muted: #a3b0c2;
-  --faint: #8a98ad;
-  --accent: #34d399;
-  --accentText: #6fe3c1;
-  --accentTint: rgba(52, 211, 153, 0.1);
-  --ok: #34d399;
-  --okT: rgba(52, 211, 153, 0.12);
-  --warn: #fbbf24;
-  --warnT: rgba(251, 191, 36, 0.12);
-  --err: #f87171;
-  --errT: rgba(248, 113, 113, 0.13);
-  --med: #93c5fd;
-  --medT: rgba(147, 197, 253, 0.12);
-  --na: #475569;
-  --shadow: 0 0 0 1px var(--line);
-  --accentSolid: #10b981;
-  --onAccent: #04261a;
-  --badge: #ef4444;
-
-  /* Chrome (sidebar, marketing site): the same navy, a step darker. */
-  --chrome: #0b1324;
-  --chromeText: #cbd5e1;
-  --chromeStrong: #f8fafc;
-  --chromeMuted: #a3b0c2;
-  --chromeFaint: #8a98ad;
-  --chromeLine: rgba(148, 163, 184, 0.12);
-  --glass: #0f172a;
-  --glassRing: rgba(148, 163, 184, 0.22);
-  --kicker: #6fe3c1;
-  --heroGlowA: transparent;
-  --heroGlowB: transparent;
-  --section: #111b31;
-  --sectionGlow: transparent;
-  --popover: #131d33;
-  color-scheme: dark;
-}
-
-[data-theme="light"] {
-  --bg: #f8fafc;
-  --bg2: #f1f5f9;
+/* TrueBind design tokens: the one source of colour, type, radius and motion.
+   Light only. Neutral surfaces, one blue primary, semantic colours always
+   paired with an icon or a text label. No gradients, glass or glows; 1px
+   borders; shadow only on popovers. */
+:root {
+  --bg: #f7f8fa;
+  --bg2: #f1f3f6;
   --surface: #ffffff;
-  --surface2: #f1f5f9;
-  --line: rgba(15, 23, 42, 0.1);
-  --line2: rgba(15, 23, 42, 0.18);
-  --text: #0f172a;
-  --muted: #475569;
-  --faint: #5b6b80;
-  --accent: #059669;
-  --accentText: #047857;
-  --accentTint: rgba(5, 150, 105, 0.08);
-  --ok: #047857;
-  --okT: rgba(4, 120, 87, 0.1);
-  --warn: #b45309;
-  --warnT: rgba(217, 119, 6, 0.12);
-  --err: #b91c1c;
-  --errT: rgba(220, 38, 38, 0.09);
-  --med: #1d4ed8;
-  --medT: rgba(29, 78, 216, 0.08);
-  --na: #94a3b8;
-  --shadow: 0 0 0 1px var(--line);
-  --accentSolid: #059669;
+  --surface2: #f7f8fa;
+  --line: #e5e7eb;
+  --line2: #d1d5db;
+  --text: #111827;
+  --muted: #4b5563;
+  --faint: #6b7280;
+  --accent: #1f4fd1;
+  --accentText: #1f4fd1;
+  --accentTint: rgba(31, 79, 209, 0.07);
+  --accentSolid: #1f4fd1;
   --onAccent: #ffffff;
+  --ok: #15803d;
+  --okT: rgba(21, 128, 61, 0.09);
+  --warn: #b45309;
+  --warnT: rgba(180, 83, 9, 0.1);
+  --err: #b91c1c;
+  --errT: rgba(185, 28, 28, 0.08);
+  --med: #374151;
+  --medT: rgba(55, 65, 81, 0.08);
+  --na: #9ca3af;
+  --badge: #b91c1c;
+  --shadow: 0 0 0 1px var(--line);
+  --popShadow: 0 4px 16px rgba(17, 24, 39, 0.1);
 
-  --chrome: #f1f5f9;
-  --chromeText: #334155;
-  --chromeStrong: #0f172a;
-  --chromeMuted: #475569;
-  --chromeFaint: #5b6b80;
-  --chromeLine: rgba(15, 23, 42, 0.1);
+  /* Chrome: sidebar and public site share the same neutral surfaces. */
+  --chrome: #f7f8fa;
+  --chromeText: #374151;
+  --chromeStrong: #111827;
+  --chromeMuted: #4b5563;
+  --chromeFaint: #6b7280;
+  --chromeLine: #e5e7eb;
   --glass: #ffffff;
-  --glassRing: rgba(15, 23, 42, 0.14);
-  --kicker: #047857;
+  --glassRing: #e5e7eb;
+  --kicker: #4b5563;
   --heroGlowA: transparent;
   --heroGlowB: transparent;
-  --section: #ecfdf5;
+  --section: #f7f8fa;
   --sectionGlow: transparent;
   --popover: #ffffff;
+
+  --radius: 4px;
+  --control-h: 32px;
+  --row-h: 28px;
+  --motion: 120ms;
+  --font-sans: var(--font-plex), "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
   color-scheme: light;
 
-  /* Nocturne base tokens follow the theme too. */
-  --color-bg: #f8fafc;
+  /* Nocturne base tokens follow. */
+  --color-bg: #f7f8fa;
   --color-surface: #ffffff;
-  --color-text: #0f172a;
-  --color-accent: #059669;
-  --color-divider: rgba(15, 23, 42, 0.12);
+  --color-text: #111827;
+  --color-accent: #1f4fd1;
+  --color-divider: #e5e7eb;
 }
 
 /* Colours are used as var(--token) directly (the prototype's own naming) rather
    than Tailwind colour utilities, so they never collide with Nocturne's
    --color-* tokens. Tailwind handles layout, spacing and type. */
 @theme inline {
-  --font-sans: var(--font-inter), "Inter", system-ui, sans-serif;
+  --font-sans: var(--font-plex), "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
 }
 
 @layer components {
@@ -120,23 +86,26 @@ body {
   color: var(--text);
 }
 body {
-  font-family: var(--font-inter), "Inter", system-ui, sans-serif;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
-  transition: background-color 0.25s ease, color 0.25s ease;
 }
 a {
   color: inherit;
   text-decoration: none;
 }
 .tnum {
-  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
 }
 .kicker {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--accentText);
+  color: var(--muted);
 }
 .fade-rule {
   height: 1px;
@@ -154,14 +123,15 @@ a {
   gap: 7px;
   white-space: nowrap;
   cursor: pointer;
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.2;
-  padding: 7px 12px;
-  border-radius: 6px;
+  min-height: var(--control-h);
+  padding: 0 12px;
+  border-radius: var(--radius);
   color: var(--text);
   box-shadow: inset 0 0 0 1px var(--line2);
   background: transparent;
-  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  transition: background var(--motion) ease, color var(--motion) ease, box-shadow var(--motion) ease;
 }
 .tb-btn:hover {
   background: var(--accentTint);
@@ -198,18 +168,18 @@ a {
 
 .tb-input {
   width: 100%;
-  min-height: 34px;
-  padding: 6px 10px;
+  min-height: var(--control-h);
+  padding: 5px 9px;
   font: inherit;
-  font-size: 14px;
+  font-size: 13.5px;
   color: var(--text);
   caret-color: var(--accent);
   background: var(--surface);
-  border-radius: 6px;
+  border-radius: var(--radius);
   border: 0;
   box-shadow: inset 0 0 0 1px var(--line2);
   outline: none;
-  transition: box-shadow 0.15s ease;
+  transition: box-shadow var(--motion) ease;
 }
 .tb-input:hover {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 35%, transparent);
@@ -237,7 +207,7 @@ select.tb-input {
 }
 
 .tb-card {
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow);
 }
@@ -247,8 +217,8 @@ select.tb-input {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 1px 7px;
+  border-radius: var(--radius);
   white-space: nowrap;
 }
 .tb-pill::before {
@@ -296,13 +266,13 @@ select.tb-input {
   }
 }
 .anim-rise {
-  animation: tb-rise 0.35s cubic-bezier(0.2, 0.7, 0.1, 1) both;
+  animation: tb-fade 0.12s ease both;
 }
 .anim-fade {
-  animation: tb-fade 0.2s ease both;
+  animation: tb-fade 0.12s ease both;
 }
 .anim-pop {
-  animation: tb-pop 0.2s cubic-bezier(0.2, 0.7, 0.1, 1) both;
+  animation: tb-fade 0.12s ease both;
 }
 @media (prefers-reduced-motion: reduce) {
   *,

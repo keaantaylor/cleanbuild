@@ -4,7 +4,7 @@ import Link from "next/link";
 import { SignOut } from "@phosphor-icons/react";
 import { useMe } from "@/components/auth/AuthGate";
 import { api } from "@/lib/api";
-import { Brand, ThemeToggle } from "./ui";
+import { Brand } from "./ui";
 
 function signOut() {
   // Full navigation on sign-out so no signed-in state survives in memory.
@@ -31,7 +31,6 @@ export function SenderShell({ children }: { children: React.ReactNode }) {
         </span>
         <span className="flex-1 sm:hidden" />
         <Link href="/settings?tab=security" className="tb-btn tb-btn-ghost !px-2 !py-1.5 text-[13px]">Security</Link>
-        <ThemeToggle />
         <button type="button" className="tb-btn !px-2.5 !py-1.5 text-[13px]" onClick={signOut} aria-label="Sign out">
           <SignOut size={16} />
           <span className="hidden min-[400px]:inline">Sign out</span>

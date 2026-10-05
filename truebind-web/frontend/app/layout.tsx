@@ -2,24 +2,33 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "@/styles/globals.css";
 import { validateDesignSystemContrast, validateDistinctFamilies } from "@/lib/colorContrast";
-import { DEVICE_SCRIPT, THEME_SCRIPT } from "@/lib/boot-scripts";
+import { DEVICE_SCRIPT } from "@/lib/boot-scripts";
 import { Providers } from "@/components/nocturne/providers";
 
 validateDesignSystemContrast();
 validateDistinctFamilies();
 
 // Self-hosted (SIL OFL 1.1, see app/fonts/OFL.txt): no network fetch at build time.
-const inter = localFont({
-  src: "./fonts/Inter-Variable-latin.woff2",
-  weight: "100 900",
-  variable: "--font-inter",
+const plex = localFont({
+  src: "./fonts/IBMPlexSans-Variable-latin.woff2",
+  weight: "400 700",
+  variable: "--font-plex",
+  display: "swap",
+});
+const plexMono = localFont({
+  src: [
+    { path: "./fonts/IBMPlexMono-Regular-latin.woff2", weight: "400" },
+    { path: "./fonts/IBMPlexMono-Medium-latin.woff2", weight: "500" },
+  ],
+  variable: "--font-plex-mono",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "TrueBind · Clean claims bordereaux",
+  metadataBase: new URL("https://truebind.ie"),
+  title: { default: "TrueBind: workbook validation and reconciliation", template: "%s | TrueBind" },
   description:
-    "TrueBind maps, validates and reconciles claims bordereaux before they reach carriers, with clear evidence of what was checked and what was not.",
+    "TrueBind checks bordereaux and other large workbooks against versioned rules, points to the exact cell that needs attention, and keeps an audit trail of every correction.",
   icons: { icon: "/assets/mark.png" },
 };
 
@@ -29,17 +38,14 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#161826" },
-    { media: "(prefers-color-scheme: light)", color: "#f4f5fa" },
-  ],
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en-IE" data-theme="dark" className={inter.variable} suppressHydrationWarning>
+    <html lang="en-IE" data-theme="light" className={`${plex.variable} ${plexMono.variable}`} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT + DEVICE_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: DEVICE_SCRIPT }} />
       </head>
       <body>
         <Providers>{children}</Providers>

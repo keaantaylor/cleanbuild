@@ -14,18 +14,16 @@ import {
   Lightning,
   List,
   MagnifyingGlass,
-  Moon,
   PaperPlaneTilt,
   ShieldCheck,
   SignOut,
   SquaresFour,
-  Sun,
   Tray,
   UploadSimple,
   Warning,
   X,
 } from "@phosphor-icons/react";
-import { Mark, ThemeToggle } from "./ui";
+import { Mark } from "./ui";
 import { useMe } from "@/components/auth/AuthGate";
 import { useShell } from "@/components/layout/ShellContext";
 import { api } from "@/lib/api";
@@ -71,7 +69,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const me = useMe();
   const { system, unreadAlerts, workItems, refresh } = useShell();
-  const { toast, theme, toggleTheme } = useUi();
+  const { toast } = useUi();
   const [mobileNav, setMobileNav] = useState(false);
   const [search, setSearch] = useState(false);
   const [bell, setBell] = useState(false);
@@ -115,7 +113,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const sidebar = (
     // The sidebar stays dark in both themes, as in the design; scoping the dark tokens here does that.
     <aside
-      data-theme="dark"
       className="flex h-full flex-col gap-[18px] overflow-y-auto px-3 py-[18px]"
       style={{ background: "var(--chrome)", color: "var(--chromeText)", boxShadow: "1px 0 0 var(--chromeLine)", scrollbarWidth: "thin", scrollbarColor: "rgba(233,233,237,.12) transparent" }}
     >
@@ -145,7 +142,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 href={it.href}
                 aria-current={on ? "page" : undefined}
                 className="flex items-center gap-2.5 rounded-[7px] px-2.5 py-[7px] text-[13.5px] transition-colors hover:bg-[rgba(233,233,237,.05)]"
-                style={{ background: on ? "rgba(52,211,153,.14)" : undefined, color: on ? "var(--chromeStrong)" : "var(--chromeMuted)", boxShadow: on ? "inset 2px 0 0 var(--accent)" : "none" }}
+                style={{ background: on ? "rgba(31,79,209,.14)" : undefined, color: on ? "var(--chromeStrong)" : "var(--chromeMuted)", boxShadow: on ? "inset 2px 0 0 var(--accent)" : "none" }}
               >
                 <it.icon size={16} />
                 <span className="flex-1">{it.label}</span>
@@ -159,7 +156,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Link
           href="/settings"
           className="flex items-center gap-2.5 rounded-[7px] px-2.5 py-[7px] text-[13.5px] transition-colors hover:bg-[rgba(233,233,237,.05)]"
-          style={{ background: path.startsWith("/settings") ? "rgba(52,211,153,.14)" : undefined, color: path.startsWith("/settings") ? "var(--chromeStrong)" : "var(--chromeMuted)", boxShadow: path.startsWith("/settings") ? "inset 2px 0 0 var(--accent)" : "none" }}
+          style={{ background: path.startsWith("/settings") ? "rgba(31,79,209,.14)" : undefined, color: path.startsWith("/settings") ? "var(--chromeStrong)" : "var(--chromeMuted)", boxShadow: path.startsWith("/settings") ? "inset 2px 0 0 var(--accent)" : "none" }}
         >
           <Gear size={16} />
           Settings
@@ -236,7 +233,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <UploadSimple />
             <span className="hidden sm:inline">New intake</span>
           </Link>
-          <span className="hidden sm:contents"><ThemeToggle /></span>
           <div className="relative flex-none">
             <button type="button" aria-label={`Notifications, ${unreadAlerts} unread`} onClick={() => setBell((v) => !v)} className="relative flex h-[34px] w-[34px] cursor-pointer items-center justify-center rounded-md text-[17px] hover:bg-[var(--accentTint)]" style={{ color: "var(--muted)" }}>
               <Bell />
@@ -264,10 +260,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <div className="truncate" style={{ color: "var(--faint)" }}>{me?.tenant.name} · {roleLabel}</div>
                 </div>
                 <MenuLink href="/settings" icon={Gear}>Settings</MenuLink>
-                <button type="button" className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2.5 text-left text-[13px] hover:bg-[var(--accentTint)] sm:hidden" onClick={toggleTheme}>
-                  {theme === "dark" ? <Sun size={15} style={{ color: "var(--muted)" }} /> : <Moon size={15} style={{ color: "var(--muted)" }} />}
-                  {theme === "dark" ? "Light theme" : "Dark theme"}
-                </button>
                 <MenuLink href="/settings?tab=security" icon={ShieldCheck}>Two-step verification</MenuLink>
                 <MenuLink href="/settings?tab=members" icon={CheckSquare}>Members & roles</MenuLink>
                 <button type="button" className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left text-[13px] hover:bg-[var(--accentTint)]" style={{ color: "var(--err)", boxShadow: "0 -1px 0 var(--line)" }} onClick={signOut}>

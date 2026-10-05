@@ -139,7 +139,7 @@ function healthPdf(report: Report, s: ReportSummary, hv: HealthView): PdfBlock[]
     ...(s.sheet_audit ?? []).map((a) => ({ kind: "row" as const, cells: [a.sheet_name, a.status.replace(/_/g, " "), `${formatNumber(a.rows_processed)} rows`, `${a.fields_mapped} fields`], widths: [0.34, 0.26, 0.2, 0.2] })),
     ...s.field_completeness.filter((f) => f.never_mapped).slice(0, 1).map(() => ({ kind: "muted" as const, text: `Not mapped: ${s.field_completeness.filter((f) => f.never_mapped).map((f) => f.field_name).join(", ")}.` })),
     { kind: "rule" },
-    { kind: "row", cells: ["Source file", `sha256 ${report.source_sha256 ?? "—"}`], widths: [0.2, 0.8] },
+    { kind: "row", cells: ["Source file", `sha256 ${report.source_sha256 ?? "-"}`], widths: [0.2, 0.8] },
     { kind: "row", cells: ["Rows", rec(s)], widths: [0.2, 0.8] },
     { kind: "row", cells: ["Source values", "Unchanged. TrueBind never edits the file it was sent."], widths: [0.2, 0.8] },
   ];
@@ -203,7 +203,7 @@ function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
         </div>
 
         <div className="flex flex-col gap-2">
-          <span className="text-[12px] font-semibold uppercase tracking-[.1em]" style={{ color: "#047857" }}>Bordereau Health Check</span>
+          <span className="text-[13px]" style={{ color: "#4b5563" }}>Bordereau Health Check</span>
           <p className="m-0 text-[14px] leading-[1.6]" style={{ color: PAPER.muted }}>
             {[report.file_name, `${s.sheets_processed} of ${s.sheets_total} sheet${s.sheets_total === 1 ? "" : "s"}`, `${formatNumber(s.reconciliation.exported_rows)} claim rows`, `received ${formatDateTime(report.created_at)}`].join(" · ")}
           </p>
@@ -276,7 +276,7 @@ function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
         )}
 
         <div className="pt-3 text-[12px]" style={{ boxShadow: `0 -1px 0 ${PAPER.line}`, color: PAPER.faint }}>
-          {rec(s)}. Source values unchanged. sha256 {report.source_sha256 ? `${report.source_sha256.slice(0, 12)}…` : "—"}
+          {rec(s)}. Source values unchanged. sha256 {report.source_sha256 ? `${report.source_sha256.slice(0, 12)}…` : "-"}
         </div>
       </article>
 
@@ -386,7 +386,7 @@ function MoneyTab({ hv }: { hv: HealthView }) {
                 <td className="px-4 py-2.5 font-medium">{t.currency === "UNKNOWN" ? "Not stated" : t.currency}</td>
                 <td className="px-4 py-2.5 text-right">{formatNumber(t.rows)}</td>
                 <td className="px-4 py-2.5 text-right">{formatMoney(t.paid_to_date, t.currency)}</td>
-                <td className="px-4 py-2.5 text-right">{t.fees_rows ? formatMoney(t.fees_paid_to_date ?? 0, t.currency) : "—"}</td>
+                <td className="px-4 py-2.5 text-right">{t.fees_rows ? formatMoney(t.fees_paid_to_date ?? 0, t.currency) : "-"}</td>
                 <td className="px-4 py-2.5 text-right">{formatMoney(t.reserve, t.currency)}</td>
                 <td className="px-4 py-2.5 text-right font-medium">{formatMoney(t.incurred, t.currency)}</td>
               </tr>
@@ -617,7 +617,7 @@ function ExcludedRows({ reportId }: { reportId: string }) {
           {list.map((r) => (
             <li key={r.id} className="grid grid-cols-[minmax(84px,110px)_minmax(0,1fr)] [overflow-wrap:anywhere] gap-2 py-1" style={{ boxShadow: "0 1px 0 var(--line)" }}>
               <span className="tnum" style={{ color: "var(--muted)" }}>{r.sheet_name} · {r.row_number}{r.row_count && r.row_count > 1 ? `+${r.row_count - 1}` : ""}</span>
-              <span>{r.reason.replace(/_/g, " ")} — {r.detail}</span>
+              <span>{r.reason.replace(/_/g, " ")} - {r.detail}</span>
             </li>
           ))}
         </ul>
@@ -651,7 +651,7 @@ function Sheets({ reportId, s }: { reportId: string; s: ReportSummary }) {
                   <td className="tnum px-4 py-2.5 text-right">{formatNumber(a.rows_processed)}</td>
                   <td className="tnum px-4 py-2.5 text-right">{formatNumber(a.rows_rejected)}</td>
                   <td className="tnum px-4 py-2.5 text-right">{a.fields_mapped}</td>
-                  <td className="px-4 py-2.5 text-[12px]" style={{ color: "var(--muted)" }}>{[...(sh?.notes ?? []), sh?.trailing_blank_rows ? `${sh.trailing_blank_rows} trailing blank rows` : ""].filter(Boolean).join(" · ") || "—"}</td>
+                  <td className="px-4 py-2.5 text-[12px]" style={{ color: "var(--muted)" }}>{[...(sh?.notes ?? []), sh?.trailing_blank_rows ? `${sh.trailing_blank_rows} trailing blank rows` : ""].filter(Boolean).join(" · ") || "-"}</td>
                 </tr>
               );
             })}
@@ -694,10 +694,10 @@ function Lineage({ report }: { report: Report }) {
                 ["File", report.file_name],
                 ["Type", (report.file_kind ?? "").toUpperCase()],
                 ["Size", formatBytes(report.file_size_bytes)],
-                ["SHA-256", report.source_sha256 ? `${report.source_sha256.slice(0, 20)}…` : "—"],
-                ["Channel", report.source_channel === "upload" ? "Web upload" : report.source_channel ?? "—"],
-                ["Sender", report.sender ?? "—"],
-                ["Programme", report.programme ?? "—"],
+                ["SHA-256", report.source_sha256 ? `${report.source_sha256.slice(0, 20)}…` : "-"],
+                ["Channel", report.source_channel === "upload" ? "Web upload" : report.source_channel ?? "-"],
+                ["Sender", report.sender ?? "-"],
+                ["Programme", report.programme ?? "-"],
                 ["Received", formatDateTime(report.created_at)],
                 ["Retained until", formatDateTime(report.expires_at)],
               ].map(([l, v]) => (

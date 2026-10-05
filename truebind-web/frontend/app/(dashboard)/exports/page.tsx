@@ -87,7 +87,7 @@ export default function ExportsPage() {
                           <div className="text-[12px]" style={{ color: "var(--faint)" }}>{d.file_name}{d.size_bytes ? ` · ${formatBytes(d.size_bytes)}` : ""}</div>
                         </td>
                         <td className="px-4 py-3" style={{ color: "var(--muted)" }}>{d.channel === "download" ? "Download" : d.channel === "email" ? "Email" : d.channel.toUpperCase()}</td>
-                        <td className="max-w-[220px] truncate px-4 py-3" style={{ color: "var(--muted)" }}>{d.destination ?? `by ${d.created_by ?? "—"}`}</td>
+                        <td className="max-w-[220px] truncate px-4 py-3" style={{ color: "var(--muted)" }}>{d.destination ?? `by ${d.created_by ?? "-"}`}</td>
                         <td className="tnum px-4 py-3"><time dateTime={d.created_at} title={formatDateTime(d.created_at)}>{timeAgo(d.created_at)}</time></td>
                         <td className="px-4 py-3">
                           <StatusPill tone={ST[d.status][0]}>{ST[d.status][1]}</StatusPill>
@@ -107,7 +107,7 @@ export default function ExportsPage() {
         <div className="flex flex-col gap-4">
           <section className="tb-card flex flex-col gap-3 p-4">
             <span className="text-[15px] font-medium">Send an output</span>
-            <span className="text-[12.5px]" style={{ color: emailLive ? "var(--muted)" : "var(--warn)" }}>{!channels.data ? "Checking the email channel…" : emailLive ? "Delivered by email from this server." : "Email isn’t configured on this server — the attempt will be recorded, not sent. Downloads work now."}</span>
+            <span className="text-[12.5px]" style={{ color: emailLive ? "var(--muted)" : "var(--warn)" }}>{!channels.data ? "Checking the email channel…" : emailLive ? "Delivered by email from this server." : "Email isn’t configured on this server - the attempt will be recorded, not sent. Downloads work now."}</span>
             {complete.length === 0 ? (
               <span className="text-[13px]" style={{ color: "var(--muted)" }}>Outputs can be sent once a report is complete.</span>
             ) : (

@@ -17,7 +17,7 @@ export function describeAudit(e: AuditLogEntry): Described {
     case "JOB_FAILED": return { icon: "alertCircle", tone: "bad", title: "Processing failed", detail: v(a, "message") || v(a, "code") };
     case "JOB_CANCELLED": case "JOB_CANCEL_REQUESTED": return { icon: "x", tone: "neutral", title: "Processing cancelled by a user" };
     case "STATUS_CHANGED": return { icon: "arrowRight", tone: "neutral", title: `Status: ${v(b, "status").toLowerCase().replace(/_/g, " ")} → ${v(a, "status").toLowerCase().replace(/_/g, " ")}`, detail: v(a, "reason") };
-    case "AI_MAPPING_SUGGESTED": return { icon: "sparkles", tone: "info", title: `AI suggested mappings for sheet ${v(a, "sheet")}`, detail: v(a, "model") };
+    case "AI_MAPPING_SUGGESTED": return { icon: "info", tone: "info", title: `AI suggested mappings for sheet ${v(a, "sheet")}`, detail: v(a, "model") };
     case "MAPPING_CONFIRMED": return { icon: "check", tone: "good", title: `Mapping confirmed: ${v(a, "field")}`, detail: v(a, "source_column") ? `← column “${v(a, "source_column")}”` : "left unmapped" };
     case "MAPPING_OVERRIDDEN": return { icon: "layers", tone: "warn", title: `Mapping changed: ${v(a, "field")}`, detail: `“${v(b, "source_column") || "none"}” → “${v(a, "source_column") || "none"}”` };
     case "SOURCE_COLUMN_UNMAPPED": return { icon: "info", tone: "neutral", title: `Source column not mapped: “${v(a, "source_column")}”`, detail: `sheet ${v(a, "sheet")} · values retained` };
@@ -25,7 +25,7 @@ export function describeAudit(e: AuditLogEntry): Described {
     case "EXPORT_GENERATED": return { icon: v(a, "channel") === "email" ? "mail" : "download", tone: "neutral", title: `Export: ${v(a, "export").replace(/_/g, " ")}`, detail: v(a, "channel") === "email" ? `e-mail to ${v(a, "recipient")} · ${v(a, "status").toLowerCase()}` : "downloaded" };
     case "OBLIGATION_STATUS_CHANGED": return { icon: "todo", tone: "neutral", title: "Follow-up updated", detail: [v(a, "status"), v(a, "owner")].filter(Boolean).join(" · ") };
     case "ALERT_ACKNOWLEDGED": return { icon: "bell", tone: "neutral", title: "Alert marked read" };
-    case "AI_SUMMARY_GENERATED": return { icon: "sparkles", tone: "info", title: "AI exception summary generated", detail: v(a, "model") };
+    case "AI_SUMMARY_GENERATED": return { icon: "info", tone: "info", title: "AI exception summary generated", detail: v(a, "model") };
     case "REPORT_DELETED": return { icon: "x", tone: "warn", title: `Report deleted: ${v(b, "file_name")}` };
     case "REPORT_EXPIRED": return { icon: "clock", tone: "neutral", title: `Report expired (retention): ${v(b, "file_name")}` };
     case "LOGIN_SUCCEEDED": return { icon: "user", tone: "neutral", title: "Signed in" };

@@ -2,7 +2,7 @@
 
 | Phase | State |
 |---|---|
-| 1 Design system: light tokens (white/#F7F8FA, #111827, #E5E7EB, blue #1F4FD1), IBM Plex Sans/Mono, 4px, 32px controls, no gradients/glass/kickers; copy + debris | remaining |
+| 1 Design system + debris | done: one light token set (globals.css :root), IBM Plex Sans/Mono self-hosted, tabular nums, 4px, 32px controls, motion 120ms; dark theme + toggle removed; landing/header/footer rewritten (no hero animation, screenshots, glass, kickers); em dashes, sparkle/AI wording, [PRICE] placeholders, Inter/Space Grotesk, 6 stale screenshots removed. Lint, typecheck, unit 24/24, build OK |
 | 2 Backend authority: versioned rules, issue records (status lifecycle, expected/actual/diff, lineage, history), corrections never overwrite (versions + hashes), job RETRYING | remaining |
 | 3 Workbook-first app: nav (Overview, Submissions, Exceptions, Reconciliation, Rules, Reports, Connections, Settings), workbook page with virtualised grid + issue inspector | remaining |
 | 4 Public site SEO/mobile + security pass | remaining |

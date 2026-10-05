@@ -76,9 +76,9 @@ async function request<T>(path: string, init?: RequestInit & { timeoutMs?: numbe
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") {
-      throw new ApiError(0, `Request timed out after ${Math.round(timeoutMs / 1000)}s — the server may be overloaded or unreachable.`);
+      throw new ApiError(0, `Request timed out after ${Math.round(timeoutMs / 1000)}s - the server may be overloaded or unreachable.`);
     }
-    throw new ApiError(0, err instanceof Error ? err.message : "Network error — could not reach the server.");
+    throw new ApiError(0, err instanceof Error ? err.message : "Network error - could not reach the server.");
   } finally {
     clearTimeout(timer);
   }
@@ -320,7 +320,7 @@ export const api = {
         else if (xhr.status === 401) { window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname)}`); reject(new ApiError(401, "Please sign in again.")); }
         else reject(new ApiError(xhr.status, typeof (body as { detail?: unknown })?.detail === "string" ? (body as { detail: string }).detail : `Upload failed (${xhr.status}).`));
       };
-      xhr.onerror = () => reject(new ApiError(0, "Network error — the upload could not reach the server."));
+      xhr.onerror = () => reject(new ApiError(0, "Network error - the upload could not reach the server."));
       xhr.ontimeout = () => reject(new ApiError(0, "The upload timed out."));
       xhr.send(form);
     }),

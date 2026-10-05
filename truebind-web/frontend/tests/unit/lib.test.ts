@@ -12,7 +12,7 @@ describe("formatters", () => {
     expect(formatMoney(1234, "EUR")).toBe("€1,234");
     expect(formatMoney(1234, "UNKNOWN")).toBe("1,234");
     expect(formatMoney(1234, "XX1")).toBe("1,234 XX1");
-    expect(formatMoney(null, "GBP")).toBe("—");
+    expect(formatMoney(null, "GBP")).toBe("-");
   });
 
   it("formats sizes, percentages and durations", () => {

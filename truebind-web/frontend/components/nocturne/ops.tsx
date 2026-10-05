@@ -14,9 +14,9 @@ const TARGET_HREF: Record<string, (id: string) => string> = {
   MAPPING: (id) => `/reports/${id}#sheets`,
 };
 
-/** Recommended next actions — derived only from findings; each cites its evidence. */
+/** Recommended next actions - derived only from findings; each cites its evidence. */
 export function Recommendations({ items, reportId, showFile }: { items: Recommendation[]; reportId?: string; showFile?: boolean }) {
-  if (!items.length) return <p className="m-0 text-[13px]" style={{ color: "var(--muted)" }}>No actions recommended — nothing in the evidence needs attention.</p>;
+  if (!items.length) return <p className="m-0 text-[13px]" style={{ color: "var(--muted)" }}>No actions recommended - nothing in the evidence needs attention.</p>;
   return (
     <ul className="m-0 flex list-none flex-col gap-3 p-0">
       {items.map((r) => {

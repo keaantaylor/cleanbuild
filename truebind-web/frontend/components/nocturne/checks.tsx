@@ -17,7 +17,7 @@ import type { Severity } from "@/lib/types";
 
 const TONE = { good: "ok", warn: "warn", bad: "err", neutral: "muted" } as const;
 
-/** Binder compliance, leakage and sanctions modules for one report — all real
+/** Binder compliance, leakage and sanctions modules for one report - all real
  * backend check runs. Each says what it assessed and what it could not. */
 export function ChecksPanel({ report }: { report: Report }) {
   const me = useMe();
@@ -94,7 +94,7 @@ function ModuleCard({ run, report, canWrite, onRan, extra }: { run: ModuleRun; r
                 <tr key={r.code} style={{ boxShadow: "0 -1px 0 var(--line)" }}>
                   <td className="py-2 pr-3">{r.label}</td>
                   <td className="tnum px-3 py-2 text-right">{formatNumber(r.assessed)}</td>
-                  <td className="py-2 pl-3" style={{ color: r.not_assessed ? "var(--warn)" : "var(--muted)" }}>{r.not_assessed ? `${formatNumber(r.not_assessed)} — ${r.reasons.join("; ")}` : "0"}</td>
+                  <td className="py-2 pl-3" style={{ color: r.not_assessed ? "var(--warn)" : "var(--muted)" }}>{r.not_assessed ? `${formatNumber(r.not_assessed)} - ${r.reasons.join("; ")}` : "0"}</td>
                 </tr>
               ))}
             </tbody>
@@ -106,7 +106,7 @@ function ModuleCard({ run, report, canWrite, onRan, extra }: { run: ModuleRun; r
       ) : !findings.data ? (
         <LoadingState label="Loading findings" rows={2} />
       ) : list.length === 0 ? (
-        <span className="text-[13px]" style={{ color: "var(--muted)" }}>{run.state === "ASSESSED" ? "No findings: every assessed row passed." : run.state === "PARTIAL" ? "No findings in the rows that could be assessed." : "No findings — nothing was assessed yet."}</span>
+        <span className="text-[13px]" style={{ color: "var(--muted)" }}>{run.state === "ASSESSED" ? "No findings: every assessed row passed." : run.state === "PARTIAL" ? "No findings in the rows that could be assessed." : "No findings - nothing was assessed yet."}</span>
       ) : (
         <ul className="m-0 flex list-none flex-col overflow-hidden rounded-md p-0" style={{ boxShadow: "inset 0 0 0 1px var(--line)" }} aria-label={`${run.label} findings`}>
           {list.map((f) => (
@@ -168,7 +168,7 @@ function FindingRow({ f, reportId, canWrite, onChange }: { f: ModuleFinding; rep
           {f.disposition !== "OPEN" && (
             <span className="text-[12.5px]" style={{ color: "var(--muted)" }}>
               {f.disposition === "CONFIRMED" ? "Confirmed" : "Dismissed"} by {f.disposed_by} · {formatDateTime(f.disposed_at)}
-              {f.disposition_note ? ` — “${f.disposition_note}”` : ""}
+              {f.disposition_note ? ` - “${f.disposition_note}”` : ""}
             </span>
           )}
           {canWrite && (
@@ -201,7 +201,7 @@ function BinderPicker({ report, canWrite, onChanged }: { report: Report; canWrit
   if (!binders.data.length)
     return (
       <span className="text-[13px]" style={{ color: "var(--muted)" }}>
-        No binders set up yet —{" "}
+        No binders set up yet -{" "}
         <Link href="/settings?tab=binders" className="underline" style={{ color: "var(--accentText)" }}>add one under Settings → Binders</Link> to check this report against it.
       </span>
     );

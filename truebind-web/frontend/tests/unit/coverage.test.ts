@@ -48,7 +48,7 @@ describe("check modules", () => {
     expect(decimalMoney("0.10", "EUR")).toBe("EUR 0.10");
     expect(decimalMoney("-9500.00", "GBP")).toBe("GBP -9,500.00");
     expect(decimalMoney("12", null)).toBe("12.00 (currency not stated)");
-    expect(decimalMoney(null, "GBP")).toBe("—");
+    expect(decimalMoney(null, "GBP")).toBe("-");
   });
   it("points at the sheet, row and column, or the whole report", () => {
     expect(findingWhere({ sheet_name: "Claims", row_number: 3, source_column: "Date of Loss" })).toBe("Claims · row 3 · column “Date of Loss”");

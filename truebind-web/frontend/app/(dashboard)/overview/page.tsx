@@ -189,7 +189,7 @@ function Figure({ label, value, note, href, tone }: { label: string; value: numb
   );
 }
 
-/** File, sender, status, due date — nothing else. */
+/** File, sender, status, due date - nothing else. */
 function FilesTable({ reports, due }: { reports: Report[]; due: Map<string, { date: string; overdue: boolean }> }) {
   if (!reports.length) return <div className="tb-card px-5 py-4 text-[13px]" style={{ color: "var(--muted)" }}>No files yet.</div>;
   const Due = ({ id }: { id: string }) => {
@@ -234,7 +234,7 @@ function FilesTable({ reports, due }: { reports: Report[]; due: Map<string, { da
                   <Link href={st.href} className="block truncate font-medium after:absolute after:inset-0">{r.file_name}</Link>
                   <span className="block text-[12px]" style={{ color: "var(--faint)" }}>received {timeAgo(r.created_at)}</span>
                 </td>
-                <td className="w-[22%] truncate px-4 py-2.5" style={{ color: "var(--muted)" }}>{r.sender || "—"}</td>
+                <td className="w-[22%] truncate px-4 py-2.5" style={{ color: "var(--muted)" }}>{r.sender || "-"}</td>
                 <td className="w-[1%] whitespace-nowrap px-4 py-2.5"><StatusPill tone={st.tone}>{st.label}</StatusPill></td>
                 <td className="tnum w-[1%] whitespace-nowrap px-4 py-2.5"><Due id={r.id} /></td>
               </tr>

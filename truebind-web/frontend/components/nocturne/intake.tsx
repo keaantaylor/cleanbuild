@@ -209,7 +209,7 @@ export function Dropzone({ upload, onFile, compact }: { upload: { name: string; 
         <UploadSimple />
       </span>
       <span className="text-[16px] font-medium">{upload ? `Uploading ${upload.name}…` : "Drop a claims bordereau here"}</span>
-      <span className="text-[13px]" style={{ color: "var(--muted)" }}>.xlsx · .xlsm · .xls · .csv — macros are never run; password-protected files are rejected</span>
+      <span className="text-[13px]" style={{ color: "var(--muted)" }}>.xlsx · .xlsm · .xls · .csv - macros are never run; password-protected files are rejected</span>
       {upload ? (
         <span className="w-full max-w-[420px]" aria-live="polite">
           <span className="block h-1.5 overflow-hidden rounded-full" style={{ background: "var(--line)" }}>
@@ -327,7 +327,7 @@ export function ProcessingPanel({ report, system, onCancel, onRetry }: { report:
           {facts.map(([l, v]) => (
             <div key={l} className="flex flex-col gap-0.5">
               <dt className="text-[12px]" style={{ color: "var(--faint)" }}>{l}</dt>
-              <dd className="m-0 text-[20px] font-medium" style={{ color: v === undefined ? "var(--faint)" : "var(--text)" }}>{v === undefined ? "—" : formatNumber(v)}</dd>
+              <dd className="m-0 text-[20px] font-medium" style={{ color: v === undefined ? "var(--faint)" : "var(--text)" }}>{v === undefined ? "-" : formatNumber(v)}</dd>
             </div>
           ))}
         </dl>
@@ -627,7 +627,7 @@ export function MappingReview({ report, sheets, onSheetsChange, onProcess, proce
                             onChange={(e) => setChoices((p) => ({ ...p, [f.field_code]: e.target.value || null }))}
                             style={changed ? { boxShadow: "inset 0 0 0 1.5px var(--accent)" } : undefined}
                           >
-                            <option value="">— not mapped —</option>
+                            <option value="">- not mapped -</option>
                             {mapping.headers.map((h) => (
                               <option key={h} value={h}>
                                 {h}
@@ -648,7 +648,7 @@ export function MappingReview({ report, sheets, onSheetsChange, onProcess, proce
                           )}
                         </td>
                         <td className="tnum max-w-[260px] truncate px-5 py-2.5 align-top text-[12px]" style={{ color: "var(--muted)" }}>
-                          {f.sample_values.join(" · ") || "—"}
+                          {f.sample_values.join(" · ") || "-"}
                         </td>
                       </tr>
                     );

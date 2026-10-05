@@ -6,7 +6,7 @@ import { SiteFooter, SiteNav } from "./chrome";
 import { LeadButton } from "./lead-form";
 import { ContactLine } from "./contact";
 
-// [PRICE] placeholders are deliberate: prices are set after the first pilots.
+// Prices are agreed with each customer until list prices are published.
 const PLANS = [
   {
     name: "Founding pilot",
@@ -20,19 +20,19 @@ const PLANS = [
   },
   {
     name: "Per file",
-    price: "[PRICE]",
+    price: "On request",
     per: "per bordereau",
     lead: "For firms sending a handful of bordereaux a month.",
-    items: ["Everything in the Health Check, on demand", "Month-on-month check against last month’s file", "Up to [N] rows per file", "Files deleted after 30 days (you choose)"],
+    items: ["Everything in the Health Check, on demand", "Month-on-month check against last month’s file", "Files deleted after 30 days (you choose)"],
     cta: "demo" as const,
     label: "Talk to us",
   },
   {
     name: "Monthly",
-    price: "[PRICE]",
+    price: "On request",
     per: "per month",
     lead: "For coverholders, MGAs and TPAs with several binders or senders.",
-    items: ["Unlimited files up to [N] rows a month", "Team accounts with roles and two-step verification", "Binder, leakage and sanctions checks", "Audit pack for every file"],
+    items: ["Unlimited files each month", "Team accounts with roles and two-step verification", "Binder, leakage and sanctions checks", "Audit pack for every file"],
     cta: "demo" as const,
     label: "Talk to us",
   },
@@ -44,8 +44,8 @@ export function PricingPage() {
       <SiteNav />
       <main id="main" className="mx-auto flex max-w-[1100px] flex-col gap-10 px-4 pb-20 pt-[130px] sm:px-6">
         <div className="flex max-w-[720px] flex-col gap-3">
-          <span className="text-[12px] font-medium uppercase tracking-[.1em]" style={{ color: "var(--kicker)" }}>Pricing</span>
-          <h1 className="m-0 text-[36px] font-medium leading-[1.1] tracking-[-0.03em] sm:text-[44px]">Priced for small teams. First file free.</h1>
+          <span className="text-[13px]" style={{ color: "var(--muted)" }}>Pricing</span>
+          <h1 className="m-0 text-[28px] font-semibold leading-[1.2]">Priced for small teams. First file free.</h1>
           <p className="m-0 text-[16.5px] leading-[1.6]" style={{ color: "var(--chromeMuted)" }}>No integration project and no long contract: upload the file as it is. Prices below are being set with our founding pilots.</p>
         </div>
         <div className="grid gap-5 md:grid-cols-3">
@@ -53,7 +53,7 @@ export function PricingPage() {
             <div key={p.name} className="flex flex-col gap-4 rounded-md p-6" style={{ background: p.highlight ? "var(--section)" : "transparent", boxShadow: p.highlight ? "inset 0 0 0 1px var(--accent)" : "inset 0 0 0 1px var(--line2)" }}>
               <span className="text-[15px] font-medium" style={{ color: p.highlight ? "var(--accentText)" : "var(--chromeStrong)" }}>{p.name}</span>
               <div className="flex items-baseline gap-2">
-                <span className="tnum text-[34px] font-medium tracking-[-0.02em]">{p.price}</span>
+                <span className="tnum text-[24px] font-semibold ">{p.price}</span>
                 <span className="text-[13.5px]" style={{ color: "var(--chromeMuted)" }}>{p.per}</span>
               </div>
               <span className="text-[14px] leading-[1.55]" style={{ color: "var(--chromeText)" }}>{p.lead}</span>

@@ -43,7 +43,7 @@ export default function ReportsPage() {
           {[
             ["Completed reports", formatNumber(complete.length)],
             ["Claim rows assessed", formatNumber(rows)],
-            ["Average health score", avg == null ? "—" : `${avg}/100`],
+            ["Average health score", avg == null ? "-" : `${avg}/100`],
             ["Not yet complete", formatNumber((data?.length ?? 0) - complete.length)],
           ].map(([l, v]) => (
             <div key={l} className="flex flex-col gap-[5px] py-[18px] pr-5">

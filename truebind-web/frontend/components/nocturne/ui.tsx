@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
-import { CheckCircle, Info, Moon, ShieldCheck, Sun, Warning, WarningCircle, X } from "@phosphor-icons/react";
+import { CheckCircle, Info, ShieldCheck, Warning, WarningCircle, X } from "@phosphor-icons/react";
 import { useUi } from "@/lib/ui";
 
 export function Mark({ size = 24, radius = 6 }: { size?: number; radius?: number }) {
@@ -18,21 +18,6 @@ export function Brand({ size = 24, className = "" }: { size?: number; className?
   );
 }
 
-export function ThemeToggle({ className = "", style }: { className?: string; style?: React.CSSProperties }) {
-  const { theme, toggleTheme } = useUi();
-  return (
-    <button
-      type="button"
-      onClick={toggleTheme}
-      title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-      aria-label="Switch theme"
-      className={`flex h-[34px] w-[34px] flex-none cursor-pointer items-center justify-center rounded-md text-[17px] transition-colors hover:bg-[var(--accentTint)] ${className}`}
-      style={{ color: "var(--muted)", ...style }}
-    >
-      {theme === "dark" ? <Sun /> : <Moon />}
-    </button>
-  );
-}
 
 /** Centred dialog built on Nocturne's .dialog pattern. Esc and backdrop click close it. */
 export function Modal({
@@ -87,7 +72,7 @@ export function Modal({
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-1.5">
-            {kicker && <span className="kicker">{kicker}</span>}
+            {kicker && <span className="sr-only">{kicker}</span>}
             <h2 id={id} className="m-0 text-[20px] font-medium tracking-[-0.015em]">
               {title}
             </h2>
@@ -105,7 +90,7 @@ export function Modal({
 
 const TONE = {
   ok: { icon: ShieldCheck, c: "oklch(0.76 0.12 155)" },
-  info: { icon: Info, c: "#6fe3c1" },
+  info: { icon: Info, c: "#1f4fd1" },
   warn: { icon: Warning, c: "oklch(0.81 0.12 75)" },
   err: { icon: WarningCircle, c: "oklch(0.72 0.15 25)" },
 };
@@ -124,7 +109,7 @@ export function Toaster() {
             style={{
               background: "rgba(35,37,50,.9)",
               color: "#e9e9ed",
-              boxShadow: "inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px rgba(52,211,153,.4)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px rgba(31,79,209,.4)",
             }}
           >
             <T.icon style={{ color: T.c, flex: "none" }} size={16} weight="regular" />
@@ -151,7 +136,7 @@ export function StatusPill({ tone, children }: { tone: "ok" | "warn" | "err" | "
   );
 }
 
-/** Checked · Flagged · Unmapped · Not assessed — the honest-coverage bar. */
+/** Checked · Flagged · Unmapped · Not assessed - the honest-coverage bar. */
 export function CoverageBar({ parts, height = 6 }: { parts: [number, number, number, number]; height?: number }) {
   return (
     <div className="flex overflow-hidden" style={{ height, borderRadius: 3, gap: 2, background: "var(--line)" }}>
@@ -188,17 +173,16 @@ export function PageHeader({
 }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
-      <div className="flex flex-col gap-1.5">
-        <span className="kicker">{kicker}</span>
-        <h1 className="m-0 text-[30px] font-medium tracking-[-0.02em]">{title}</h1>
-        {sub && <p className="m-0 max-w-[640px] text-[14.5px]" style={{ color: "var(--muted)" }}>{sub}</p>}
+      <div className="flex flex-col gap-1" data-section={kicker}>
+        <h1 className="m-0 text-[20px] font-semibold">{title}</h1>
+        {sub && <p className="m-0 max-w-[720px] text-[13.5px]" style={{ color: "var(--muted)" }}>{sub}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2 whitespace-nowrap">{actions}</div>}
     </div>
   );
 }
 
-/** A stat tile with the coloured top rule seen in the current build's screenshots. */
+/** A count tile: label, number, note. Plain border, no colour rule. */
 export function StatTile({
   label,
   value,
@@ -228,7 +212,6 @@ export function StatTile({
         color: "var(--text)",
       }}
     >
-      <span className="absolute left-[18px] right-[18px] top-0 h-[2px] rounded-b" style={{ background: color }} />
       <span className="flex items-center gap-2 text-[12.5px]" style={{ color: "var(--muted)" }}>
         <span style={{ color, display: "flex" }}>{icon}</span>
         {label}
@@ -289,7 +272,7 @@ export function LoadingState({ label, rows = 4 }: { label: string; rows?: number
   );
 }
 
-/** Explained, retryable failure — never a blank screen. */
+/** Explained, retryable failure - never a blank screen. */
 export function ErrorState({ title, message, onRetry }: { title: string; message?: string | null; onRetry?: () => void }) {
   return (
     <div className="flex flex-col items-start gap-2.5 rounded-md px-5 py-4" role="alert" style={{ background: "var(--errT)", boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--err) 35%, transparent)" }}>

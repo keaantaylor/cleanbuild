@@ -601,7 +601,7 @@ function FirstFileStep({ back, next, onComplete, report: done }: { back: () => v
               {[
                 [formatNumber(r.rows_processed), "Rows assessed"],
                 [formatNumber(r.issues_found ?? 0), "Findings"],
-                [r.score != null ? `${Math.round(r.score)}/100` : "—", "Health score"],
+                [r.score != null ? `${Math.round(r.score)}/100` : "-", "Health score"],
                 [String(r.sheet_count_total), "Sheets"],
               ].map(([v, l]) => (
                 <div key={l} className="flex flex-col gap-0.5">
@@ -628,7 +628,7 @@ function DoneStep({ d, me, report, finish, jump }: { d: Draft; me: Me | null; re
     ["Senders", "Sender logins use their own pre-flight portal", 3],
     ["Ruleset", "Lloyd’s CRS v5.2 · binders under Settings → Binders", 4],
     ["Intake", "Web upload and API live · email per your server", 5],
-    ["First bordereau", report ? `${report.file_name} · ${formatNumber(report.issues_found ?? 0)} findings` : "Skipped — upload from Intake any time", 6],
+    ["First bordereau", report ? `${report.file_name} · ${formatNumber(report.issues_found ?? 0)} findings` : "Skipped - upload from Intake any time", 6],
   ];
   return (
     <>

@@ -78,7 +78,7 @@ export default function ScorecardPage() {
                   </th>
                   <td className="tnum px-4 py-3">{s.reports}</td>
                   <td className="px-4 py-3">{s.latest_score == null ? <NA /> : <StatusPill tone={scoreTone(s.latest_score)}>{s.latest_score}{s.latest_grade ? ` · ${s.latest_grade}` : ""}</StatusPill>}</td>
-                  <td className="px-4 py-3">{s.score_trend.length > 1 ? <Trend values={s.score_trend} title={`${s.sender} health score trend`} /> : "—"}</td>
+                  <td className="px-4 py-3">{s.score_trend.length > 1 ? <Trend values={s.score_trend} title={`${s.sender} health score trend`} /> : "-"}</td>
                   <td className="tnum px-4 py-3">{s.exceptions_per_1000_rows ?? <NA />}</td>
                   <td className="tnum px-4 py-3">{s.resubmissions_per_1000_rows ?? <NA />}</td>
                   <td className="tnum px-4 py-3" style={{ color: s.binder_breaches ? "var(--err)" : undefined }}>{s.binder_breaches}</td>

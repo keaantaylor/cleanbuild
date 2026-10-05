@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, mayHaveSession } from "@/lib/api";
 import { List, X } from "@phosphor-icons/react";
-import { Brand, Mark, ThemeToggle } from "@/components/nocturne/ui";
+import { Brand } from "@/components/nocturne/ui";
+import { CONTACT_EMAIL } from "@/lib/constants";
 import { LeadButton } from "./lead-form";
 
 const LINKS = [
@@ -14,8 +15,7 @@ const LINKS = [
   ["Security", "/security"],
 ];
 
-/** The prototype's floating glass pill nav. */
-/** True once /auth/me confirms this browser holds a live session. Marketing
+/** True once /auth/me confirms this browser holds a live session. Public
  * pages only read the session; they never end it. */
 export function useSignedIn(): boolean {
   const [signedIn, setSignedIn] = useState(false);
@@ -30,80 +30,55 @@ export function useSignedIn(): boolean {
   return signedIn;
 }
 
+/** Public site header: a plain bar with a bottom border. */
 export function SiteNav() {
   const [open, setOpen] = useState(false);
   const signedIn = useSignedIn();
+  const session: [string, string] = signedIn ? ["Open TrueBind", "/overview"] : ["Sign in", "/login"];
   return (
-    // The wrapper is zero-height so the pill floats over the hero; items-start stops
-    // the pill being stretched to that zero height (the pill sizes to its content).
     <>
-    <a href="#main" className="sr-only z-[70] rounded-md text-[13px] focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:px-3 focus:py-2" style={{ background: "var(--surface)", color: "var(--text)", boxShadow: "0 0 0 2px var(--accent)" }}>Skip to content</a>
-    <div className="no-print sticky top-[calc(20px+env(safe-area-inset-top))] z-20 flex h-0 items-start justify-center px-3 sm:px-5">
-      <nav
-        className="flex h-[52px] w-full max-w-max flex-none items-center gap-2 whitespace-nowrap rounded-full pl-4 pr-2 min-[375px]:gap-3 min-[375px]:pl-5 lg:gap-8"
-        style={{
-          background: "var(--glass)",
-          boxShadow: "inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px var(--glassRing)",
-          color: "var(--chromeStrong)",
-        }}
-      >
-        <Link href="/" className="flex h-9 items-center text-[15px]" aria-label="TrueBind home">
-          <Brand />
-        </Link>
-        <div className="hidden items-center gap-6 text-[13.5px] lg:flex" style={{ color: "var(--chromeMuted)" }}>
-          {LINKS.map(([l, h]) => (
-            <a key={h} href={h} className="flex h-9 items-center transition-colors hover:text-[var(--chromeStrong)]">
-              {l}
-            </a>
-          ))}
-        </div>
-        <div className="ml-auto flex items-center gap-1">
-          <span className="contents max-[359px]:hidden"><ThemeToggle className="!h-9 !w-9 !rounded-full" style={{ color: "var(--chromeMuted)" }} /></span>
-          <Link href={signedIn ? "/overview" : "/login"} className="hidden h-9 items-center rounded-full px-3 text-[13.5px] transition-colors hover:text-[var(--chromeStrong)] sm:flex" style={{ color: "var(--chromeMuted)" }}>
-            {signedIn ? "Open TrueBind" : "Sign in"}
+      <a href="#main" className="sr-only z-[70] text-[13px] focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:px-3 focus:py-2" style={{ background: "var(--surface)", color: "var(--text)", outline: "2px solid var(--accent)" }}>Skip to content</a>
+      <header className="no-print sticky top-0 z-20 border-b" style={{ background: "var(--surface)", borderColor: "var(--line)" }}>
+        <nav className="mx-auto flex h-12 max-w-[1120px] items-center gap-6 px-4" aria-label="Main">
+          <Link href={signedIn ? "/overview" : "/"} className="flex items-center text-[15px]" aria-label={signedIn ? "TrueBind overview" : "TrueBind home"}>
+            <Brand size={22} />
           </Link>
-          <LeadButton
-            kind="demo"
-            className="flex h-9 items-center rounded-full px-4 text-[13.5px] font-medium transition-colors hover:bg-[rgba(52,211,153,.16)]"
-            style={{ color: "var(--accentText)", boxShadow: "inset 0 0 0 1px var(--accent)" }}
-          >
-            Book a demo
-          </LeadButton>
-          <button type="button" className="grid h-9 w-9 place-items-center rounded-full lg:hidden" aria-label={open ? "Close menu" : "Open menu"} aria-expanded={open} onClick={() => setOpen((o) => !o)} style={{ color: "var(--chromeMuted)" }}>
-            {open ? <X size={17} /> : <List size={17} />}
-          </button>
-        </div>
-      </nav>
-      {open && (
-        <div
-          className="anim-pop absolute left-4 right-4 top-[62px] flex flex-col rounded-md p-2 lg:hidden"
-          style={{ background: "var(--popover)", boxShadow: "0 0 0 1px var(--glassRing)" }}
-        >
-          {[...LINKS, signedIn ? ["Open TrueBind", "/overview"] : ["Sign in", "/login"]].map(([l, h]) => (
-            <a key={h} href={h} onClick={() => setOpen(false)} className="rounded-md px-3 py-2.5 text-[14px] hover:bg-[var(--accentTint)]" style={{ color: "var(--chromeStrong)" }}>
-              {l}
-            </a>
-          ))}
-        </div>
-      )}
-    </div>
+          <div className="hidden items-center gap-5 text-[13.5px] md:flex" style={{ color: "var(--muted)" }}>
+            {LINKS.map(([l, h]) => (
+              <a key={h} href={h} className="hover:text-[var(--text)]">{l}</a>
+            ))}
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <Link href={session[1]} className="hidden text-[13.5px] hover:text-[var(--text)] sm:block" style={{ color: "var(--muted)" }}>{session[0]}</Link>
+            <LeadButton kind="demo" className="tb-btn tb-btn-solid">Book a demo</LeadButton>
+            <button type="button" className="tb-btn !px-2 md:hidden" aria-label={open ? "Close menu" : "Open menu"} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+              {open ? <X size={16} /> : <List size={16} />}
+            </button>
+          </div>
+        </nav>
+        {open && (
+          <div className="flex flex-col border-t px-2 py-1 md:hidden" style={{ borderColor: "var(--line)", background: "var(--surface)" }}>
+            {[...LINKS, session].map(([l, h]) => (
+              <a key={h} href={h} onClick={() => setOpen(false)} className="px-2 py-2.5 text-[14px]" style={{ color: "var(--text)" }}>{l}</a>
+            ))}
+          </div>
+        )}
+      </header>
     </>
   );
 }
 
 export function SiteFooter() {
   return (
-    <footer className="mx-auto flex max-w-[1320px] flex-wrap justify-between gap-5 px-4 pb-12 pt-9 text-[12.5px] sm:px-12" style={{ color: "var(--faint)" }}>
-      <Link href="/" className="flex items-center gap-[9px] font-medium" style={{ color: "var(--chromeMuted)" }}>
-        <Mark size={20} radius={5} />
-        TrueBind
-      </Link>
-      <div className="flex flex-wrap gap-x-6 gap-y-2">
-        <Link href="/security" className="hover:text-[var(--chromeStrong)]">Security</Link>
-        <Link href="/crs" className="hover:text-[var(--chromeStrong)]">Lloyd’s CRS v5.2</Link>
-        <Link href="/privacy" className="hover:text-[var(--chromeStrong)]">Privacy</Link>
-        <a href="mailto:hello@truebind.ie" className="hover:text-[var(--chromeStrong)]">hello@truebind.ie</a>
+    <footer className="border-t" style={{ borderColor: "var(--line)", background: "var(--surface)" }}>
+      <div className="mx-auto flex max-w-[1120px] flex-wrap items-center justify-between gap-4 px-4 py-6 text-[12.5px]" style={{ color: "var(--muted)" }}>
         <span>© 2026 TrueBind</span>
+        <div className="flex flex-wrap gap-x-5 gap-y-2">
+          <Link href="/security" className="hover:text-[var(--text)]">Security</Link>
+          <Link href="/privacy" className="hover:text-[var(--text)]">Privacy</Link>
+          <Link href="/crs" className="hover:text-[var(--text)]">Lloyd’s CRS v5.2</Link>
+          <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-[var(--text)]">{CONTACT_EMAIL}</a>
+        </div>
       </div>
     </footer>
   );

@@ -53,10 +53,10 @@ export function ReportTable({ reports, detailed = false }: { reports: Report[]; 
                 <span className="flex-none rounded px-1 py-[3px] text-[9px] font-semibold" style={{ color: "oklch(0.55 0.11 150)", boxShadow: "inset 0 0 0 1px var(--line2)" }}>{ext || "FILE"}</span>
                 <span className="truncate font-medium">{r.file_name}</span>
               </span>
-              <span className="truncate" style={{ color: "var(--muted)" }}>{r.sender || "—"}</span>
-              {detailed && <span className="truncate" style={{ color: "var(--muted)" }}>{r.programme || "—"}</span>}
-              <span className="tnum text-right">{r.rows_total ? formatNumber(r.rows_total) : "—"}</span>
-              {detailed && <span className="tnum text-right" style={{ color: (r.issues_found ?? 0) > 0 ? "var(--warn)" : "var(--text)" }}>{r.status === "COMPLETE" ? formatNumber(r.issues_found ?? 0) : "—"}</span>}
+              <span className="truncate" style={{ color: "var(--muted)" }}>{r.sender || "-"}</span>
+              {detailed && <span className="truncate" style={{ color: "var(--muted)" }}>{r.programme || "-"}</span>}
+              <span className="tnum text-right">{r.rows_total ? formatNumber(r.rows_total) : "-"}</span>
+              {detailed && <span className="tnum text-right" style={{ color: (r.issues_found ?? 0) > 0 ? "var(--warn)" : "var(--text)" }}>{r.status === "COMPLETE" ? formatNumber(r.issues_found ?? 0) : "-"}</span>}
               <span className="justify-self-start">
                 <StatusPill tone={st.tone}>{st.label}</StatusPill>
               </span>

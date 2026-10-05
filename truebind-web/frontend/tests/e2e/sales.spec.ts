@@ -7,7 +7,7 @@ test("pricing and the sample report are public", async ({ page }) => {
   await page.goto("/pricing");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("First file free");
   await expect(page.getByText("Founding pilot").first()).toBeVisible();
-  await expect(page.getByText("[PRICE]").first()).toBeVisible();
+  await expect(page.getByText("On request").first()).toBeVisible();
   await page.goto("/demo");
   await expect(page.getByText(/Fix before submitting|Ready to submit/).first()).toBeVisible();
   const res = await page.request.get("/demo/Sample_Bordereau_REVIEWED.xlsx");

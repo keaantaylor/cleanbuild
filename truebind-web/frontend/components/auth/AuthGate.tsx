@@ -62,7 +62,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 function SessionSkeleton({ message }: { message: string }) {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] min-h-screen lg:grid-cols-[232px_minmax(0,1fr)]" role="status" aria-live="polite" style={{ background: "var(--bg)" }}>
-      <div data-theme="dark" className="hidden flex-col gap-4 px-4 py-5 lg:flex" style={{ background: "var(--chrome)" }}>
+      <div className="hidden flex-col gap-4 px-4 py-5 lg:flex" style={{ background: "var(--chrome)" }}>
         <span className="flex items-center gap-2 text-[15px] font-semibold" style={{ color: "var(--chromeStrong)" }}><Mark size={26} />TrueBind</span>
         {Array.from({ length: 9 }, (_, i) => <Skeleton key={i} h={14} w={`${70 - (i % 3) * 12}%`} />)}
       </div>

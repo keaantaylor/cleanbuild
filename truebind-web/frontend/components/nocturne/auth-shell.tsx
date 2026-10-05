@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Check, ShieldCheck } from "@phosphor-icons/react";
-import { Brand, ThemeToggle } from "./ui";
+import { Brand } from "./ui";
 
 export type ShellStep = { key: string; label: string };
 
@@ -41,7 +41,7 @@ export function AuthShell({
                     onClick={() => onJump?.(i)}
                     disabled={!done || !onJump}
                     className="flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left text-[13.5px] transition-colors enabled:cursor-pointer enabled:hover:bg-[rgba(233,233,237,.05)]"
-                    style={{ background: on ? "rgba(52,211,153,.14)" : "transparent", boxShadow: on ? "inset 2px 0 0 var(--accent)" : "none", color: on ? "var(--chromeStrong)" : done ? "var(--chromeText)" : "var(--chromeFaint)" }}
+                    style={{ background: on ? "rgba(31,79,209,.14)" : "transparent", boxShadow: on ? "inset 2px 0 0 var(--accent)" : "none", color: on ? "var(--chromeStrong)" : done ? "var(--chromeText)" : "var(--chromeFaint)" }}
                   >
                     <span className="tnum grid h-[22px] w-[22px] flex-none place-items-center rounded-full text-[11px]" style={{ boxShadow: done ? "none" : `inset 0 0 0 1px ${on ? "var(--accent)" : "var(--chromeLine)"}`, background: done ? "var(--ok)" : "transparent", color: done ? "#fff" : "inherit" }}>
                       {done ? <Check size={12} weight="bold" /> : i + 1}
@@ -55,7 +55,7 @@ export function AuthShell({
         ) : (
           intro && (
             <div className="relative flex flex-col gap-3 text-[13.5px] leading-[1.6]" style={{ color: "var(--chromeMuted)" }}>
-              <span className="text-[12px] font-medium uppercase tracking-[.1em]" style={{ color: "var(--kicker)" }}>{intro.kicker}</span>
+              <span className="text-[13px]" style={{ color: "var(--muted)" }}>{intro.kicker}</span>
               {intro.body}
             </div>
           )
@@ -83,7 +83,6 @@ export function AuthShell({
             </>
           )}
           <div className="flex-1" />
-          <ThemeToggle />
           {headerRight}
         </header>
         <div className="mx-auto w-full max-w-[720px] px-5 pb-20 pt-10 sm:px-8 sm:pt-14">{children}</div>

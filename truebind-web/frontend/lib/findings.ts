@@ -90,7 +90,7 @@ export function moduleState(state: string): { label: string; tone: "good" | "war
 
 /** A decimal-string amount with its ISO currency; never parsed to a float. */
 export function decimalMoney(amount: string | null, currency: string | null): string {
-  if (amount == null) return "—";
+  if (amount == null) return "-";
   const [whole, frac = "00"] = amount.replace(/^-/, "").split(".");
   const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   const text = `${amount.startsWith("-") ? "-" : ""}${grouped}.${frac.padEnd(2, "0").slice(0, 2)}`;

@@ -40,7 +40,7 @@ export function downloadPdf(filename: string, blocks: PdfBlock[], footer: string
     s
       .replace(/[‘’]/g, "'")
       .replace(/[“”]/g, '"')
-      .replace(/[–—]/g, "-")
+      .replace(/[–-]/g, "-")
       .replace(/…/g, "...")
       .replace(/→/g, "->")
       .replace(/←/g, "<-")

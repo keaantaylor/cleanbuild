@@ -520,7 +520,7 @@ export function SsoSettings({ canManage }: { canManage: boolean }) {
                 <input id="sso-cid" className="tb-input" value={f.client_id} required onChange={(e) => edit({ client_id: e.target.value })} />
               </F>
               <F label="Client secret" id="sso-secret">
-                <input id="sso-secret" className="tb-input" type="password" value={f.client_secret ?? ""} autoComplete="off" placeholder={data.has_client_secret ? "Saved — leave blank to keep" : ""} onChange={(e) => edit({ client_secret: e.target.value })} />
+                <input id="sso-secret" className="tb-input" type="password" value={f.client_secret ?? ""} autoComplete="off" placeholder={data.has_client_secret ? "Saved - leave blank to keep" : ""} onChange={(e) => edit({ client_secret: e.target.value })} />
               </F>
             </div>
             <F label="Email domains" id="sso-domains" hint="Only domains your organisation owns. Each domain can belong to one organisation.">
@@ -688,7 +688,7 @@ function Webhooks({ canManage }: { canManage: boolean }) {
     <Panel title="Webhooks" sub="Report events are posted to your systems, signed (webhook-id, webhook-timestamp, webhook-signature: HMAC-SHA256). Failed deliveries are retried with backoff." status={<StatusPill tone={st.tone}>{st.label}</StatusPill>}>
       {secret && (
         <div role="status" className="flex flex-col gap-2 rounded-md px-3.5 py-3" style={{ background: "var(--warnT)" }}>
-          <span className="text-[13px] font-medium" style={{ color: "var(--warn)" }}>Signing secret — copy it now, it won’t be shown again.</span>
+          <span className="text-[13px] font-medium" style={{ color: "var(--warn)" }}>Signing secret - copy it now, it won’t be shown again.</span>
           <Mono>{secret}</Mono>
           <div className="flex gap-2">
             <button type="button" className="tb-btn !py-1.5 text-[12.5px]" onClick={() => { void navigator.clipboard?.writeText(secret); toast("Secret copied", "info"); }}><Copy />Copy</button>
@@ -807,7 +807,7 @@ function Sftp({ canManage }: { canManage: boolean }) {
             ["Folder", current.remote_dir],
             ["Host key", <Mono key="fp">{current.host_key_fingerprint}</Mono>],
             ["Sign-in", current.auth === "private_key" ? "Private key (stored encrypted)" : "Password (stored encrypted)"],
-            ["Automatic", current.auto_deliver ? "Claims and exceptions sent when a report completes" : "Off — send from a report"],
+            ["Automatic", current.auto_deliver ? "Claims and exceptions sent when a report completes" : "Off - send from a report"],
           ]}
         />
       )}
@@ -889,8 +889,8 @@ function Services({ canManage }: { canManage: boolean }) {
     <Panel title="AI and exchange rates" sub="AI suggests column mappings (never applied without your confirmation). Exchange rates come from the ECB; conversions always state the rate date." status={<StatusPill tone={st.tone}>{ai.configured ? "AI live" : "AI not configured"}</StatusPill>}>
       <KV
         items={[
-          ["AI provider", ai.configured ? `${ai.provider} · ${ai.model}` : "Not configured — columns the alias rules don’t recognise stay unmapped for you to map"],
-          ["AI region", ai.configured ? ai.region ?? "—" : "—"],
+          ["AI provider", ai.configured ? `${ai.provider} · ${ai.model}` : "Not configured - columns the alias rules don’t recognise stay unmapped for you to map"],
+          ["AI region", ai.configured ? ai.region ?? "-" : "-"],
           ["What is sent", ai.configured ? "Column headers and up to 3 masked sample shapes per column. Never cell values." : "Nothing"],
           ["ECB rates", fx.latest_rate_date ? `Latest fixing ${fx.latest_rate_date}${fx.auto_refresh ? " · refreshed automatically" : ""}` : "Not loaded yet"],
         ]}
@@ -903,7 +903,7 @@ function Services({ canManage }: { canManage: boolean }) {
             try {
               const r = await api.refreshFx();
               reload();
-              toast(`Rates loaded · latest fixing ${r.latest_rate_date ?? "—"}`, "ok");
+              toast(`Rates loaded · latest fixing ${r.latest_rate_date ?? "-"}`, "ok");
             } catch (x) {
               toast(`Rates not loaded: ${err(x)}`, "err");
             }
@@ -966,7 +966,7 @@ export function BindersSettings({ canManage }: { canManage: boolean }) {
             <Tr key={b.id}>
               <Td>
                 <div className="font-medium">{b.name}</div>
-                <div className="text-[12px]" style={{ color: "var(--faint)" }}>{[b.umr, b.coverholder].filter(Boolean).join(" · ") || "—"}</div>
+                <div className="text-[12px]" style={{ color: "var(--faint)" }}>{[b.umr, b.coverholder].filter(Boolean).join(" · ") || "-"}</div>
               </Td>
               <Td className="tnum">{b.inception_date} to {b.expiry_date}</Td>
               <Td>{b.currencies.join(", ") || "Not set"}</Td>
@@ -1050,7 +1050,7 @@ export function SanctionsSettings({ canManage }: { canManage: boolean }) {
     }
   };
   return (
-    <Panel title="Sanctions lists" sub="Insured names are screened against every list loaded here. A match is a potential match for a person to review — never a verdict. Download the current official lists from their publishers and load them here; the format is recognised from the file.">
+    <Panel title="Sanctions lists" sub="Insured names are screened against every list loaded here. A match is a potential match for a person to review - never a verdict. Download the current official lists from their publishers and load them here; the format is recognised from the file.">
       {data.length === 0 ? (
         <span className="text-[13px]" style={{ color: "var(--warn)" }}>No list loaded yet, so sanctions screening reports “not assessed” on every report.</span>
       ) : (
@@ -1140,8 +1140,8 @@ export function BillingSettings() {
       <KV
         items={[
           ["Plan", data.plan ? <b key="p" className="font-medium">{data.plans.find((p) => p.name === data.plan)?.label ?? data.plan}</b> : "No active plan"],
-          ["Status", data.status ? <StatusPill key="s" tone={["active", "trialing"].includes(data.status) ? "ok" : "warn"}>{data.status}</StatusPill> : "—"],
-          ["Renews", data.period_end ? formatDate(data.period_end) : "—"],
+          ["Status", data.status ? <StatusPill key="s" tone={["active", "trialing"].includes(data.status) ? "ok" : "warn"}>{data.status}</StatusPill> : "-"],
+          ["Renews", data.period_end ? formatDate(data.period_end) : "-"],
           ["Rows processed this month", `${data.rows_this_month.toLocaleString("en-GB")} of ${limit(data.monthly_rows, "rows")}`],
           ["Seats", `${data.seats_used} of ${limit(data.seats, "seats")}`],
           ["Check modules", data.modules && data.modules.length ? data.modules.map((m) => MODULE_LABEL[m] ?? m).join(", ") : "None included"],
@@ -1151,7 +1151,7 @@ export function BillingSettings() {
         {data.plans.map((p) => (
           <Tr key={p.name}>
             <Td><b className="font-medium">{p.label}</b></Td>
-            <Td>{p.modules.map((m) => MODULE_LABEL[m] ?? m).join(", ") || "—"}</Td>
+            <Td>{p.modules.map((m) => MODULE_LABEL[m] ?? m).join(", ") || "-"}</Td>
             <Td className="tnum">{limit(p.monthly_rows, "")}</Td>
             <Td className="tnum">{limit(p.seats, "")}</Td>
             <Td className="text-right">

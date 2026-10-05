@@ -94,7 +94,7 @@ function Audit() {
                 const sys = e.actor === "system";
                 return (
                   <button key={e.id} type="button" onClick={() => setOpen(e)} className="grid w-full cursor-pointer grid-cols-[64px_120px_minmax(0,1fr)_auto] items-center gap-4 px-5 py-2.5 text-left text-[13px] transition-colors hover:bg-[var(--accentTint)]" style={{ boxShadow: "0 1px 0 var(--line)" }}>
-                    <span className="tnum font-medium">#{e.seq ?? "—"}</span>
+                    <span className="tnum font-medium">#{e.seq ?? "-"}</span>
                     <span className="flex items-center gap-1.5 truncate" style={{ color: sys ? "var(--med)" : "var(--accentText)" }}>
                       {sys ? <Robot size={14} /> : <User size={14} />}
                       {e.actor}

@@ -25,62 +25,29 @@ export function contrastRatio(fg: string, bg: string): number {
   return Math.max(l1, l2) / Math.min(l1, l2);
 }
 
-// Nocturne, dark theme (the default). Grounds: bg #161826, bg2 #1b1d2b,
-// surface #1f2130, surface2 #262838, chrome (sidebar / site) #12131e.
-const DARK_PAIRS: [string, string, string][] = [
-  ["text on bg", "#E9E9ED", "#161826"],
-  ["text on surface", "#E9E9ED", "#1F2130"],
-  ["muted on bg", "#9397AB", "#161826"],
-  ["muted on surface", "#9397AB", "#1F2130"],
-  ["muted on surface2", "#9397AB", "#262838"],
-  ["faint on bg", "#8B8FA2", "#161826"],
-  ["faint on bg2", "#8B8FA2", "#1B1D2B"],
-  ["faint on surface", "#8B8FA2", "#1F2130"],
-  ["faint on surface2", "#8B8FA2", "#262838"],
-  ["accentText on bg", "#D2CEFD", "#161826"],
-  ["accentText on surface", "#D2CEFD", "#1F2130"],
-  ["kicker on chrome", "#B5ABFC", "#12131E"],
-  ["chromeText on chrome", "#CFD3E5", "#12131E"],
-  ["chromeMuted on chrome", "#B2B6CA", "#12131E"],
-  ["chromeFaint on chrome", "#808493", "#12131E"],
-  // Status colours are oklch() in CSS; these are their exact sRGB values.
-  ["ok on surface", "#6DC88F", "#1F2130"],
-  ["warn on surface", "#EEB563", "#1F2130"],
-  ["err on surface", "#F47B74", "#1F2130"],
-  ["med on surface", "#8CB1E0", "#1F2130"],
-  ["on-accent on solid accent", "#161826", "#9184D9"],
-  ["toast text on glass", "#E9E9ED", "#232532"],
-];
-
-// Nocturne, light theme. Grounds: bg #f4f5fa, bg2 #eceef6, surface #fcfcfe,
-// surface2 #f1f2f8, chrome #ecedf5; the Health Check document is #fbfbfd.
-const LIGHT_PAIRS: [string, string, string][] = [
-  ["text on bg", "#1C1E2A", "#F4F5FA"],
-  ["text on surface", "#1C1E2A", "#FCFCFE"],
-  ["muted on bg", "#595D6C", "#F4F5FA"],
-  ["muted on bg2", "#595D6C", "#ECEEF6"],
-  ["faint on bg", "#676B7E", "#F4F5FA"],
-  ["faint on bg2", "#676B7E", "#ECEEF6"],
-  ["faint on surface", "#676B7E", "#FCFCFE"],
-  ["faint on surface2", "#676B7E", "#F1F2F8"],
-  ["accentText on bg", "#5D5294", "#F4F5FA"],
-  ["accentText on surface", "#5D5294", "#FCFCFE"],
-  ["chromeFaint on chrome", "#676B7E", "#ECEDF5"],
-  ["chromeMuted on chrome", "#595D6C", "#ECEDF5"],
-  ["report body on paper", "#3F424D", "#FBFBFD"],
-  ["report label on paper", "#595D6C", "#FBFBFD"],
-  ["report caption on paper", "#676B7E", "#FBFBFD"],
-  ["ok on bg", "#1E7546", "#F4F5FA"],
-  ["warn on bg2", "#9D5D03", "#ECEEF6"],
-  ["err on bg", "#BD3838", "#F4F5FA"],
-  ["med on bg", "#39659B", "#F4F5FA"],
-  ["count badge text on badge red (both themes)", "#FFFFFF", "#C8473A"],
-  ["on-accent on solid accent", "#FFFFFF", "#6E61B3"],
+// The design tokens (styles/globals.css :root). Light only.
+const PAIRS: [string, string, string][] = [
+  ["text on bg", "#111827", "#F7F8FA"],
+  ["text on surface", "#111827", "#FFFFFF"],
+  ["muted on bg", "#4B5563", "#F7F8FA"],
+  ["muted on surface", "#4B5563", "#FFFFFF"],
+  ["faint on bg", "#6B7280", "#F7F8FA"],
+  ["faint on surface", "#6B7280", "#FFFFFF"],
+  ["primary on surface", "#1F4FD1", "#FFFFFF"],
+  ["primary on bg", "#1F4FD1", "#F7F8FA"],
+  ["on-primary on primary", "#FFFFFF", "#1F4FD1"],
+  ["ok on surface", "#15803D", "#FFFFFF"],
+  ["warn on surface", "#B45309", "#FFFFFF"],
+  ["err on surface", "#B91C1C", "#FFFFFF"],
+  ["err text on err fill", "#9C0006", "#FFC7CE"],
+  ["warn text on warn fill", "#7F6000", "#FFF2CC"],
+  ["ok text on ok fill", "#375623", "#E2F0D9"],
+  ["badge text on badge", "#FFFFFF", "#B91C1C"],
 ];
 
 export function validateDesignSystemContrast(): void {
   const failures: string[] = [];
-  for (const [name, fg, bg] of [...LIGHT_PAIRS, ...DARK_PAIRS]) {
+  for (const [name, fg, bg] of PAIRS) {
     const ratio = contrastRatio(fg, bg);
     if (ratio < 4.5) {
       failures.push(`${name}: ${ratio.toFixed(2)}:1 (needs >= 4.5:1)`);
@@ -94,7 +61,7 @@ export function validateDesignSystemContrast(): void {
 /** Status colours must stay distinct from one another so severity is never
  * carried by a colour another status also uses. */
 export function validateDistinctFamilies(): void {
-  const families = ["#6DC88F", "#EEB563", "#F47B74", "#8CB1E0", "#9397AB", "#1E7546", "#9D5D03", "#BD3838", "#39659B"];
+  const families = ["#15803D", "#B45309", "#B91C1C", "#1F4FD1", "#374151"];
   if (new Set(families).size !== families.length) {
     throw new Error("Two status families share a colour value");
   }

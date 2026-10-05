@@ -32,17 +32,17 @@ export function DemoReport() {
       <SiteNav />
       <main id="main" className="mx-auto flex max-w-[1100px] flex-col gap-8 px-4 pb-20 pt-[130px] sm:px-6">
         <div className="flex max-w-[760px] flex-col gap-3">
-          <span className="text-[12px] font-medium uppercase tracking-[.1em]" style={{ color: "var(--kicker)" }}>Sample Health Check</span>
-          <h1 className="m-0 text-[36px] font-medium leading-[1.1] tracking-[-0.03em] sm:text-[44px]">This is what you get back.</h1>
+          <span className="text-[13px]" style={{ color: "var(--muted)" }}>Sample Health Check</span>
+          <h1 className="m-0 text-[28px] font-semibold leading-[1.2]">This is what you get back.</h1>
           <p className="m-0 text-[16.5px] leading-[1.6]" style={{ color: "var(--chromeMuted)" }}>
             We generated a {formatNumber(demo.rows)}-row claims bordereau, planted {demo.planted_problems} problems in it, and ran it through TrueBind exactly as a customer file would be. Everything below, and every file you can download, is that run’s real output.
           </p>
         </div>
 
         <article className="flex flex-col gap-7 rounded-md px-6 pb-10 pt-9 sm:px-12" style={{ background: "#fbfbfd", color: PAPER.text, boxShadow: "0 0 0 1px var(--line)" }}>
-          <span className="text-[12px] font-semibold uppercase tracking-[.1em]" style={{ color: "#047857" }}>Bordereau Health Check · {demo.file_name} · {formatNumber(demo.rows)} claim rows</span>
+          <span className="text-[13px]" style={{ color: "#4b5563" }}>Bordereau Health Check · {demo.file_name} · {formatNumber(demo.rows)} claim rows</span>
           <section className="flex flex-col gap-1.5 rounded-md px-5 py-4" style={{ background: v.bg, color: v.fg }}>
-            <span className="text-[28px] font-semibold leading-[1.15] tracking-[-0.02em]">{hv.verdict_label}</span>
+            <span className="text-[28px] font-semibold leading-[1.15] ">{hv.verdict_label}</span>
             <span className="text-[14.5px] font-medium">{hv.verdict_reason}</span>
           </section>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -89,7 +89,7 @@ export function DemoReport() {
           <h2 className="m-0 text-[22px] font-medium">Download the files</h2>
           <div className="grid gap-4 md:grid-cols-3">
             {FILES.map(([title, file, body]) => (
-              <a key={file} href={`/demo/${file}`} download className="flex flex-col gap-2 rounded-md p-5 transition-colors hover:bg-[rgba(52,211,153,.08)]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }}>
+              <a key={file} href={`/demo/${file}`} download className="flex flex-col gap-2 rounded-md p-5 transition-colors hover:bg-[rgba(31,79,209,.08)]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }}>
                 <span className="flex items-center gap-2 text-[15px] font-medium"><DownloadSimple />{title}</span>
                 <span className="text-[13.5px] leading-[1.5]" style={{ color: "var(--chromeMuted)" }}>{body}</span>
                 <span className="text-[12.5px]" style={{ color: "var(--accentText)" }}>{file}</span>

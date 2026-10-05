@@ -94,14 +94,14 @@ function Duplicates() {
       <PageHeader
         kicker="Investigate"
         title="Duplicate intelligence"
-        sub="Exact resubmissions, probable duplicates and repeats TrueBind cannot classify — kept separate from normal claim development. Nothing is ever merged or removed automatically."
+        sub="Exact resubmissions, probable duplicates and repeats TrueBind cannot classify - kept separate from normal claim development. Nothing is ever merged or removed automatically."
         actions={<ReportPicker report={report} reports={reports} onSelect={(id) => { select(id); setSel(null); }} />}
       />
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))" }}>
         <StatTile label="Exact resubmissions" value={formatNumber(by("exact_duplicate").length)} color="var(--warn)" icon={<Copy size={15} />} active={tab === "exact_duplicate"} onClick={() => { setTab("exact_duplicate"); setSel(null); }} note={`${open("exact_duplicate").length} undecided`} />
         <StatTile label="Probable duplicates" value={formatNumber(by("probable_duplicate").length)} color="var(--accent)" icon={<MagnifyingGlass size={15} />} active={tab === "probable_duplicate"} onClick={() => { setTab("probable_duplicate"); setSel(null); }} note={s?.probable_duplicates === null ? "Check not run for this report" : `${open("probable_duplicate").length} undecided`} />
         <StatTile label="Need a reporting period" value={formatNumber(by("repeat_period_unknown").length)} color="var(--line2)" icon={<CalendarBlank size={15} />} active={tab === "repeat_period_unknown"} onClick={() => { setTab("repeat_period_unknown"); setSel(null); }} note="Can’t be classified yet" />
-        <StatTile label="Claim development" value={formatNumber(s?.development_pairs ?? 0)} color="var(--ok)" icon={<Pulse size={15} />} active={tab === "development"} onClick={() => { setTab("development"); setSel(null); }} note="Movement — not duplicates" />
+        <StatTile label="Claim development" value={formatNumber(s?.development_pairs ?? 0)} color="var(--ok)" icon={<Pulse size={15} />} active={tab === "development"} onClick={() => { setTab("development"); setSel(null); }} note="Movement - not duplicates" />
       </div>
       <div className="flex flex-wrap gap-0.5 self-start rounded-md p-[3px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }} role="tablist">
         {TABS.map(([k, l, n]) => (
@@ -120,7 +120,7 @@ function Duplicates() {
         <LoadingState label="Loading duplicate pairs" rows={6} />
       ) : current.length === 0 ? (
         <div className="tb-card">
-          <EmptyState icon={<CheckCircle />} title={tab === "reviewed" || tab === "dismissed" ? "No decisions here yet" : "Nothing left to decide here"} body={tab === "reviewed" ? "Pairs you confirm or flag for the sender move here." : tab === "dismissed" ? "Pairs you mark as not a duplicate move here." : by(tab).length ? "Every pair in this category has a decision — see Reviewed and Dismissed." : "TrueBind found no pairs of this kind in the selected report."} />
+          <EmptyState icon={<CheckCircle />} title={tab === "reviewed" || tab === "dismissed" ? "No decisions here yet" : "Nothing left to decide here"} body={tab === "reviewed" ? "Pairs you confirm or flag for the sender move here." : tab === "dismissed" ? "Pairs you mark as not a duplicate move here." : by(tab).length ? "Every pair in this category has a decision - see Reviewed and Dismissed." : "TrueBind found no pairs of this kind in the selected report."} />
         </div>
       ) : (
         <div className="grid grid-cols-[minmax(0,1fr)] min-h-[480px] overflow-hidden rounded-md lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]" style={{ background: "var(--surface)", boxShadow: "var(--shadow)" }}>
@@ -130,7 +130,7 @@ function Duplicates() {
               return (
                 <button key={p.validation_result_id} type="button" onClick={() => setSel(p.validation_result_id)} className="flex cursor-pointer flex-col gap-1 px-4 py-3.5 text-left transition-colors hover:bg-[var(--accentTint)]" style={{ background: on ? "var(--accentTint)" : "transparent", boxShadow: on ? "inset 2px 0 0 var(--accent)" : "inset 0 -1px 0 var(--line)" }}>
                   <span className="flex items-center justify-between gap-2">
-                    <span className="tnum text-[13px] font-medium">{String(p.row_a.claim_reference ?? "—")}</span>
+                    <span className="tnum text-[13px] font-medium">{String(p.row_a.claim_reference ?? "-")}</span>
                     <span className="tnum text-[12px]" style={{ color: "var(--faint)" }}>{formatMoney(p.row_a.incurred_amount as number, (p.row_a.currency as string) ?? "")}</span>
                   </span>
                   <span className="text-[12.5px]" style={{ color: "var(--muted)" }}>{String(p.row_a.insured_name ?? "")} · {String(p.row_a.sheet_name ?? "")} rows {String(p.row_a.source_row_number ?? "?")} & {String(p.row_b.source_row_number ?? "?")}</span>
@@ -162,14 +162,14 @@ function Compare({ pair, onReview }: { pair: DuplicatePair; onReview: (s: string
     <div className="anim-fade flex min-w-0 flex-col gap-5 px-5 py-6 sm:px-7">
       <div className="flex flex-col gap-2">
         <StatusPill tone={pair.match_type === "exact_duplicate" ? "warn" : pair.match_type === "probable_duplicate" ? "med" : "muted"}>{g.title} · {same} of {FIELDS.length} fields identical</StatusPill>
-        <h2 className="m-0 text-[22px] font-medium tracking-[-0.02em]">{String(pair.row_a.claim_reference ?? "—")} · {String(pair.row_a.insured_name ?? "")}</h2>
+        <h2 className="m-0 text-[22px] font-medium tracking-[-0.02em]">{String(pair.row_a.claim_reference ?? "-")} · {String(pair.row_a.insured_name ?? "")}</h2>
         <p className="m-0 max-w-[640px] text-[14px] leading-[1.6]" style={{ color: "var(--muted)" }}>{pair.detail} {g.why}</p>
       </div>
       <div className="overflow-x-auto rounded-md" style={{ background: "#f7f8f6", color: "#2a2f36", boxShadow: "0 0 0 1px var(--line2)" }}>
         <table className="w-full min-w-[600px] border-collapse text-[12px]">
           <thead>
             <tr style={{ background: "oklch(0.96 0.02 150)" }}>
-              {["Field", `A · ${String(pair.row_a.sheet_name ?? "")} row ${String(pair.row_a.source_row_number ?? "—")}`, `B · ${String(pair.row_b.sheet_name ?? "")} row ${String(pair.row_b.source_row_number ?? "—")}`].map((h) => (
+              {["Field", `A · ${String(pair.row_a.sheet_name ?? "")} row ${String(pair.row_a.source_row_number ?? "-")}`, `B · ${String(pair.row_b.sheet_name ?? "")} row ${String(pair.row_b.source_row_number ?? "-")}`].map((h) => (
                 <th key={h} className="px-3 py-2 text-left text-[10.5px] font-semibold" style={{ borderBottom: "1px solid #d5d9d3", color: "#5e656d" }}>{h}</th>
               ))}
             </tr>
@@ -240,9 +240,9 @@ function Development({ reportId, refs }: { reportId: string; refs: string[] }) {
               <tbody>
                 {rows.data.map((c) => (
                   <tr key={c.id} style={{ borderBottom: "1px solid #e6e8e4" }}>
-                    <td className="tnum px-3 py-[7px]">row {c.source_row_number ?? "—"}</td>
-                    <td className="px-3 py-[7px]">{c.reporting_period ?? "—"}</td>
-                    <td className="px-3 py-[7px]">{c.claim_status ?? "—"}</td>
+                    <td className="tnum px-3 py-[7px]">row {c.source_row_number ?? "-"}</td>
+                    <td className="px-3 py-[7px]">{c.reporting_period ?? "-"}</td>
+                    <td className="px-3 py-[7px]">{c.claim_status ?? "-"}</td>
                     <td className="tnum px-3 py-[7px] text-right">{formatMoney(c.paid_amount, c.currency)}</td>
                     <td className="tnum px-3 py-[7px] text-right">{formatMoney(c.reserve_amount, c.currency)}</td>
                     <td className="tnum px-3 py-[7px] text-right">{formatMoney(c.incurred_amount, c.currency)}</td>

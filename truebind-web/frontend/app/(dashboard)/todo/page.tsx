@@ -92,7 +92,7 @@ export default function WorkQueuePage() {
                     <span className="flex min-w-[240px] flex-1 flex-col">
                       <span className="text-[13.5px] font-medium">{o.note || "Follow-up on a finding"}</span>
                       <span className="text-[12px]" style={{ color: "var(--faint)" }}>
-                        {o.owner ? `Owner ${o.owner}` : "Unassigned"} · {o.deadline ? `due ${formatDate(o.deadline)}` : "no deadline"} · created by {o.created_by ?? "—"}
+                        {o.owner ? `Owner ${o.owner}` : "Unassigned"} · {o.deadline ? `due ${formatDate(o.deadline)}` : "no deadline"} · created by {o.created_by ?? "-"}
                       </span>
                     </span>
                     <StatusPill tone={o.status === "OVERDUE" ? "err" : o.status === "IN_PROGRESS" ? "med" : "muted"}>{o.status.toLowerCase().replace("_", " ")}</StatusPill>

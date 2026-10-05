@@ -1,0 +1,126 @@
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: var(--h, 32px);
+  padding: 0 var(--px, 12px);
+  border: 1px solid transparent;
+  border-radius: var(--r-control);
+  font: inherit;
+  font-size: var(--fs, 13px);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--t-ui) var(--ease),
+    border-color var(--t-ui) var(--ease),
+    color var(--t-ui) var(--ease);
+}
+.button:disabled,
+.button[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+  border-color: var(--focus-ring);
+}
+
+.s28 { --h: 28px; --px: 10px; --fs: 12px; gap: 6px; }
+.s32 { --h: 32px; --px: 12px; --fs: 13px; }
+.s36 { --h: 36px; --px: 14px; --fs: 14px; }
+.s40 { --h: 40px; --px: 16px; --fs: 14px; }
+.s48 { --h: 48px; --px: 22px; --fs: 16px; }
+
+.primary {
+  background: var(--brand);
+  color: var(--on-brand);
+}
+.primary:hover:not(:disabled) {
+  background: var(--brand-hover);
+}
+
+.secondary {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.secondary:hover:not(:disabled) {
+  background: var(--bg-subtle);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--text-2);
+}
+.ghost:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.danger {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--danger);
+}
+.danger:hover:not(:disabled) {
+  background: var(--danger-bg);
+}
+
+/* The mockup's marketing buttons: an outlined pill-box, lavender-edged when primary. */
+.outline {
+  background: var(--outline-accent-bg);
+  border-color: var(--outline-accent);
+  color: var(--text);
+}
+.outline:hover:not(:disabled) {
+  border-color: var(--highlight);
+}
+.outlineQuiet {
+  background: transparent;
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.outlineQuiet:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.iconOnly {
+  width: var(--h);
+  padding: 0;
+}
+
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: inherit;
+}
+.loading .label {
+  visibility: hidden;
+}
+.spinner {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2s;
+  }
+}

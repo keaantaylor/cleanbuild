@@ -6,7 +6,7 @@ import { CaretDown } from "@phosphor-icons/react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import type { Report } from "@/lib/types";
-import { Popover } from "./shell";
+import { Popover } from "./ui";
 import { FileGlyph } from "./intake";
 
 /** Selected completed report, kept in ?reportId= so views are linkable and

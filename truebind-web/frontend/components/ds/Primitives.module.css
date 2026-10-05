@@ -1,0 +1,266 @@
+/* Panel: hairline container, 12px radius. */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  min-width: 0;
+}
+.panelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.panelTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.panelSub {
+  font-size: 13px;
+  color: var(--text-2);
+}
+.panelBody {
+  padding: 16px;
+}
+.flush {
+  padding: 0;
+}
+
+/* Page header (app). */
+.pageHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+.pageTitleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.h1 {
+  margin: 0;
+  font-size: var(--fs-24);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.meta {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.eyebrow {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--highlight);
+}
+
+.code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+/* Label over mono code: "Over settlement authority / BND_OVER_AUTHORITY". */
+.twoLine {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.twoLine > :first-child {
+  color: var(--text);
+}
+
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-2);
+  background: var(--surface);
+}
+
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: 50%;
+  font-weight: 600;
+  color: var(--brand);
+  background: var(--brand-subtle);
+}
+
+.fileChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+}
+.fileIcon {
+  flex: none;
+  color: var(--success);
+}
+.fileText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.fileName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--text);
+}
+.fileMeta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.skeleton {
+  display: block;
+  background: var(--border);
+  animation: pulse 1.6s var(--ease) infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
+/* Empty state: left-aligned words and one action. No illustration. */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 32px 24px;
+}
+.emptyTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.emptyBody {
+  margin: 0;
+  max-width: 52ch;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.emptyAction {
+  margin-top: 10px;
+}
+
+.error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--danger);
+  border-radius: var(--r-control);
+  background: var(--surface);
+}
+.errorTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.errorTitle svg {
+  color: var(--danger);
+}
+.errorBody {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.errorRef {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg-subtle);
+}
+.banner svg {
+  flex: none;
+  margin-top: 2px;
+}
+.bannerInfo svg { color: var(--brand); }
+.bannerWarning { background: var(--warning-bg); border-color: transparent; }
+.bannerWarning svg { color: var(--warning); }
+.bannerSuccess { background: var(--success-bg); border-color: transparent; }
+.bannerSuccess svg { color: var(--success); }
+.bannerDanger { background: var(--danger-bg); border-color: transparent; }
+.bannerDanger svg { color: var(--danger); }
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.mark {
+  flex: none;
+  display: block;
+}
+
+.notAvailable {
+  max-width: 560px;
+  padding: 64px 24px;
+}

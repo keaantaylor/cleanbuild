@@ -1,0 +1,148 @@
+/* TrueBind design tokens: the only place colour values live.
+   Marketing pages render under data-theme="dark" (values sampled from
+   docs/design/landing-mockup.pdf); the app uses light. Every text/background
+   pair is checked in lib/colorContrast.ts. */
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #ffffff;
+  --bg-subtle: #f8f8fb;
+  --bg-muted: #f1f1f5;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --border: #e8e8ee;
+  --border-strong: #d5d6df;
+  --text: #12131e;
+  --text-2: #5a5c6b;
+  --text-3: #686a7a; /* spec #8a8c99 fails AA on white (3.4:1); darkened to pass on --bg-muted */
+  --brand: #2446e0;
+  --brand-hover: #1c38b8;
+  --brand-subtle: #edf0fe;
+  --on-brand: #ffffff;
+  --highlight: #5b4fd6;
+  --highlight-dot: #5b4fd6;
+  --band: #262a60;
+  --outline-accent: #2446e0;
+  --outline-accent-bg: #ffffff;
+  --danger: #c8322b;
+  --danger-bg: #fdeeed;
+  --warning: #a35a00;
+  --warning-bg: #fff4de;
+  --success: #157a4a; /* spec #16804d is 4.45:1 on --success-bg; one step darker passes AA */
+  --success-bg: #e7f6ee;
+  --neutral: #55576a;
+  --neutral-bg: #f0f0f4;
+  --overlay: rgba(18, 19, 30, 0.45);
+  --hover: rgba(18, 19, 30, 0.04);
+  --focus: 0 0 0 3px rgba(36, 70, 224, 0.25);
+  --focus-ring: #2446e0;
+  --shadow-float: 0 1px 2px rgba(18, 19, 30, 0.05), 0 12px 32px rgba(18, 19, 30, 0.1);
+  --glow-hero: transparent;
+  --glow-band: transparent;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #12121d;
+  --bg-subtle: #161724;
+  --bg-muted: #1b1c28;
+  --surface: #1b1c2a;
+  --surface-raised: #1f2030;
+  --border: #2a2b38;
+  --border-strong: #383a49;
+  --text: #e9e9ed;
+  --text-2: #b2b6ca;
+  --text-3: #9397ab;
+  --brand: #2446e0;
+  --brand-hover: #3a5bf0;
+  --brand-subtle: rgba(36, 70, 224, 0.14);
+  --on-brand: #ffffff;
+  --highlight: #b5abfc;
+  --highlight-dot: #9184d9;
+  --band: #262a60;
+  --outline-accent: #5b548b;
+  --outline-accent-bg: #222134;
+  --danger: #f47b74;
+  --danger-bg: rgba(244, 123, 116, 0.12);
+  --warning: #f2c06b;
+  --warning-bg: rgba(242, 192, 107, 0.12);
+  --success: #6dc88f;
+  --success-bg: rgba(109, 200, 143, 0.12);
+  --neutral: #b2b6ca;
+  --neutral-bg: rgba(174, 177, 184, 0.1);
+  --overlay: rgba(5, 6, 12, 0.6);
+  --hover: rgba(233, 233, 237, 0.05);
+  --focus: 0 0 0 3px rgba(181, 171, 252, 0.35);
+  --focus-ring: #b5abfc;
+  --shadow-float: 0 1px 2px rgba(0, 0, 0, 0.3), 0 16px 40px rgba(0, 0, 0, 0.45);
+  /* The mockup's soft glows. Marketing only; the app never uses them. */
+  --glow-hero: rgba(46, 52, 120, 0.55);
+  --glow-band: rgba(62, 70, 150, 0.6);
+}
+
+/* Spreadsheet visuals keep light values on any theme (the mockup's sheet cards). */
+:root {
+  --sheet-chrome: #1d6b3a;
+  --sheet-chrome-text: #ffffff;
+  --sheet-header: #e8f5ea;
+  --sheet-header-text: #1f3a26;
+  --sheet-body: #f6f7f5;
+  --sheet-grid: #dcdfd8;
+  --sheet-index: #6b6f68;
+  --sheet-text: #23262b;
+  --cell-ok: #e9f6eb;
+  --cell-ok-text: #1b5e34;
+  --cell-warn: #ffecc1;
+  --cell-warn-text: #7a4a00;
+  --cell-error: #fbd5d2;
+  --cell-error-text: #b0241b;
+
+  /* Behind the marketing pages, so overscroll never flashes the light page. */
+  --marketing-canvas: #12121d;
+
+  /* Type */
+  --font-sans: var(--font-inter), "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
+  --fs-12: 12px;
+  --fs-13: 13px;
+  --fs-14: 14px;
+  --fs-16: 16px;
+  --fs-20: 20px;
+  --fs-24: 24px;
+  --fs-32: 32px;
+  --fs-44: 44px;
+  --fs-56: 56px;
+  --fs-64: 64px;
+
+  /* Space (4px grid) */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-16: 64px;
+  --s-24: 96px;
+  --s-32: 128px;
+
+  /* Shape */
+  --r-chip: 6px;
+  --r-control: 8px;
+  --r-card: 12px;
+  --r-visual: 16px;
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --t-ui: 140ms;
+  --t-reveal: 500ms;
+
+  /* Layout */
+  --sidebar-w: 232px;
+  --topbar-h: 56px;
+  --content-max: 1280px;
+  --marketing-max: 1200px;
+}

@@ -1,0 +1,78 @@
+.list {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.list::-webkit-scrollbar {
+  display: none;
+}
+.tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 10px;
+  border: 0;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--text-2);
+  background: none;
+  cursor: pointer;
+}
+.tab:hover {
+  color: var(--text);
+}
+.tab[aria-selected="true"] {
+  color: var(--text);
+}
+.tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--brand);
+}
+.tab:focus-visible {
+  outline: none;
+  box-shadow: inset var(--focus);
+  border-radius: 6px;
+}
+.count {
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+}
+
+/* Segmented: pills inside a bordered tray (filters, saved views). */
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  background: var(--bg-subtle);
+  max-width: 100%;
+  overflow-x: auto;
+}
+.segmented .tab {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.segmented .tab[aria-selected="true"] {
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+.segmented .tab[aria-selected="true"]::after {
+  display: none;
+}

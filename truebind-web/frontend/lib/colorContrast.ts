@@ -1,8 +1,32 @@
-/** WCAG relative-luminance contrast checker + the actual token pairs used
- * across the app, checked once at module load (see app/layout.tsx). Keep
- * this list in sync with styles/globals.css (the Nocturne theme tokens) --
- * a text token added there without an entry here is an unverified color,
- * which is exactly what this file exists to prevent. */
+/** WCAG contrast checks for every text/background pair the design system
+ * uses, run once at module load (app/layout.tsx) and in tests/unit.
+ * TOKENS mirrors styles/tokens.css; tests/unit/tokens.test.ts fails if the
+ * two drift, so a colour can't change in one place only. */
+
+export const TOKENS = {
+  light: {
+    bg: "#ffffff", "bg-subtle": "#f8f8fb", "bg-muted": "#f1f1f5", surface: "#ffffff",
+    text: "#12131e", "text-2": "#5a5c6b", "text-3": "#686a7a",
+    brand: "#2446e0", "brand-hover": "#1c38b8", "brand-subtle": "#edf0fe", "on-brand": "#ffffff",
+    highlight: "#5b4fd6", band: "#262a60",
+    danger: "#c8322b", "danger-bg": "#fdeeed", warning: "#a35a00", "warning-bg": "#fff4de",
+    success: "#157a4a", "success-bg": "#e7f6ee", neutral: "#55576a", "neutral-bg": "#f0f0f4",
+  },
+  dark: {
+    bg: "#12121d", "bg-subtle": "#161724", "bg-muted": "#1b1c28", surface: "#1b1c2a", "surface-raised": "#1f2030",
+    text: "#e9e9ed", "text-2": "#b2b6ca", "text-3": "#9397ab",
+    brand: "#2446e0", "on-brand": "#ffffff", highlight: "#b5abfc", band: "#262a60", "outline-accent-bg": "#222134",
+    danger: "#f47b74", warning: "#f2c06b", success: "#6dc88f", neutral: "#b2b6ca",
+  },
+  sheet: {
+    "sheet-chrome": "#1d6b3a", "sheet-chrome-text": "#ffffff", "sheet-header": "#e8f5ea", "sheet-header-text": "#1f3a26",
+    "sheet-body": "#f6f7f5", "sheet-index": "#6b6f68", "sheet-text": "#23262b",
+    "cell-ok": "#e9f6eb", "cell-ok-text": "#1b5e34", "cell-warn": "#ffecc1", "cell-warn-text": "#7a4a00",
+    "cell-error": "#fbd5d2", "cell-error-text": "#b0241b",
+  },
+} as const;
+
+type Theme = keyof typeof TOKENS;
 
 function hexToRgb(hex: string): [number, number, number] {
   const h = hex.replace("#", "");
@@ -25,44 +49,78 @@ export function contrastRatio(fg: string, bg: string): number {
   return Math.max(l1, l2) / Math.min(l1, l2);
 }
 
-// The design tokens (styles/globals.css :root). Light only.
-const PAIRS: [string, string, string][] = [
-  ["text on bg", "#111827", "#F7F8FA"],
-  ["text on surface", "#111827", "#FFFFFF"],
-  ["muted on bg", "#4B5563", "#F7F8FA"],
-  ["muted on surface", "#4B5563", "#FFFFFF"],
-  ["faint on bg", "#6B7280", "#F7F8FA"],
-  ["faint on surface", "#6B7280", "#FFFFFF"],
-  ["primary on surface", "#1F4FD1", "#FFFFFF"],
-  ["primary on bg", "#1F4FD1", "#F7F8FA"],
-  ["on-primary on primary", "#FFFFFF", "#1F4FD1"],
-  ["ok on surface", "#15803D", "#FFFFFF"],
-  ["warn on surface", "#B45309", "#FFFFFF"],
-  ["err on surface", "#B91C1C", "#FFFFFF"],
-  ["err text on err fill", "#9C0006", "#FFC7CE"],
-  ["warn text on warn fill", "#7F6000", "#FFF2CC"],
-  ["ok text on ok fill", "#375623", "#E2F0D9"],
-  ["badge text on badge", "#FFFFFF", "#B91C1C"],
+/** A translucent fill as it renders over its base (the dark status tints). */
+export function composite(rgb: string, alpha: number, base: string): string {
+  const [r, g, b] = hexToRgb(rgb);
+  const [R, G, B] = hexToRgb(base);
+  const mix = (f: number, k: number) => Math.round(f * alpha + k * (1 - alpha)).toString(16).padStart(2, "0");
+  return `#${mix(r, R)}${mix(g, G)}${mix(b, B)}`;
+}
+
+const L = TOKENS.light;
+const D = TOKENS.dark;
+const S = TOKENS.sheet;
+const t = (theme: Theme, name: string) => (TOKENS[theme] as Record<string, string>)[name];
+
+// [label, foreground, background]
+export const PAIRS: [string, string, string][] = [
+  ...(["bg", "bg-subtle", "bg-muted", "surface"] as const).flatMap((bg) =>
+    (["text", "text-2", "text-3"] as const).map((fg): [string, string, string] => [`light ${fg} on ${bg}`, L[fg], L[bg]])),
+  ["light brand on bg", L.brand, L.bg],
+  ["light brand on bg-subtle", L.brand, L["bg-subtle"]],
+  ["light brand on brand-subtle", L.brand, L["brand-subtle"]],
+  ["light on-brand on brand", L["on-brand"], L.brand],
+  ["light on-brand on brand-hover", L["on-brand"], L["brand-hover"]],
+  ["light highlight on bg", L.highlight, L.bg],
+  ["light highlight on bg-subtle", L.highlight, L["bg-subtle"]],
+  ["light on-brand on band", L["on-brand"], L.band],
+  ...(["danger", "warning", "success", "neutral"] as const).flatMap((s): [string, string, string][] => [
+    [`light ${s} on bg`, L[s], L.bg],
+    [`light ${s} on ${s}-bg`, L[s], t("light", `${s}-bg`)],
+  ]),
+  ["light on-brand on danger", L["on-brand"], L.danger],
+  ...(["bg", "bg-subtle", "bg-muted", "surface", "surface-raised"] as const).flatMap((bg) =>
+    (["text", "text-2", "text-3"] as const).map((fg): [string, string, string] => [`dark ${fg} on ${bg}`, D[fg], D[bg]])),
+  ["dark text on outline-accent-bg", D.text, D["outline-accent-bg"]],
+  ["dark highlight on bg", D.highlight, D.bg],
+  ["dark highlight on surface", D.highlight, D.surface],
+  ["dark highlight on band", D.highlight, D.band],
+  ["dark text on band", D.text, D.band],
+  ["dark text-2 on band", D["text-2"], D.band],
+  ["dark on-brand on brand", D["on-brand"], D.brand],
+  ...(["danger", "warning", "success", "neutral"] as const).flatMap((s): [string, string, string][] => [
+    [`dark ${s} on bg`, D[s], D.bg],
+    [`dark ${s} on surface`, D[s], D.surface],
+    [`dark ${s} on its tint`, D[s], composite(D[s], 0.12, D.bg)],
+  ]),
+  ["sheet text on body", S["sheet-text"], S["sheet-body"]],
+  ["sheet index on body", S["sheet-index"], S["sheet-body"]],
+  ["sheet header text on header", S["sheet-header-text"], S["sheet-header"]],
+  ["sheet title on chrome", S["sheet-chrome-text"], S["sheet-chrome"]],
+  ["cell ok text on ok", S["cell-ok-text"], S["cell-ok"]],
+  ["cell warn text on warn", S["cell-warn-text"], S["cell-warn"]],
+  ["cell error text on error", S["cell-error-text"], S["cell-error"]],
 ];
 
+export function contrastFailures(min = 4.5): string[] {
+  return PAIRS.filter(([, fg, bg]) => contrastRatio(fg, bg) < min).map(
+    ([name, fg, bg]) => `${name}: ${contrastRatio(fg, bg).toFixed(2)}:1 (needs >= ${min}:1)`,
+  );
+}
+
 export function validateDesignSystemContrast(): void {
-  const failures: string[] = [];
-  for (const [name, fg, bg] of PAIRS) {
-    const ratio = contrastRatio(fg, bg);
-    if (ratio < 4.5) {
-      failures.push(`${name}: ${ratio.toFixed(2)}:1 (needs >= 4.5:1)`);
-    }
-  }
+  const failures = contrastFailures();
   if (failures.length > 0) {
     throw new Error(`Design system contrast validation failed:\n${failures.join("\n")}`);
   }
 }
 
-/** Status colours must stay distinct from one another so severity is never
- * carried by a colour another status also uses. */
+/** Status colours must stay distinct so severity is never carried by a colour another status also uses. */
 export function validateDistinctFamilies(): void {
-  const families = ["#15803D", "#B45309", "#B91C1C", "#1F4FD1", "#374151"];
-  if (new Set(families).size !== families.length) {
-    throw new Error("Two status families share a colour value");
+  for (const theme of [L, D]) {
+    const families = [theme.success, theme.warning, theme.danger, theme.brand, theme.neutral];
+    if (new Set(families).size !== families.length) {
+      throw new Error("Two status families share a colour value");
+    }
   }
 }

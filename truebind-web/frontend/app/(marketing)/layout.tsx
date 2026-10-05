@@ -1,5 +1,6 @@
-// Fonts are self-hosted and applied once in the root layout.
-// The landing page carries its own navigation and footer.
+import { MarketingShell } from "@/components/layout/MarketingShell";
+
+// Dark marketing chrome (nav + footer) around every public page.
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
+  return <MarketingShell>{children}</MarketingShell>;
 }

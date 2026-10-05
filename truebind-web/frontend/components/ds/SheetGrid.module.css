@@ -1,0 +1,158 @@
+/* A mini spreadsheet, light on any theme (the mockup's sheet cards). */
+.frame {
+  overflow: hidden;
+  border-radius: var(--r-card);
+  color: var(--sheet-text);
+  background: var(--sheet-body);
+  box-shadow: 0 0 0 1px var(--sheet-grid);
+}
+.float {
+  box-shadow: var(--shadow-float);
+}
+.titleBar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  padding: 0 64px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--sheet-chrome-text);
+  background: var(--sheet-chrome);
+}
+.titleBar > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lights {
+  position: absolute;
+  left: 12px;
+  display: flex;
+  gap: 6px;
+}
+.lights i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--sheet-chrome-text);
+  opacity: 0.45;
+}
+.formula {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 28px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--sheet-grid);
+  font-size: 12px;
+  color: var(--sheet-index);
+}
+.formula b {
+  font-style: italic;
+  font-weight: 400;
+}
+.formula span {
+  color: var(--sheet-text);
+}
+.scroll {
+  overflow-x: auto;
+}
+.grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.letters th,
+.idx {
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--sheet-grid);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--sheet-index);
+  background: var(--sheet-body);
+  text-align: center;
+}
+.idx {
+  width: 34px;
+}
+.corner {
+  width: 34px;
+}
+.header {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--sheet-grid);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+  color: var(--sheet-header-text);
+  background: var(--sheet-header);
+}
+.cell {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--sheet-grid);
+  white-space: nowrap;
+  color: var(--sheet-text);
+  background: var(--sheet-body);
+}
+.num {
+  text-align: right;
+}
+.warn {
+  color: var(--cell-warn-text);
+  background: var(--cell-warn);
+}
+.error {
+  color: var(--cell-error-text);
+  background: var(--cell-error);
+}
+.ok {
+  color: var(--cell-ok-text);
+  background: var(--cell-ok);
+}
+.flagged {
+  position: relative;
+  cursor: help;
+}
+.flagged:focus-visible {
+  outline: 2px solid var(--sheet-text);
+  outline-offset: -2px;
+}
+.selected {
+  outline: 2px solid var(--sheet-chrome);
+  outline-offset: -2px;
+}
+.tabs {
+  display: flex;
+  gap: 2px;
+  height: 32px;
+  padding: 0 8px;
+  border-top: 1px solid var(--sheet-grid);
+  font-size: 12px;
+  color: var(--sheet-index);
+}
+.tab {
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+}
+.tabActive {
+  font-weight: 600;
+  color: var(--sheet-chrome);
+  background: var(--sheet-body);
+  box-shadow: inset 0 -2px 0 var(--sheet-chrome);
+}
+.note {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text-2);
+}

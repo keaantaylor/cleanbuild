@@ -2,7 +2,7 @@
 
 import { useMe } from "@/components/auth/AuthGate";
 import { ShellProvider } from "@/components/layout/ShellContext";
-import { AppShell } from "./shell";
+import { AppShell } from "@/components/layout/AppShell";
 import { SenderShell } from "./sender-shell";
 
 /** Senders only reach /settings inside this group (for their own security);

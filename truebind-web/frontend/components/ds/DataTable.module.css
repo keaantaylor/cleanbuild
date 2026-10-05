@@ -1,0 +1,213 @@
+.scroller {
+  width: 100%;
+  overflow-x: auto;
+}
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+.caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+.th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 36px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+  color: var(--text-2);
+  background: var(--bg-subtle);
+}
+.th.numeric {
+  text-align: right;
+}
+.sortBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  background: none;
+  cursor: pointer;
+}
+.sortBtn:hover {
+  color: var(--text);
+}
+.sortIcon {
+  opacity: 0.4;
+}
+[aria-sort="ascending"] .sortIcon,
+[aria-sort="descending"] .sortIcon {
+  opacity: 1;
+  color: var(--text);
+}
+
+.row {
+  cursor: default;
+}
+.clickable {
+  cursor: pointer;
+}
+.td {
+  height: 44px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  color: var(--text);
+  background: var(--surface);
+}
+.row:last-child .td {
+  border-bottom: 0;
+}
+.row:hover .td,
+.row:focus-visible .td {
+  background: var(--bg-subtle);
+}
+.row:focus-visible {
+  outline: none;
+}
+.row:focus-visible .td:first-child {
+  box-shadow: inset 2px 0 0 var(--brand);
+}
+.row[aria-selected="true"] .td {
+  background: var(--brand-subtle);
+}
+.numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-2);
+}
+.check {
+  width: 40px;
+  padding-right: 0;
+}
+.check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+.details {
+  display: none;
+}
+.skelRow .td {
+  height: 44px;
+}
+.emptyCell {
+  padding: 0;
+  border-bottom: 0;
+}
+
+/* Tablet: first column stays put while the rest scroll. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .stickyFirst .th:first-child,
+  .stickyFirst .td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+  }
+}
+
+/* Phone: each row becomes a card with its key columns; the rest behind "Details". */
+@media (max-width: 767px) {
+  .table,
+  .table tbody {
+    display: block;
+  }
+  .table thead {
+    display: none;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .row:last-child {
+    border-bottom: 0;
+  }
+  .row:hover,
+  .row:focus-visible,
+  .row[aria-selected="true"] {
+    background: var(--bg-subtle);
+  }
+  .td {
+    display: block;
+    height: auto;
+    padding: 0;
+    border: 0;
+    background: transparent !important;
+    min-width: 0;
+    grid-column: 1;
+  }
+  .td.numeric,
+  .td.code {
+    text-align: left;
+  }
+  .td[data-key="1"] {
+    grid-column: 1;
+  }
+  .td[data-key="1"]:nth-child(1),
+  .td[data-key="1"].first {
+    font-weight: 500;
+  }
+  .td:not([data-key="1"]) {
+    display: none;
+  }
+  .row[data-expanded="true"] .td:not([data-key="1"]) {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 4px;
+  }
+  .row[data-expanded="true"] .td:not([data-key="1"])::before {
+    content: attr(data-label);
+    color: var(--text-2);
+  }
+  .check {
+    grid-column: 2 !important;
+    grid-row: 1;
+    width: auto;
+  }
+  .details {
+    display: block;
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: start;
+  }
+  .detailsBtn {
+    height: 28px;
+    padding: 0 8px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    font: inherit;
+    font-size: 12px;
+    color: var(--text-2);
+    background: var(--surface);
+    cursor: pointer;
+  }
+  .skelRow .td:not([data-key="1"]) {
+    display: none;
+  }
+}

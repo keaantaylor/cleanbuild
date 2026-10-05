@@ -53,9 +53,9 @@
   --color-section-glow: #353b80;
   --color-section-ghost: #4c5397;
 
-  --font-heading: var(--font-plex), "IBM Plex Sans", system-ui, sans-serif;
+  --font-heading: var(--font-inter), "Inter", system-ui, sans-serif;
   --font-heading-weight: 500;
-  --font-body: var(--font-plex), "IBM Plex Sans", system-ui, sans-serif;
+  --font-body: var(--font-inter), "Inter", system-ui, sans-serif;
 
   --space-1: 2.8px;
   --space-2: 5.6px;

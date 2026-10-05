@@ -1,30 +1,41 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
-import { CheckCircle, Info, ShieldCheck, Warning, WarningCircle, X } from "@phosphor-icons/react";
-import { useUi } from "@/lib/ui";
+/* Legacy component names kept compiling while screens are rebuilt. Each one
+   now renders the matching components/ds component; delete this file once
+   no screen imports it (Session 8). */
+import { useEffect, useRef } from "react";
+import { CheckCircle } from "@phosphor-icons/react";
+import {
+  Chip,
+  EmptyState as DsEmpty,
+  ErrorPanel,
+  LoadingBlock,
+  Logo,
+  Mark as DsMark,
+  Modal as DsModal,
+  PageHeader as DsPageHeader,
+  Skeleton as DsSkeleton,
+} from "@/components/ds";
+import { Button } from "@/components/ds";
+export { Toaster } from "@/components/ds";
 
-export function Mark({ size = 24, radius = 6 }: { size?: number; radius?: number }) {
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src="/assets/mark.png" alt="" width={size} height={size} style={{ width: size, height: size, borderRadius: radius, flex: "none" }} />;
+export function Mark({ size = 24 }: { size?: number; radius?: number }) {
+  return <DsMark size={size} />;
 }
 
 export function Brand({ size = 24, className = "" }: { size?: number; className?: string }) {
   return (
-    <span className={`inline-flex items-center gap-[9px] font-semibold ${className}`}>
-      <Mark size={size} radius={Math.round(size / 4)} />
-      TrueBind
+    <span className={className}>
+      <Logo size={size} />
     </span>
   );
 }
 
-
-/** Centred dialog built on Nocturne's .dialog pattern. Esc and backdrop click close it. */
+/** Centred dialog (ds Modal). `kicker` is no longer shown. */
 export function Modal({
   open,
   onClose,
   title,
-  kicker,
   children,
   actions,
   width = 480,
@@ -37,103 +48,17 @@ export function Modal({
   actions?: React.ReactNode;
   width?: number;
 }) {
-  const id = useId();
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    const prev = document.activeElement as HTMLElement | null;
-    ref.current?.querySelector<HTMLElement>("input,textarea,select,button[data-autofocus]")?.focus();
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      prev?.focus?.();
-    };
-  }, [open, onClose]);
-  if (!open) return null;
   return (
-    <div
-      className="anim-fade fixed inset-0 z-[60] grid place-items-center p-4"
-      style={{ background: "color-mix(in srgb, #0b0c14 55%, transparent)" }}
-      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div
-        ref={ref}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={id}
-        className="anim-pop flex max-h-[88vh] w-full flex-col gap-4 overflow-y-auto rounded-md p-6"
-        style={{
-          maxWidth: width,
-          background: "var(--surface)",
-          color: "var(--text)",
-          boxShadow: "0 0 0 1px var(--line2)",
-        }}
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex flex-col gap-1.5">
-            {kicker && <span className="sr-only">{kicker}</span>}
-            <h2 id={id} className="m-0 text-[20px] font-medium tracking-[-0.015em]">
-              {title}
-            </h2>
-          </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="tb-btn tb-btn-ghost -mr-2 -mt-1 !p-2">
-            <X />
-          </button>
-        </div>
-        {children && <div className="text-[14px] leading-[1.55]" style={{ color: "var(--muted)" }}>{children}</div>}
-        {actions && <div className="mt-1 flex flex-wrap justify-end gap-2">{actions}</div>}
-      </div>
-    </div>
-  );
-}
-
-const TONE = {
-  ok: { icon: ShieldCheck, c: "oklch(0.76 0.12 155)" },
-  info: { icon: Info, c: "#1f4fd1" },
-  warn: { icon: Warning, c: "oklch(0.81 0.12 75)" },
-  err: { icon: WarningCircle, c: "oklch(0.72 0.15 25)" },
-};
-
-/** The prototype's glass toast, bottom centre. */
-export function Toaster() {
-  const { toasts } = useUi();
-  return (
-    <div className="no-print pointer-events-none fixed bottom-7 left-1/2 z-[70] flex -translate-x-1/2 flex-col items-center gap-2" aria-live="polite">
-      {toasts.map((t) => {
-        const T = TONE[t.tone];
-        return (
-          <div
-            key={t.id}
-            className="anim-rise flex max-w-[calc(100vw-32px)] items-center gap-2.5 rounded-md px-4 py-[11px] text-[13px]"
-            style={{
-              background: "rgba(35,37,50,.9)",
-              color: "#e9e9ed",
-              boxShadow: "inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px rgba(31,79,209,.4)",
-            }}
-          >
-            <T.icon style={{ color: T.c, flex: "none" }} size={16} weight="regular" />
-            <span className="truncate">{t.text}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-export function StatusPill({ tone, children }: { tone: "ok" | "warn" | "err" | "med" | "muted"; children: React.ReactNode }) {
-  const map = {
-    ok: ["var(--ok)", "var(--okT)"],
-    warn: ["var(--warn)", "var(--warnT)"],
-    err: ["var(--err)", "var(--errT)"],
-    med: ["var(--med)", "var(--medT)"],
-    muted: ["var(--muted)", "var(--line)"],
-  }[tone];
-  return (
-    <span className="tb-pill" style={{ color: map[0], background: map[1] }}>
+    <DsModal open={open} onClose={onClose} title={title} footer={actions} width={width}>
       {children}
-    </span>
+    </DsModal>
   );
+}
+
+const PILL_TONE = { ok: "success", warn: "warning", err: "danger", med: "neutral", muted: "neutral" } as const;
+
+export function StatusPill({ tone, children }: { tone: keyof typeof PILL_TONE; children: React.ReactNode }) {
+  return <Chip tone={PILL_TONE[tone]}>{children}</Chip>;
 }
 
 /** Checked · Flagged · Unmapped · Not assessed - the honest-coverage bar. */
@@ -160,26 +85,8 @@ export function CoverageLegend() {
   );
 }
 
-export function PageHeader({
-  kicker,
-  title,
-  sub,
-  actions,
-}: {
-  kicker: string;
-  title: React.ReactNode;
-  sub?: React.ReactNode;
-  actions?: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-wrap items-end justify-between gap-4">
-      <div className="flex flex-col gap-1" data-section={kicker}>
-        <h1 className="m-0 text-[20px] font-semibold">{title}</h1>
-        {sub && <p className="m-0 max-w-[720px] text-[13.5px]" style={{ color: "var(--muted)" }}>{sub}</p>}
-      </div>
-      {actions && <div className="flex flex-wrap items-center gap-2 whitespace-nowrap">{actions}</div>}
-    </div>
-  );
+export function PageHeader({ title, sub, actions }: { kicker: string; title: React.ReactNode; sub?: React.ReactNode; actions?: React.ReactNode }) {
+  return <DsPageHeader title={title} meta={sub} actions={actions} />;
 }
 
 /** A count tile: label, number, note. Plain border, no colour rule. */
@@ -241,51 +148,53 @@ export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boo
   );
 }
 
-export function EmptyState({ icon, title, body, action }: { icon: React.ReactNode; title: string; body: string; action?: React.ReactNode }) {
-  return (
-    <div className="flex flex-col items-center gap-2.5 px-6 py-14 text-center">
-      <span className="grid h-11 w-11 place-items-center rounded-full text-[20px]" style={{ background: "var(--accentTint)", color: "var(--accentText)" }}>
-        {icon}
-      </span>
-      <span className="text-[15px] font-medium">{title}</span>
-      <span className="max-w-[380px] text-[13px]" style={{ color: "var(--muted)" }}>{body}</span>
-      {action && <div className="mt-2">{action}</div>}
-    </div>
-  );
+export function EmptyState({ title, body, action }: { icon?: React.ReactNode; title: string; body: string; action?: React.ReactNode }) {
+  return <DsEmpty title={title} body={body} action={action} />;
 }
 
 export { CheckCircle };
 
-/** Shaped placeholder while data loads. */
-export function Skeleton({ h = 16, w = "100%", r = 6, className = "" }: { h?: number; w?: number | string; r?: number; className?: string }) {
-  return <span className={`tb-skeleton block ${className}`} style={{ height: h, width: w, borderRadius: r }} aria-hidden="true" />;
+export function Skeleton({ h = 16, w = "100%", r = 6 }: { h?: number; w?: number | string; r?: number; className?: string }) {
+  return <DsSkeleton h={h} w={w} r={r} />;
 }
 
 export function LoadingState({ label, rows = 4 }: { label: string; rows?: number }) {
+  return <LoadingBlock label={label} rows={rows} />;
+}
+
+/** Explained, retryable failure: never a blank screen. */
+export function ErrorState({ title, message, onRetry }: { title: string; message?: string | null; onRetry?: () => void }) {
   return (
-    <div className="flex flex-col gap-3 py-2" role="status" aria-live="polite">
-      <span className="sr-only">{label}</span>
-      {Array.from({ length: rows }, (_, i) => (
-        <Skeleton key={i} h={i === 0 ? 22 : 14} w={i === 0 ? "40%" : `${92 - i * 9}%`} />
-      ))}
-    </div>
+    <ErrorPanel
+      title={title}
+      body={message}
+      action={onRetry && <Button size={28} onClick={onRetry}>Try again</Button>}
+    />
   );
 }
 
-/** Explained, retryable failure - never a blank screen. */
-export function ErrorState({ title, message, onRetry }: { title: string; message?: string | null; onRetry?: () => void }) {
+/** Controlled anchored panel (old shell API), used by the report picker until Session 2 replaces it. */
+export function Popover({ children, onClose, width = 360, align = "right" }: { children: React.ReactNode; onClose: () => void; width?: number; align?: "right" | "left" }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.parentElement?.contains(e.target as Node)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
   return (
-    <div className="flex flex-col items-start gap-2.5 rounded-md px-5 py-4" role="alert" style={{ background: "var(--errT)", boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--err) 35%, transparent)" }}>
-      <span className="flex items-center gap-2 text-[14px] font-medium" style={{ color: "var(--err)" }}>
-        <WarningCircle size={16} />
-        {title}
-      </span>
-      {message && <span className="text-[13px]" style={{ color: "var(--muted)" }}>{message}</span>}
-      {onRetry && (
-        <button type="button" className="tb-btn !py-1.5 text-[13px]" onClick={onRetry}>
-          Try again
-        </button>
-      )}
+    <div
+      ref={ref}
+      className="tb-popover absolute top-[calc(100%+8px)] z-50 overflow-hidden"
+      style={{ [align]: 0, width, maxWidth: "calc(100vw - 24px)", background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: "var(--r-control)", boxShadow: "var(--shadow-float)" }}
+    >
+      {children}
     </div>
   );
 }

@@ -1,81 +1,60 @@
 @import "tailwindcss";
 /* Layered so Tailwind utilities can override Nocturne's element defaults. */
 @import "./nocturne.css" layer(base);
+@import "./tokens.css";
 
-/* ─────────────────────────────────────────────────────────────────────────
-   TrueBind theme. Values come straight from the Claude Design prototype
-   (TrueBind Prototype.dc.html, `.tb` block). The theme lives on <html
-   data-theme>, so every page — site, onboarding and app — follows the toggle.
-   ───────────────────────────────────────────────────────────────────────── */
-/* TrueBind design tokens: the one source of colour, type, radius and motion.
-   Light only. Neutral surfaces, one blue primary, semantic colours always
-   paired with an icon or a text label. No gradients, glass or glows; 1px
-   borders; shadow only on popovers. */
-:root {
-  --bg: #f7f8fa;
-  --bg2: #f1f3f6;
-  --surface: #ffffff;
-  --surface2: #f7f8fa;
-  --line: #e5e7eb;
-  --line2: #d1d5db;
-  --text: #111827;
-  --muted: #4b5563;
-  --faint: #6b7280;
-  --accent: #1f4fd1;
-  --accentText: #1f4fd1;
-  --accentTint: rgba(31, 79, 209, 0.07);
-  --accentSolid: #1f4fd1;
-  --onAccent: #ffffff;
-  --ok: #15803d;
-  --okT: rgba(21, 128, 61, 0.09);
-  --warn: #b45309;
-  --warnT: rgba(180, 83, 9, 0.1);
-  --err: #b91c1c;
-  --errT: rgba(185, 28, 28, 0.08);
-  --med: #374151;
-  --medT: rgba(55, 65, 81, 0.08);
-  --na: #9ca3af;
-  --badge: #b91c1c;
-  --shadow: 0 0 0 1px var(--line);
-  --popShadow: 0 4px 16px rgba(17, 24, 39, 0.1);
-
-  /* Chrome: sidebar and public site share the same neutral surfaces. */
-  --chrome: #f7f8fa;
-  --chromeText: #374151;
-  --chromeStrong: #111827;
-  --chromeMuted: #4b5563;
-  --chromeFaint: #6b7280;
-  --chromeLine: #e5e7eb;
-  --glass: #ffffff;
-  --glassRing: #e5e7eb;
-  --kicker: #4b5563;
-  --heroGlowA: transparent;
-  --heroGlowB: transparent;
-  --section: #f7f8fa;
-  --sectionGlow: transparent;
-  --popover: #ffffff;
-
-  --radius: 4px;
+/* Legacy names used by screens not yet rebuilt. Each one points at a token in
+   styles/tokens.css, so old and new screens share one palette. Delete a name
+   once nothing references it. */
+:root,
+[data-theme] {
+  --bg2: var(--bg-muted);
+  --surface2: var(--bg-subtle);
+  --line: var(--border);
+  --line2: var(--border-strong);
+  --muted: var(--text-2);
+  --faint: var(--text-3);
+  --accent: var(--brand);
+  --accentText: var(--brand);
+  --accentTint: var(--brand-subtle);
+  --accentSolid: var(--brand);
+  --onAccent: var(--on-brand);
+  --ok: var(--success);
+  --okT: var(--success-bg);
+  --warn: var(--warning);
+  --warnT: var(--warning-bg);
+  --err: var(--danger);
+  --errT: var(--danger-bg);
+  --med: var(--neutral);
+  --medT: var(--neutral-bg);
+  --na: var(--text-3);
+  --badge: var(--danger);
+  --shadow: 0 0 0 1px var(--border);
+  --popShadow: var(--shadow-float);
+  --chrome: var(--bg-subtle);
+  --chromeText: var(--text-2);
+  --chromeStrong: var(--text);
+  --chromeMuted: var(--text-2);
+  --chromeFaint: var(--text-3);
+  --chromeLine: var(--border);
+  --glass: var(--surface);
+  --glassRing: var(--border);
+  --kicker: var(--text-2);
+  --section: var(--bg-subtle);
+  --popover: var(--surface);
+  --radius: var(--r-control);
   --control-h: 32px;
   --row-h: 28px;
-  --motion: 120ms;
-  --font-sans: var(--font-plex), "IBM Plex Sans", system-ui, sans-serif;
-  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
-  color-scheme: light;
-
-  /* Nocturne base tokens follow. */
-  --color-bg: #f7f8fa;
-  --color-surface: #ffffff;
-  --color-text: #111827;
-  --color-accent: #1f4fd1;
-  --color-divider: #e5e7eb;
+  --motion: var(--t-ui);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-text: var(--text);
+  --color-accent: var(--brand);
+  --color-divider: var(--border);
 }
 
-/* Colours are used as var(--token) directly (the prototype's own naming) rather
-   than Tailwind colour utilities, so they never collide with Nocturne's
-   --color-* tokens. Tailwind handles layout, spacing and type. */
 @theme inline {
-  --font-sans: var(--font-plex), "IBM Plex Sans", system-ui, sans-serif;
+  --font-sans: var(--font-inter), "Inter", system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
 }
 
@@ -88,6 +67,8 @@ body {
 body {
   font-family: var(--font-sans);
   font-size: 14px;
+  line-height: 1.5;
+  font-feature-settings: "cv11", "ss01";
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }
@@ -397,4 +378,21 @@ html[data-device="tablet"] .tb-input {
 /* Anchors and scrollIntoView stop below the sticky header (and the notch). */
 html {
   scroll-padding-top: calc(72px + env(safe-area-inset-top));
+}
+
+/* One visible focus ring everywhere (keyboard only). */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.sr-only-ds {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

@@ -6,7 +6,6 @@ import demo from "@/lib/demo-report.json";
 import type { HealthView } from "@/lib/types";
 import { TONE, severityLabel } from "@/lib/severity";
 import { formatMoney, formatNumber } from "@/lib/formatters";
-import { SiteFooter, SiteNav } from "./chrome";
 import { LeadButton } from "./lead-form";
 import { ContactLine } from "./contact";
 
@@ -29,7 +28,6 @@ export function DemoReport() {
   const v = TONE[ready ? "ok" : "err"];
   return (
     <div className="min-h-screen" style={{ background: "var(--chrome)", color: "var(--chromeStrong)" }}>
-      <SiteNav />
       <main id="main" className="mx-auto flex max-w-[1100px] flex-col gap-8 px-4 pb-20 pt-[130px] sm:px-6">
         <div className="flex max-w-[760px] flex-col gap-3">
           <span className="text-[13px]" style={{ color: "var(--muted)" }}>Sample Health Check</span>
@@ -114,7 +112,6 @@ export function DemoReport() {
           <ContactLine />
         </section>
       </main>
-      <SiteFooter />
     </div>
   );
 }

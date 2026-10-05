@@ -1,0 +1,59 @@
+/* Bottom-right, above any sticky action bar: pages with a footer bar set
+   --toast-offset on <html> to its height. */
+.region {
+  position: fixed;
+  right: 16px;
+  bottom: calc(16px + var(--toast-offset, 0px) + env(safe-area-inset-bottom));
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: max-content;
+  max-width: min(400px, calc(100vw - 32px));
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-float);
+  pointer-events: auto;
+  animation: in var(--t-ui) var(--ease);
+}
+.toast svg {
+  flex: none;
+  margin-top: 1px;
+}
+.ok svg { color: var(--success); }
+.info svg { color: var(--brand); }
+.warn svg { color: var(--warning); }
+.err svg { color: var(--danger); }
+@keyframes in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}
+@media (max-width: 639px) {
+  .region {
+    left: 16px;
+    align-items: stretch;
+  }
+  .toast {
+    width: auto;
+    max-width: none;
+  }
+}

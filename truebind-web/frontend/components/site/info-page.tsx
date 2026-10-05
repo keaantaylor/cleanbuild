@@ -1,12 +1,10 @@
 "use client";
 
-import { SiteFooter, SiteNav } from "./chrome";
 import { LeadButton } from "./lead-form";
 
 export function InfoPage({ kicker, title, intro, sections }: { kicker: string; title: string; intro: string; sections: { h: string; p: string[] }[] }) {
   return (
     <div className="min-h-screen" style={{ background: "var(--chrome)", color: "var(--chromeStrong)" }}>
-      <SiteNav />
       <main id="main" className="mx-auto flex max-w-[760px] flex-col gap-10 px-4 pb-20 pt-[140px] sm:px-6">
         <div className="flex flex-col gap-3">
           <span className="text-[13px]" style={{ color: "var(--muted)" }}>{kicker}</span>
@@ -26,7 +24,6 @@ export function InfoPage({ kicker, title, intro, sections }: { kicker: string; t
           <a href="mailto:truebind@truebind.ie" className="tb-btn">Email truebind@truebind.ie</a>
         </div>
       </main>
-      <SiteFooter />
     </div>
   );
 }

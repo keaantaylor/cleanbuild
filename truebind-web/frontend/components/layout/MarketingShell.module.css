@@ -1,0 +1,194 @@
+.root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+  background: var(--bg);
+}
+:global(html:has([data-marketing])) {
+  background: var(--marketing-canvas);
+}
+
+/* Nav: the mockup's floating pill bar. Transparent at the top; after 24px
+   of scroll the band behind it fills and blurs, with a hairline. */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  padding: 16px 24px;
+  padding-top: max(16px, env(safe-area-inset-top));
+  border-bottom: 1px solid transparent;
+  transition: background-color 200ms var(--ease), border-color 200ms var(--ease), backdrop-filter 200ms var(--ease);
+}
+.scrolled {
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  border-bottom-color: var(--border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 1150px;
+  height: 52px;
+  margin: 0 auto;
+  padding: 0 6px 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  box-shadow: var(--shadow-float);
+}
+.brandLink {
+  display: inline-flex;
+  margin-right: 28px;
+  font-size: 18px;
+  text-decoration: none;
+  color: var(--text);
+}
+.links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.link {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 15px;
+  text-decoration: none;
+  color: var(--text-2);
+  transition: color var(--t-ui) var(--ease);
+}
+.link:hover {
+  color: var(--text);
+}
+.grow {
+  flex: 1;
+}
+.demo {
+  height: 40px !important;
+  border-radius: 999px !important;
+  padding: 0 20px !important;
+  font-size: 15px !important;
+  border-color: var(--outline-accent) !important;
+  background: transparent !important;
+}
+.demo:hover {
+  border-color: var(--highlight) !important;
+}
+.menuBtn {
+  display: none !important;
+}
+
+/* Mobile sheet */
+.sheet {
+  width: 100vw;
+  max-width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0;
+  padding: 16px 20px 32px;
+  border: 0;
+  color: var(--text);
+  background: var(--bg);
+}
+.sheet::backdrop {
+  background: var(--overlay);
+}
+.sheetHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+  margin-bottom: 24px;
+}
+.sheetLinks {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sheetLinks a {
+  display: block;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 20px;
+  text-decoration: none;
+  color: var(--text);
+}
+.sheetActions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 32px;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+}
+.main:focus {
+  outline: none;
+}
+
+/* Footer */
+.footer {
+  border-top: 1px solid var(--border);
+  background: var(--bg-subtle);
+}
+.footInner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 32px;
+  max-width: var(--marketing-max);
+  margin: 0 auto;
+  padding: 40px 24px calc(40px + env(safe-area-inset-bottom));
+}
+.footLinks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 28px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+  color: var(--text-3);
+}
+.footLinks a {
+  text-decoration: none;
+  color: var(--text-2);
+}
+.footLinks a:hover {
+  color: var(--text);
+}
+
+@media (max-width: 959px) {
+  .links,
+  .signIn {
+    display: none;
+  }
+  .menuBtn {
+    display: inline-flex !important;
+  }
+  .brandLink {
+    margin-right: 0;
+  }
+}
+@media (max-width: 479px) {
+  .header {
+    padding: 12px;
+  }
+  .demo {
+    display: none !important;
+  }
+}

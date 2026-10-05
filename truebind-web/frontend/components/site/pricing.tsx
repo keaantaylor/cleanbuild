@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { Check } from "@phosphor-icons/react";
-import { SiteFooter, SiteNav } from "./chrome";
 import { LeadButton } from "./lead-form";
 import { ContactLine } from "./contact";
 
@@ -41,7 +40,6 @@ const PLANS = [
 export function PricingPage() {
   return (
     <div className="min-h-screen" style={{ background: "var(--chrome)", color: "var(--chromeStrong)" }}>
-      <SiteNav />
       <main id="main" className="mx-auto flex max-w-[1100px] flex-col gap-10 px-4 pb-20 pt-[130px] sm:px-6">
         <div className="flex max-w-[720px] flex-col gap-3">
           <span className="text-[13px]" style={{ color: "var(--muted)" }}>Pricing</span>
@@ -71,7 +69,6 @@ export function PricingPage() {
           Not sure yet? <Link href="/demo" className="underline" style={{ color: "var(--accentText)" }}>See a sample Health Check</Link> or read how we handle your data on the <Link href="/security" className="underline" style={{ color: "var(--accentText)" }}>security page</Link>.
         </p>
       </main>
-      <SiteFooter />
     </div>
   );
 }

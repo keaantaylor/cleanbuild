@@ -8,10 +8,12 @@ interface ShellState {
   system: SystemStatus | null;
   unreadAlerts: number;
   workItems: number;
+  /** Open findings across all submissions (overview's open_by_severity). */
+  openFindings: number;
   refresh: () => void;
 }
 
-const Ctx = createContext<ShellState>({ system: null, unreadAlerts: 0, workItems: 0, refresh: () => {} });
+const Ctx = createContext<ShellState>({ system: null, unreadAlerts: 0, workItems: 0, openFindings: 0, refresh: () => {} });
 export const useShell = () => useContext(Ctx);
 
 /** One poller for the chrome (processing-service status, unread alerts, work
@@ -21,6 +23,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
   const [system, setSystem] = useState<SystemStatus | null>(null);
   const [unreadAlerts, setUnread] = useState(0);
   const [workItems, setWork] = useState(0);
+  const [openFindings, setOpenFindings] = useState(0);
   const inflight = useRef(false);
 
   const refresh = useCallback(async () => {
@@ -43,10 +46,22 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const first = setTimeout(refresh, 0);
     const t = setInterval(refresh, 15_000);
+    // The findings count needs the heavier overview query, so it refreshes less often.
+    const counts = async () => {
+      if (document.hidden) return;
+      try {
+        const o = await api.overview();
+        setOpenFindings(Object.values(o.findings.open_by_severity ?? {}).reduce((a, b) => a + b, 0));
+      } catch {
+        // keep the last count
+      }
+    };
+    const firstCount = setTimeout(counts, 0);
+    const slow = setInterval(counts, 60_000);
     const onVis = () => { if (!document.hidden) refresh(); };
     document.addEventListener("visibilitychange", onVis);
-    return () => { clearTimeout(first); clearInterval(t); document.removeEventListener("visibilitychange", onVis); };
+    return () => { clearTimeout(first); clearTimeout(firstCount); clearInterval(slow); clearInterval(t); document.removeEventListener("visibilitychange", onVis); };
   }, [refresh]);
 
-  return <Ctx.Provider value={{ system, unreadAlerts, workItems, refresh }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ system, unreadAlerts, workItems, openFindings, refresh }}>{children}</Ctx.Provider>;
 }

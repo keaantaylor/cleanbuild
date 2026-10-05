@@ -4,7 +4,6 @@ import Link from "next/link";
 import demo from "@/lib/demo-report.json";
 import type { HealthView } from "@/lib/types";
 import { severityLabel } from "@/lib/severity";
-import { SiteFooter, SiteNav } from "./chrome";
 import { LeadButton } from "./lead-form";
 import { ContactLine } from "./contact";
 
@@ -31,7 +30,6 @@ const OUTPUTS: [string, string][] = [
 export function Landing() {
   return (
     <div className="min-h-screen" style={{ background: "var(--bg)", color: "var(--text)" }}>
-      <SiteNav />
       <main id="main">
         <section className="border-b" style={{ background: "var(--surface)", borderColor: "var(--line)" }}>
           <div className="mx-auto grid max-w-[1120px] gap-8 px-4 py-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
@@ -115,7 +113,6 @@ export function Landing() {
           <ContactLine />
         </section>
       </main>
-      <SiteFooter />
     </div>
   );
 }

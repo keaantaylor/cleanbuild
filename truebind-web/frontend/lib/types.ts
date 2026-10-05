@@ -4,7 +4,7 @@ export type ReportStatus =
 export type SheetStatus = "PENDING_CONFIRMATION" | "CONFIRMED" | "SKIPPED";
 export type MappingState = "MAPPED_BY_ALIAS" | "MAPPED_BY_AI" | "UNMAPPED" | "MANUAL";
 export type Severity = "CRITICAL" | "HIGH" | "MEDIUM" | "INFO";
-export type CheckType = "MANDATORY_FIELD" | "ARITHMETIC" | "DUPLICATE" | "MAPPING_COMPLETENESS" | "DATE" | "CURRENCY" | "STATUS" | "OTHER";
+export type CheckType = "MANDATORY_FIELD" | "ARITHMETIC" | "DUPLICATE" | "MAPPING_COMPLETENESS" | "DATE" | "CURRENCY" | "STATUS" | "RECONCILIATION" | "OTHER";
 export type ObligationStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "OVERDUE";
 export type AlertSource = "COVERAGE" | "MANDATORY_FAIL" | "NOT_EVALUABLE" | "DUPLICATE" | "OVERDUE" | "MAPPING_COMPLETENESS";
 
@@ -621,3 +621,9 @@ export interface RootCause {
 export interface IssueList { total: number; items: Issue[]; by_status: Record<string, number>; root_causes: RootCause[] }
 
 export type BulkAction = "apply_safe_fix" | "send_to_sender" | "override" | "resolve";
+
+/** Checks re-run after corrections: a fix counts only if the rule stops firing. */
+export interface Recheck {
+  status: "ran" | "not_run"; reason?: string; rechecked?: number; passed?: number; still_failing?: number;
+  new_findings?: number;
+}

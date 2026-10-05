@@ -165,9 +165,9 @@ def _ensure_original(db: Session, report: Report, actor: str) -> WorkbookVersion
     return v
 
 
-def build_corrected(db: Session, report: Report, actor: str) -> tuple[WorkbookVersion, bytes]:
-    """A corrected version: the original plus every approved correction."""
-    _ensure_original(db, report, actor)
+def corrected_bytes(db: Session, report: Report) -> tuple[bytes, list[Correction]]:
+    """The original plus every approved correction, as deterministic bytes.
+    Nothing is stored; build_corrected turns this into a version."""
     approved = (db.query(Correction).filter(Correction.report_id == report.id, Correction.status == "APPROVED")
                 .order_by(Correction.created_at, Correction.id).all())
     if not approved:
@@ -188,7 +188,13 @@ def build_corrected(db: Session, report: Report, actor: str) -> tuple[WorkbookVe
     wb.properties.created = wb.properties.modified = stamp
     buf = io.BytesIO()
     wb.save(buf)
-    body = _deterministic(buf.getvalue())
+    return _deterministic(buf.getvalue()), approved
+
+
+def build_corrected(db: Session, report: Report, actor: str) -> tuple[WorkbookVersion, bytes]:
+    """A corrected version: the original plus every approved correction."""
+    _ensure_original(db, report, actor)
+    body, approved = corrected_bytes(db, report)
     sha = hashlib.sha256(body).hexdigest()
     ids = [c.id for c in approved]
     last = (db.query(WorkbookVersion).filter(WorkbookVersion.report_id == report.id, WorkbookVersion.kind == "corrected")

@@ -33,7 +33,8 @@ from ..ai.mapper import ProviderAIMapper
 from ..ai.masking import masked_samples
 from ..models.jobs import Job
 from ..models.reports import Report, Sheet
-from . import job_service, module_service, parse_cache, persistence_service, pipeline_service, report_state
+from . import (job_service, module_service, parse_cache, persistence_service, pipeline_service,
+               reconciliation_service, report_state)
 from .storage import IntegrityError, get_store
 
 log = logging.getLogger("truebind.jobs")
@@ -205,6 +206,7 @@ def run_process(db: Session, job: Job) -> dict:
     result = pipeline_service.run_workbook_pipeline(
         sheets, confirmed, proposals, source_name=report.file_name,
         on_stage=lambda stage, facts: job_service.set_stage(db, job, stage, **facts))
+    result = reconciliation_service.with_previous_submission(db, report, result)
     t_pipe = perf_counter() - t0 - t_parse
     job_service.set_stage(db, job, "saving")
     t = perf_counter()

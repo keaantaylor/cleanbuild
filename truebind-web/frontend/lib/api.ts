@@ -1,4 +1,4 @@
-import type { BulkAction, Issue, IssueList, Alert, AuditLogEntry, Billing, Binder, Preflight, SanctionsList, Scorecard, Submission, BinderInput, Disposition, ModuleFinding, ModuleRun, Channels, ClaimRow, Delivery, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Invitation, InvitationCreated, Job, Me, MappingField, ExceptionGroups, GridPage, MonthOnMonth, QueryLetter, Member, MfaChallenge, MfaStatus, Obligation, OrgSettings, Overview, Report, ReportSummary, Role, Sheet, SheetMapping, SftpDestination, SftpInput, SsoConfig, SsoConfigInput, SystemStatus, Template, WebhookDelivery, WebhookEndpoint, WebhookEvent, WorkQueue } from "./types";
+import type { BulkAction, Issue, IssueList, Recheck, Alert, AuditLogEntry, Billing, Binder, Preflight, SanctionsList, Scorecard, Submission, BinderInput, Disposition, ModuleFinding, ModuleRun, Channels, ClaimRow, Delivery, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Invitation, InvitationCreated, Job, Me, MappingField, ExceptionGroups, GridPage, MonthOnMonth, QueryLetter, Member, MfaChallenge, MfaStatus, Obligation, OrgSettings, Overview, Report, ReportSummary, Role, Sheet, SheetMapping, SftpDestination, SftpInput, SsoConfig, SsoConfigInput, SystemStatus, Template, WebhookDelivery, WebhookEndpoint, WebhookEvent, WorkQueue } from "./types";
 
 // Default: same hostname as the page, port 8000. Using the page's own host
 // matters: a page on localhost calling an API on 127.0.0.1 is cross-site, so
@@ -224,7 +224,7 @@ export const api = {
     request<IssueList>(`/reports/${reportId}/issues${qs({ root_cause: params.root_cause, limit: params.limit?.toString() })}`),
   getIssue: (reportId: string, issueId: string) => request<Issue>(`/reports/${reportId}/issues/${issueId}`),
   decideRootCause: (reportId: string, rootCause: string, action: BulkAction, note?: string) =>
-    request<{ changed: number; skipped: number }>(`/reports/${reportId}/issues/bulk`, { method: "POST", body: JSON.stringify({ root_cause: rootCause, action, note: note || null }) }),
+    request<{ changed: number; skipped: number; recheck: Recheck | null }>(`/reports/${reportId}/issues/bulk`, { method: "POST", body: JSON.stringify({ root_cause: rootCause, action, note: note || null }) }),
   getReportSummary: async (reportId: string): Promise<ReportSummary | null> => {
     const r = await request<{ report: Report; summary: Omit<ReportSummary, "report"> | null }>(`/reports/${reportId}/summary`);
     return r.summary ? { ...r.summary, report: r.report } : null;

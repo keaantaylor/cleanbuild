@@ -7,6 +7,7 @@ and versions are fingerprinted. Every change is audited.
 
 from __future__ import annotations
 
+import logging
 from typing import Literal
 
 from bordereaux.rules import RULES
@@ -20,11 +21,12 @@ from ..database import get_db
 from ..models.corrections import Correction, WorkbookVersion
 from ..models.reports import ClaimRow, Report, Sheet, ValidationResult
 from ..security.auth import Context, require_reader, require_writer
-from ..services import audit_service, corrections_service, deliverables, issues
+from ..services import audit_service, corrections_service, deliverables, issues, reconciliation_service
 from ..services.persistence_service import FIELD_TO_COLUMN
 from .deps import get_report_or_404
 
 router = APIRouter(prefix="/api/v1/reports", tags=["issues"])
+log = logging.getLogger("truebind.issues")
 
 
 class _Req(BaseModel):
@@ -203,7 +205,7 @@ def bulk_decision(report_id: str, body: BulkRequest, ctx: Context = Depends(requ
         raise HTTPException(status_code=404, detail="No open issues have this cause.")
     if body.action == "override" and not (body.note or "").strip():
         raise HTTPException(status_code=422, detail="Say why the values are accepted as reported.")
-    changed, skipped = [], 0
+    changed, skipped, recheck = [], 0, None
     if body.action == "apply_safe_fix":
         if not RULES.get(targets[0].rule or "") or not RULES[targets[0].rule].auto_fix:
             raise HTTPException(status_code=409, detail="This cause has no safe automatic fix.")
@@ -218,6 +220,9 @@ def bulk_decision(report_id: str, body: BulkRequest, ctx: Context = Depends(requ
                 corrections_service.decide(db, report, c, True, ctx.actor, body.note or "Safe fix applied in bulk")
                 changed.append(c.issue_id)
         skipped = len(ids) - len(changed)
+        if changed:
+            db.flush()
+            recheck = reconciliation_service.recheck_draft(db, report, ctx.actor)
     else:
         status = _BULK_STATUS[body.action]
         note = body.note or _BULK_NOTE.get(body.action)
@@ -234,7 +239,8 @@ def bulk_decision(report_id: str, body: BulkRequest, ctx: Context = Depends(requ
                                     "changed": len(changed), "skipped": skipped, "issue_ids": changed[:1000]},
                              actor=ctx.actor, actor_user_id=ctx.user_id)
     db.commit()
-    return {"root_cause": body.root_cause, "action": body.action, "changed": len(changed), "skipped": skipped}
+    return {"root_cause": body.root_cause, "action": body.action, "changed": len(changed), "skipped": skipped,
+            "recheck": recheck}
 
 
 def _correction(c: Correction) -> dict:
@@ -310,8 +316,12 @@ def decide_correction(report_id: str, correction_id: str, body: DecisionRequest,
         corrections_service.decide(db, report, c, body.approve, ctx.actor, body.note)
     except corrections_service.CorrectionError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    out = _correction(c)
+    if body.approve:  # re-run the checks; an approved value is not assumed to be right
+        db.flush()
+        out["recheck"] = reconciliation_service.recheck_draft(db, report, ctx.actor)
     db.commit()
-    return _correction(c)
+    return out
 
 
 @router.get("/{report_id}/versions")
@@ -332,12 +342,19 @@ def create_corrected_version(report_id: str, ctx: Context = Depends(require_writ
     """Build a corrected version: the original plus every approved correction."""
     report = _complete(db, ctx, report_id)
     try:
-        v, _ = corrections_service.build_corrected(db, report, ctx.actor)
+        v, body = corrections_service.build_corrected(db, report, ctx.actor)
     except (corrections_service.CorrectionError, deliverables.SourceUnavailable) as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    # Never assume a write fixed the data: re-run the checks on the corrected file.
+    try:
+        recheck = reconciliation_service.recheck_after_corrections(db, report, body, v, ctx.actor)
+    except Exception as exc:  # noqa: BLE001 -- the version stands; say plainly the re-check did not run
+        log.exception("re-check after corrections failed for report %s", report.id)
+        recheck = {"status": "not_run", "reason": f"The re-check could not run ({type(exc).__name__}). "
+                                                  "Treat the version as unverified."}
     db.commit()
-    return _version(v)
+    return {**_version(v), "recheck": recheck}
 
 
 @router.post("/{report_id}/versions/{version_id}/approve", status_code=201)

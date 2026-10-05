@@ -3,9 +3,10 @@
 | Phase | State |
 |---|---|
 | 1 Make review usable: mapping shows only decisions; root-cause cards with one bulk decision; guided one-issue queue; exact cell + rule + evidence; restrained visuals on these screens | done: `POST /reports/{id}/issues/bulk` (apply_safe_fix / send_to_sender / override / resolve; cause key only, rows chosen server-side, one audit entry); root causes carry rows, amount affected per currency, cause vs downstream symptom (deterministic SYMPTOM_OF map, same row). UI: mapping summary line + "Show all"; report opens on "Review issues" (Issue n of N, cell, rule code+version, expected/actual/difference, affected-cells drill-down, actions, then advances); full report one tab away. 500-row generated file: 82 findings -> 14 decisions; mapping 22 fields -> 0. Backend 393 pass (1 Windows-only memory-limit test fails; tests run with a local chmod shim, see FINAL_REPORT), frontend lint/typecheck/24 unit/build OK |
-| 2 Per-counterparty memory (sender profiles, recurring causes, approved rules) | next session |
-| 3 Email-to-audit loop (send-to-sender letters per cause, replies matched back to issues) | later |
-| 4 Proof: approved versions, change log export, polish | later |
+| 2 Reconciliation core (deterministic) | done: engine `bordereaux/reconcile.py` + 4 versioned rules (ruleset 2026.10.2, check type RECONCILIATION): totals_mismatch (total line vs its rows, cell on the total line via `at_row`), cross_sheet_conflict (same claim + period, two sheets), paid_decreased + rollforward_break (record-level match with the previous submission from the SAME sender only; `reconciliation_service`). Re-check after corrections: approving a correction, a bulk safe fix and building a version re-run every check on the corrected copy; an issue whose rule still fires on its cell is reopened (DETECTED) with the numbers; new findings on touched rows reported; `CORRECTIONS_RECHECKED` audited. Already present and kept: arithmetic/cross-column, tolerance (0.01), duplicates/near-duplicates, development, reference data (ISO currency, status). Engine 100, backend 397 passed (1 Windows-only memory-limit test fails); frontend lint/typecheck/24/build OK |
+| 3 Per-counterparty memory (sender profiles, recurring causes, approved rules) | next session |
+| 4 Email-to-audit loop (send-to-sender letters per cause, replies matched back to issues) | later |
+| 5 Proof: approved versions, change log export, polish | later |
 
 # Rebuild (branch `rebuild`, never merged to main) - resume here
 

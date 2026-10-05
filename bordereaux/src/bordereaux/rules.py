@@ -26,7 +26,7 @@ from dataclasses import dataclass
 # The rule set as a whole. Bump when any rule's logic, tolerance or wording of
 # its outcome changes; each rule also carries its own version, recorded on
 # every finding, so a result can always be traced to the logic that made it.
-RULESET_VERSION = "2026.10.1"
+RULESET_VERSION = "2026.10.2"
 
 
 @dataclass(frozen=True)
@@ -109,6 +109,15 @@ _RULES = [
          "The same claim appears on two sheets with identical figures and no period. Confirm which applies."),
     Rule("probable_duplicate", "Probable duplicate", "DUPLICATE", "MEDIUM", "REVIEW",
          "Compare the two rows side by side; confirm whether they are the same loss.", version="2.0"),
+    # Reconciliation across rows, sheets and submissions (reconcile.py)
+    Rule("totals_mismatch", "Total line does not match its rows", "RECONCILIATION", "HIGH", "FAIL",
+         "The stated total differs from the sum of the claim rows. Ask the sender which is right."),
+    Rule("cross_sheet_conflict", "Same claim, different amounts on two sheets", "RECONCILIATION", "HIGH", "FAIL",
+         "One claim and period carries two different amounts. Ask the sender which sheet is correct."),
+    Rule("paid_decreased", "Paid to date went down since last submission", "RECONCILIATION", "HIGH", "FAIL",
+         "Paid to date should never fall. Ask the sender for the recovery or correction behind it."),
+    Rule("rollforward_break", "Previously paid does not match last submission", "RECONCILIATION", "HIGH", "FAIL",
+         "Previously paid should equal last submission's paid to date. Ask the sender to reconcile."),
 ]
 
 RULES: dict[str, Rule] = {r.code: r for r in _RULES}

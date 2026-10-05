@@ -57,6 +57,16 @@ def add_row_findings(result: "ValidationResult", findings: list[tuple[int, str, 
     return dataclasses.replace(result, exceptions=exc)
 
 
+def add_exceptions(result: "ValidationResult", frames: list[pd.DataFrame]) -> "ValidationResult":
+    """Append findings already in EXCEPTION_COLUMNS form (reconciliation),
+    keeping any extra columns such as `at_row`."""
+    frames = [f for f in frames if f is not None and not f.empty]
+    if not frames:
+        return result
+    parts = [result.exceptions, *frames] if not result.exceptions.empty else frames
+    return dataclasses.replace(result, exceptions=pd.concat(parts, ignore_index=True))
+
+
 def validate(df: pd.DataFrame, sheet_field_state: SheetFieldState | None = None) -> ValidationResult:
     """Returns one row per exception found in df (canonical DataFrame,
     columns = Section 3 field codes), plus the three-outcome arithmetic

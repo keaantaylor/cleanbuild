@@ -163,7 +163,9 @@ function IssueScreen({ reportId, g, byKey, position, total, canWrite, result, on
     setErr(null);
     try {
       const r = await api.decideRootCause(reportId, g!.root_cause, action, note);
-      await onDecided(`${ACTION_DONE[action]} · ${formatNumber(r.changed)} finding${r.changed === 1 ? "" : "s"}${r.skipped ? ` (${r.skipped} unchanged)` : ""}`);
+      const rc = r.recheck;
+      const verified = !rc ? "" : rc.status !== "ran" ? " · not re-checked" : ` · re-checked: ${rc.passed} fixed${rc.still_failing ? `, ${rc.still_failing} still failing` : ""}${rc.new_findings ? `, ${rc.new_findings} new` : ""}`;
+      await onDecided(`${ACTION_DONE[action]} · ${formatNumber(r.changed)} finding${r.changed === 1 ? "" : "s"}${r.skipped ? ` (${r.skipped} unchanged)` : ""}${verified}`);
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : "That decision was not saved.");
       setBusy(null);

@@ -329,11 +329,15 @@ def persist_pipeline_result(db: Session, report: Report, sheets, result, sheet_i
     vrs: list[dict] = []
     locator = _cell_locator(db, report)
 
-    def vr(pos, check_type, status, severity, message, rule, extra=None, field_code=None, expected=None, actual=None):
+    def vr(pos, check_type, status, severity, message, rule, extra=None, field_code=None, expected=None, actual=None,
+           at_row=None):
         if pos >= n:
             raise RuntimeError(f"finding references row {pos} but only {n} rows were persisted (integrity bug)")
         extra = dict(extra or {"rule": rule})
-        cell, column = locator.locate(sheets_col[pos], field_code, src_rows[pos])
+        # at_row: the finding's cell is on another source row (a total line), not the claim row.
+        cell, column = locator.locate(sheets_col[pos], field_code, at_row if at_row is not None else src_rows[pos])
+        if at_row is not None:
+            extra["at_row"] = int(at_row)
         sentence = (health_view.sentence(rule, str(message)) if status in ("FAIL", "REVIEW")
                     else f"Couldn't check: {str(message).rstrip('.')}.")
         extra.update(field_code=field_code, cell=cell, column=column, sentence=sentence[:2000],
@@ -347,11 +351,12 @@ def persist_pipeline_result(db: Session, report: Report, sheets, result, sheet_i
     fields = exc["field_code"].tolist() if "field_code" in exc.columns else [None] * len(exc)
     exps = exc["expected"].tolist() if "expected" in exc.columns else [None] * len(exc)
     acts = exc["actual"].tolist() if "actual" in exc.columns else [None] * len(exc)
-    for pos, rule, detail, field, e_v, a_v in zip(exc["row_index"].tolist(), exc["rule"].tolist(),
-                                                  exc["detail"].tolist(), fields, exps, acts):
+    at_rows = exc["at_row"].tolist() if "at_row" in exc.columns else [None] * len(exc)
+    for pos, rule, detail, field, e_v, a_v, at in zip(exc["row_index"].tolist(), exc["rule"].tolist(),
+                                                      exc["detail"].tolist(), fields, exps, acts, at_rows):
         rr = catalogue_rule(rule)
         vr(int(pos), rr.check_type, rr.outcome, rr.severity, detail, rule, field_code=field,
-           expected=_clean(e_v), actual=_clean(a_v))
+           expected=_clean(e_v), actual=_clean(a_v), at_row=_clean(at))
     ne = result.validation_result.not_evaluable_detail
     for pos, reason, detail in zip(ne["row_index"].tolist(), ne["reason"].tolist(), ne["detail"].tolist()):
         vr(int(pos), "ARITHMETIC", "NOT_EVALUABLE", "MEDIUM", detail, reason, field_code="CR0155CM")

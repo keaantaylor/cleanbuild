@@ -20,6 +20,7 @@ import datetime as dt
 import gzip
 import json
 import re
+import threading
 from collections import defaultdict
 from pathlib import Path
 
@@ -63,15 +64,35 @@ def col_number(letters: str) -> int:
     return n
 
 
+_build_locks: dict[str, threading.Lock] = defaultdict(threading.Lock)
+
+
 def _sheet_cache(db: Session, report: Report, sheet_names: list[str]) -> dict[str, dict]:
-    """{sheet: {"v": rows of display values, "f": {"row,col": formula}}}."""
+    """{sheet: {"v": rows of display values, "f": {"row,col": formula}}}.
+    Built once per file: the grid asks for several tiles at once, and without
+    the lock each request would re-read the workbook in parallel."""
     key = derived_key(report.tenant_id, report.source_sha256 or "0" * 64, "grid-v2")
     store = get_store()
-    blob = store.get_derived(key, db=db)
-    if blob is not None:
-        cached = json.loads(gzip.decompress(blob))
-        if all(n in cached for n in sheet_names):
-            return cached
+
+    def cached() -> dict | None:
+        blob = store.get_derived(key, db=db)
+        if blob is not None:
+            data = json.loads(gzip.decompress(blob))
+            if all(n in data for n in sheet_names):
+                return data
+        return None
+
+    hit = cached()
+    if hit is not None:
+        return hit
+    with _build_locks[key]:
+        hit = cached()  # built by another request while this one waited
+        if hit is not None:
+            return hit
+        return _build(db, report, sheet_names, store, key)
+
+
+def _build(db: Session, report: Report, sheet_names: list[str], store, key: str) -> dict[str, dict]:
     wb, layout_kept = load_original(db, report)
     computed = None
     if layout_kept:  # xlsx/xlsm: the cached results of formulas, as Excel last calculated them
@@ -83,9 +104,12 @@ def _sheet_cache(db: Session, report: Report, sheet_names: list[str]) -> dict[st
         if ws is None:
             continue
         cws = computed[ws.title] if computed is not None and ws.title in computed.sheetnames else None
-        vals = [list(r) for r in cws.iter_rows(max_col=MAX_COLS, values_only=True)] if cws is not None else None
+        # Read only up to the sheet's own last column: asking openpyxl for MAX_COLS on every
+        # row materialises empty cells (5,000 rows x 1,000 columns took minutes).
+        width = max(1, min(MAX_COLS, ws.max_column or 1))
+        vals = [list(r) for r in cws.iter_rows(max_col=width, values_only=True)] if cws is not None else None
         rows, formulas = [], {}
-        for r, row in enumerate(ws.iter_rows(max_col=MAX_COLS), start=1):
+        for r, row in enumerate(ws.iter_rows(max_col=width), start=1):
             line = []
             for c, cell in enumerate(row, start=1):
                 v = cell.value

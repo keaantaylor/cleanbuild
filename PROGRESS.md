@@ -1,3 +1,12 @@
+# Rebuild (branch `rebuild`, never merged to main) - resume here
+
+| Phase | State |
+|---|---|
+| 1 Design system: light tokens (white/#F7F8FA, #111827, #E5E7EB, blue #1F4FD1), IBM Plex Sans/Mono, 4px, 32px controls, no gradients/glass/kickers; copy + debris | remaining |
+| 2 Backend authority: versioned rules, issue records (status lifecycle, expected/actual/diff, lineage, history), corrections never overwrite (versions + hashes), job RETRYING | remaining |
+| 3 Workbook-first app: nav (Overview, Submissions, Exceptions, Reconciliation, Rules, Reports, Connections, Settings), workbook page with virtualised grid + issue inspector | remaining |
+| 4 Public site SEO/mobile + security pass | remaining |
+
 # Round 2 (resume here)
 
 Continue from the first item not marked done. Branch fix/strategy-pass; locked preview only.

@@ -5,6 +5,7 @@ import { ArrowDown, ArrowSquareOut, ArrowUp, CloudArrowDown, CloudArrowUp, Magni
 import { api, ApiError } from "@/lib/api";
 import type { CellIssue, CellState, ConnectorInfo, ConnectorLink, GridCell, GridHit, GridIssueCell, GridRow, Report, Sheet } from "@/lib/types";
 import { useUi } from "@/lib/ui";
+import { LoadingState } from "@/components/nocturne/ui";
 
 /* The workbook as the review surface. Rows AND columns are virtualised: the
    DOM holds only the cells in view (plus a small margin), fetched from the
@@ -333,11 +334,12 @@ function SheetGrid({ report, sheet, focus }: { report: Report; sheet: Sheet; foc
           </label>
           <button type="button" className="tb-btn !min-h-[32px] text-[13px]" onClick={() => jumpIssue(-1)} disabled={!openIssues} title="Previous open issue (Alt+P)"><ArrowUp size={14} />Previous issue</button>
           <button type="button" className="tb-btn !min-h-[32px] text-[13px]" onClick={() => jumpIssue(1)} disabled={!openIssues} title="Next open issue (Alt+N)"><ArrowDown size={14} />Next issue</button>
-          <span className="tnum ml-auto text-[12px]" style={{ color: "var(--muted)" }}>{(meta?.total ?? 0).toLocaleString("en-GB")} rows · {cols} columns · {openIssues} open issue cells</span>
+          <span className="tnum ml-auto text-[12px]" style={{ color: "var(--muted)" }}>{meta ? `${meta.total.toLocaleString("en-GB")} rows · ${cols} columns · ${openIssues} open issue cells` : "Loading the sheet…"}</span>
         </div>
         <Legend />
         {/* grid */}
         <div className="relative" style={{ height: 560 }}>
+          {!meta && <div className="absolute inset-0 z-[4] p-6" style={{ background: "var(--surface)" }}><LoadingState label="Loading the sheet" rows={10} /></div>}
           <div className="absolute left-0 top-0 z-[3] grid place-items-center text-[11px]" style={{ width: RN_W, height: HEAD_H, background: "var(--surface2)", boxShadow: "inset -1px -1px 0 var(--line2)", color: "var(--faint)" }}>{activeAddr}</div>
           {/* frozen column letters + the sheet's header row */}
           <div className="absolute top-0 z-[2] overflow-hidden" style={{ left: RN_W, right: 0, height: HEAD_H, background: "var(--surface2)" }} aria-hidden>

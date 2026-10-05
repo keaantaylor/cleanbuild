@@ -32,26 +32,26 @@ Generated with `backend/tests/fixtures/generate_bordereau.py --rows 5000 --seed 
 
 ## Journey and shot list
 
-Raw take is about 1:52; the cut is about 60 s. "Raw" is the time in `truebind-demo.mp4`.
+Raw take is about 2:06; the cut is about 60 s. "Raw" is the time in `truebind-demo.mp4`.
 
 | # | Cut | Raw | Screen | What it shows | Screenshot |
 |---|---|---|---|---|---|
 | 1 | 0-4 s | 0-6 s | Sign in | Demo analyst signs in | `01-login.png` |
-| 2 | 4-9 s | 11-15 s | Overview | What needs attention today, files, open findings | `02-overview.png` |
-| 3 | 9-17 s | 15-20 s, 35-41 s | Intake and mapping | Sender typed, file dropped; "13 columns mapped automatically · nothing to decide"; Summary and Notes tabs skipped with the reason. Cut the 15 s read in between | `03-mapping.png` |
-| 4 | 17-22 s | 41-48 s (speed up the rest) | Processing | The engine's real stages: 5,022 rows read, validating, duplicates, building the report | `04-processing.png` |
-| 5 | 22-34 s | 65-80 s | Workbook | The spreadsheet itself, every flagged cell named. Next issue: Claims!C7, "Requires reconciliation: required data missing", rule and version. Then rows with issues only | `05-workbook-issue-cell.png`, `05b-workbook-issues-only.png` |
-| 6 | 34-41 s | 81-88 s | Review issues | One decision per root cause: "Issue 1 of 14", rows and money affected, every affected cell, Send to sender / Override | `06-review-root-cause.png` |
-| 7 | 41-49 s | 88-98 s | Health check | Verdict, errors / warnings / couldn't check, top fixes with the exact cell and money at stake | `07-health-check.png` |
-| 8 | 49-52 s | 98-104 s | Mapping | Field completeness, unmapped fields named, row reconciliation 5,023 source rows -> 5,022 claims + 1 excluded | `08-mapping-completeness.png` |
-| 9 | 52-56 s | 104-108 s | Lineage | Source file SHA-256, sender, programme, every recorded step, processing history with timings | `09-lineage.png` |
-| 10 | 56-60 s | 108-112 s | Audit trail | Hash chain intact, every action with who did it | `10-audit-trail.png` |
+| 2 | 4-9 s | 12-16 s | Overview | What needs attention today, files, open findings | `02-overview.png` |
+| 3 | 9-17 s | 16-21 s, 35-41 s | Intake and mapping | Sender typed, file dropped; "13 columns mapped automatically · nothing to decide"; Summary and Notes tabs skipped with the reason. Cut the 15 s read in between | `03-mapping.png` |
+| 4 | 17-22 s | 41-48 s (speed up the rest, to 76 s) | Processing | The engine's real stages: 5,022 rows read, validating, duplicates, building the report | `04-processing.png` |
+| 5 | 22-34 s | 76-93 s | Workbook | The spreadsheet itself, every flagged cell named. Next issue: Claims!C7, "Requires reconciliation: required data missing", rule and version. Then rows with issues only | `05-workbook-issue-cell.png`, `05b-workbook-issues-only.png` |
+| 6 | 34-41 s | 93-101 s | Review issues | One decision per root cause: "Issue 1 of 14", rows and money affected, every affected cell, Send to sender / Override | `06-review-root-cause.png` |
+| 7 | 41-49 s | 101-111 s | Health check | Verdict, errors / warnings / couldn't check, top fixes with the exact cell and money at stake | `07-health-check.png` |
+| 8 | 49-52 s | 111-117 s | Mapping | Field completeness, unmapped fields named, row reconciliation 5,023 source rows -> 5,022 claims + 1 excluded | `08-mapping-completeness.png` |
+| 9 | 52-56 s | 117-122 s | Lineage | Source file SHA-256, sender, programme, every recorded step, processing history with timings | `09-lineage.png` |
+| 10 | 56-60 s | 122-126 s | Audit trail | Hash chain intact, every action with who did it | `10-audit-trail.png` |
 
 Suggested captions (one per shot, plain): "A coverholder's monthly bordereau" · "Columns mapped, non-claims tabs set aside" · "Every row validated and reconciled" · "Each problem on its exact cell" · "One decision per cause, not per row" · "A health check the sender can act on" · "What was mapped, what was not" · "Where every number came from" · "Every step recorded and hash-chained".
 
 ## Notes for the edit
 
-- The two waits (reading the 5,000-row file, about 15 s; processing, about 20 s) are real. Cut or speed them up; do not imply they are instant.
+- The two waits (reading the 5,000-row file, about 15 s; processing and the first load of the workbook, about 30 s) are real. Cut or speed them up; do not imply they are instant.
 - The pointer is a recording overlay (headless Chromium draws none). It is not part of the product.
 
 ## What the take shows (same every run)
@@ -63,19 +63,22 @@ Suggested captions (one per shot, plain): "A coverholder's monthly bordereau" ·
 Fixed (a defect in the Phase 5 grid, committed separately):
 - The workbook's first load on a 5,000-row file took 124 s and the page showed "Request timed out after 30s". Cause: the grid read 1,000 columns on every row, and parallel tile requests each rebuilt the cache. It now reads only the sheet's own width, and builds once behind a lock: about 5 s cold, 0.1 s after.
 
-Not fixed (reported; the recording avoids or tolerates them):
-1. Workbook view shows an empty frame reading "0 rows · 0 columns" until the first tile arrives; no loading state.
-2. The top bar is 82% opaque, so content shows through it while scrolling (most visible over the inline workbook preview in the Full report).
-3. The audit trail and lineage show the worker's host name ("claimed by <host>:<pid>:..."): a real machine or user name in production. Worked around for the demo only.
-4. Overview: "1 critical finding(s)".
-5. Binder compliance card with no binder: "was not assessed.." (double full stop), the same reason repeated twice, and "No findings - nothing was assessed yet."; looks unfinished.
-6. Lineage: "Received 21:27" but "Retained until ... 20:27": two time zones on one panel.
-7. Audit trail: raw field codes ("Mapping confirmed: CR0110CM", "TB_BINDER_REF"), generic "module run" entries, actor emails truncated ("analyst@demo.true").
-8. The breadcrumb says "Health Check" on the Workbook and Review tabs.
-9. The verdict says "The grade is provisional: at least one sheet was only partly understood" although every required field on Claims is mapped (9 optional fields are not); easy to misread on camera.
-10. Mapping review with nothing to decide still shows the table header over an empty body, and the Claims sheet keeps a warning icon and "13/22 fields".
-11. Review card for missing data shows Expected / Actual / Difference columns that are all "-".
-12. The workbook's frozen header repeats the sheet's own header row, which also appears as row 2.
-13. Leakage card text is dense and technical ("0 assessed, 5022 not assessed (Reporting period, Paid this month - indemnity not mapped ...").
+Fixed after the first takes:
+- Workbook view: a loading state ("Loading the sheet…") instead of an empty frame reading "0 rows · 0 columns".
+- Top bar: solid background; content no longer shows through it when scrolling.
+- Counts with their noun everywhere on the overview and processing screens ("1 critical finding", "2 duplicate candidates"), never "finding(s)".
+- Binder (and other) checks that were not assessed: one sentence with one full stop, no repeated reason, no table of zeros, no "No findings - nothing was assessed yet."
+
+Not fixed (reported):
+1. The audit trail and lineage show the worker's host name ("claimed by <host>:<pid>:..."): a real machine or user name in production. Worked around for the demo only.
+2. Lineage: "Received 21:43" but "Retained until ... 20:43": two time zones on one panel.
+3. Audit trail: raw field codes ("Mapping confirmed: CR0110CM", "TB_BINDER_REF"), generic "module run" entries, actor emails truncated ("analyst@demo.true").
+4. The breadcrumb says "Health Check" on the Workbook and Review tabs.
+5. The verdict says "The grade is provisional: at least one sheet was only partly understood" although every required field on Claims is mapped (9 optional fields are not); easy to misread on camera.
+6. Mapping review with nothing to decide still shows the table header over an empty body, and the Claims sheet keeps a warning icon and "13/22 fields".
+7. Review card for missing data shows Expected / Actual / Difference columns that are all "-".
+8. The workbook's frozen header repeats the sheet's own header row, which also appears as row 2.
+9. Leakage card text is dense and technical ("0 assessed, 5022 not assessed (Reporting period, Paid this month - indemnity not mapped ...").
+10. The checks under "Other checks & evidence" load a few seconds after the tab opens and push the lineage section down.
 
 From the intended journey, everything exists in the current UI: sign in, overview, upload, processing, health check, findings, mapping and unmapped fields, source traceability (lineage with file hash), audit trail.

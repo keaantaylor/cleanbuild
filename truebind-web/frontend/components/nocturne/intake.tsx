@@ -278,12 +278,12 @@ export function ProcessingPanel({ report, system, onCancel, onRetry }: { report:
 
   const detail = (key: string) => {
     if (key === "queued" && job?.status === "QUEUED") return noWorker ? "No processing engine is running" : `Waiting ${formatDuration(queuedFor)}`;
-    if (key === "detecting_sheets" && progress.sheets_found !== undefined) return `${progress.sheets_found} sheet(s) · ${progress.sheets_with_data ?? 0} with data · ${formatNumber(progress.rows_detected)} rows`;
-    if (key === "proposing_mapping" && progress.ai_calls !== undefined) return `${progress.ai_calls} AI call(s) · column headers only`;
+    if (key === "detecting_sheets" && progress.sheets_found !== undefined) return `${plural(progress.sheets_found, "sheet")} · ${progress.sheets_with_data ?? 0} with data · ${formatNumber(progress.rows_detected)} rows`;
+    if (key === "proposing_mapping" && progress.ai_calls !== undefined) return `${plural(progress.ai_calls, "AI call")} · column headers only`;
     if (key === "mapping" && progress.rows_detected !== undefined) return `${formatNumber(progress.rows_detected)} rows read`;
     if (key === "validating" && progress.rows_mapped !== undefined) return `${formatNumber(progress.rows_mapped)} rows mapped`;
-    if (key === "checking_duplicates" && progress.row_findings !== undefined) return `${formatNumber(progress.row_findings)} row finding(s) · ${formatNumber(progress.arithmetic_mismatches ?? 0)} arithmetic mismatch(es)`;
-    if (key === "building_report" && progress.duplicate_pairs !== undefined) return `${formatNumber(progress.duplicate_pairs)} duplicate pair(s)`;
+    if (key === "checking_duplicates" && progress.row_findings !== undefined) return `${plural(progress.row_findings, "row finding")} · ${formatNumber(progress.arithmetic_mismatches ?? 0)} arithmetic mismatch(es)`;
+    if (key === "building_report" && progress.duplicate_pairs !== undefined) return `${plural(progress.duplicate_pairs, "duplicate pair")}`;
     return undefined;
   };
   const facts: [string, number | undefined][] = [
@@ -340,7 +340,7 @@ export function ProcessingPanel({ report, system, onCancel, onRetry }: { report:
         )}
         {job?.status === "QUEUED" && !noWorker && queuedFor > 20 && (
           <span className="text-[12.5px]" style={{ color: "var(--muted)" }}>
-            Still queued after {formatDuration(queuedFor)}: {system?.running ?? 0} job(s) running ahead of this one for your organisation.
+            Still queued after {formatDuration(queuedFor)}: {plural(system?.running ?? 0, "job")} running ahead of this one for your organisation.
           </span>
         )}
       </section>
@@ -368,6 +368,11 @@ export function ProcessingPanel({ report, system, onCancel, onRetry }: { report:
       </section>
     </div>
   );
+}
+
+/** "1 sheet", "3 sheets": a count with its noun, never "sheet(s)". */
+function plural(n: number, word: string): string {
+  return `${formatNumber(n)} ${word}${n === 1 ? "" : "s"}`;
 }
 
 const REVIEW: Record<string, { label: string; tone: "ok" | "warn" | "err" | "muted" | "med" }> = {

@@ -197,7 +197,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main className="flex min-w-0 flex-col overflow-x-clip">
         <header
           className="no-print tb-safe-top sticky top-0 z-30 flex min-h-14 items-center gap-1.5 px-3 sm:gap-3 sm:px-5"
-          style={{ background: "color-mix(in srgb, var(--bg) 82%, transparent)", boxShadow: "0 1px 0 var(--line)" }}
+          style={{ background: "var(--bg)", boxShadow: "0 1px 0 var(--line)" }}
         >
           <button type="button" className="tb-btn tb-btn-ghost !p-2 lg:hidden" aria-label="Open navigation" onClick={() => setMobileNav(true)}>
             <List size={18} />

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import os
 import re
 import tempfile
 from pathlib import Path
@@ -96,19 +97,44 @@ def _finding_keys(db: Session, report: Report, result) -> dict[tuple, dict]:
     return out
 
 
-def recheck_draft(db: Session, report: Report, actor: str) -> dict:
-    """Re-check right after corrections are approved, against an in-memory
-    corrected copy (no version is created). Never raises: a re-check that
-    cannot run says so, and the corrections count as unverified."""
+RECHECK_INLINE_MAX_ROWS = int(os.environ.get("RECHECK_INLINE_MAX_ROWS", "2000"))
+
+
+def run_recheck(db: Session, report: Report, actor: str, version_id: str | None = None) -> dict:
+    """The re-check itself (inline, or inside a RECHECK job): against a stored
+    corrected version when one is named, else an in-memory corrected copy."""
     from . import corrections_service
 
-    try:
-        body, approved = corrections_service.corrected_bytes(db, report)
-        return recheck_after_corrections(db, report, body, None, actor, [c.id for c in approved])
-    except Exception as exc:  # noqa: BLE001 -- reported to the caller, never swallowed
-        log.exception("re-check after corrections failed for report %s", report.id)
-        return {"status": "not_run", "reason": f"The re-check could not run ({type(exc).__name__}). "
-                                               "Treat the corrections as unverified."}
+    if version_id:
+        v = db.query(WorkbookVersion).filter(WorkbookVersion.id == version_id,
+                                             WorkbookVersion.report_id == report.id).first()
+        if v is None:
+            raise ValueError("version not found")
+        return recheck_after_corrections(db, report, corrections_service.version_bytes(db, report, v), v, actor)
+    body, approved = corrections_service.corrected_bytes(db, report)
+    return recheck_after_corrections(db, report, body, None, actor, [c.id for c in approved])
+
+
+def schedule_recheck(db: Session, report: Report, actor: str, actor_user_id: str | None,
+                     version_id: str | None = None) -> dict:
+    """Re-check after corrections. Small workbooks inline; large ones as a
+    RECHECK job, never inside the HTTP request. A re-check already queued
+    for the report is reused rather than duplicated."""
+    from . import job_service
+
+    if (report.rows_processed or 0) <= RECHECK_INLINE_MAX_ROWS:
+        try:
+            return run_recheck(db, report, actor, version_id)
+        except Exception as exc:  # noqa: BLE001 -- reported to the caller, never swallowed
+            log.exception("re-check after corrections failed for report %s", report.id)
+            return {"status": "not_run", "reason": f"The re-check could not run ({type(exc).__name__}). "
+                                                   "Treat the corrections as unverified."}
+    active = job_service.active_job(db, report.id)
+    if active is not None:
+        return {"status": "queued", "job_id": active.id, "reason": "A job for this report is already queued or running."}
+    job = job_service.enqueue(db, report, "RECHECK", actor, actor_user_id,
+                              params={"actor": actor, "version_id": version_id})
+    return {"status": "queued", "job_id": job.id}
 
 
 def recheck_after_corrections(db: Session, report: Report, body: bytes, version: WorkbookVersion | None, actor: str,
@@ -150,6 +176,11 @@ def recheck_after_corrections(db: Session, report: Report, body: bytes, version:
     for c in corrections:
         hit = by_id.get(c.issue_id or "")
         if hit is None:
+            # No linked issue: verified when no rule fires on the corrected cell.
+            fired = [k for k in after if k[1] == c.sheet_name and k[2] == c.cell]
+            c.result = {**stamp, "passed": not fired, **({"rules": [k[0] for k in fired]} if fired else {})}
+            passed += not fired
+            failed += bool(fired)
             continue
         vr, sheet_name = hit
         x = dict(vr.extra or {})
@@ -167,6 +198,7 @@ def recheck_after_corrections(db: Session, report: Report, body: bytes, version:
             passed += 1
             x["verification"] = {**stamp, "passed": True}
         vr.extra = x
+        c.result = x["verification"]
     touched = {(c.sheet_name, _row_of(c.cell)) for c in corrections}
     new = [{"rule": k[0], "sheet": k[1], "cell": k[2], **v} for k, v in after.items()
            if k not in before and (k[1], _row_of(k[2])) in touched]

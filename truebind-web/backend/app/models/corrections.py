@@ -51,6 +51,13 @@ class Correction(Base):
     decided_by: Mapped[str | None] = mapped_column(String(320), nullable=True)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     decision_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Execution policy (services/policy.py) and the full record of the change.
+    policy: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    policy_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    field_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    evidence: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # the issue's rule, expected, actual, message
+    approval: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # how it was approved (policy, person, rule)
+    result: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # the re-check after it was applied
 
 
 class WorkbookVersion(Base):

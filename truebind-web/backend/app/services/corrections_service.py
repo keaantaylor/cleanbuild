@@ -23,7 +23,9 @@ from sqlalchemy.orm import Session
 from ..models._util import utcnow
 from ..models.corrections import Correction, WorkbookVersion
 from ..models.reports import Report, Sheet, ValidationResult
-from . import audit_service, deliverables, grid_view, issues
+from ..models.identity import Membership
+from ..security.permissions import Permission, has_permission
+from . import audit_service, deliverables, grid_view, issues, policy
 from .storage import derived_key, get_store
 
 CELL = re.compile(r"^([A-Z]{1,3})([1-9][0-9]{0,6})$")
@@ -67,23 +69,72 @@ def propose(db: Session, report: Report, sheet_name: str, cell: str, after: str 
                                                                   ValidationResult.report_id == report.id).first() is None:
         raise CorrectionError("That issue is not part of this report.")
     before = original_value(db, report, sheet_name, cell)
+    field_code, header_row = _field_and_header(db, report, sheet_name, cell)
+    vr = (db.query(ValidationResult).filter(ValidationResult.id == issue_id, ValidationResult.report_id == report.id)
+          .first() if issue_id else None)
+    decision = policy.classify(field_code=field_code, source=source, rule=rule, before=before, after=after,
+                               header_row=header_row,
+                               precedent=source == "auto" and has_precedent(db, report.tenant_id, rule, before, after))
+    if decision.policy == policy.BLOCKED:
+        raise CorrectionError(f"Blocked: {decision.reason}")
     pending = (db.query(Correction).filter(Correction.report_id == report.id, Correction.sheet_name == sheet_name,
                                            Correction.cell == cell, Correction.status == "PROPOSED").first())
     if pending is not None:
         raise CorrectionError(f"{sheet_name}!{cell} already has a correction waiting for a decision.")
     c = Correction(tenant_id=report.tenant_id, report_id=report.id, issue_id=issue_id, sheet_name=sheet_name, cell=cell,
                    before_value=before, after_value=after, reason=reason.strip()[:2000], rule=rule, source=source,
-                   status="PROPOSED", proposed_by=actor)
+                   status="PROPOSED", proposed_by=actor, policy=decision.policy, policy_reason=decision.reason,
+                   field_code=field_code, evidence=_evidence(vr))
     db.add(c)
     db.flush()
     audit_service.log_action(db, report.tenant_id, report.id, "CORRECTION_PROPOSED", "CORRECTION", c.id,
                              after={"sheet": sheet_name, "cell": cell, "before": before, "after": after,
-                                    "reason": c.reason, "rule": rule, "source": source, "issue_id": issue_id},
+                                    "reason": c.reason, "rule": rule, "source": source, "issue_id": issue_id,
+                                    "policy": c.policy, "policy_reason": c.policy_reason, "evidence": c.evidence},
                              actor=actor)
     return c
 
 
-def propose_auto(db: Session, report: Report, actor: str) -> int:
+def _field_and_header(db: Session, report: Report, sheet_name: str, cell: str) -> tuple[str | None, bool]:
+    """The canonical field mapped to the cell's column, and whether the cell
+    is on or above the sheet's header row."""
+    from .persistence_service import _cell_locator  # the same locator that places findings on cells
+
+    m = CELL.match(cell)
+    sheet = db.query(Sheet).filter(Sheet.report_id == report.id, Sheet.sheet_name == sheet_name).first()
+    if not m or sheet is None:
+        return None, False
+    header_row = (sheet.header_row_index or 0) + 1  # 1-based
+    return _cell_locator(db, report).field_at(sheet_name, m.group(1)), int(m.group(2)) <= header_row
+
+
+def _evidence(vr: ValidationResult | None) -> dict | None:
+    if vr is None:
+        return None
+    x = vr.extra or {}
+    return {"issue_id": vr.id, "rule": vr.rule, "rule_version": x.get("rule_version"),
+            "ruleset_version": x.get("ruleset_version"), "cell": x.get("cell"), "expected": x.get("expected"),
+            "actual": x.get("actual"), "difference": x.get("difference"), "message": vr.message}
+
+
+def has_precedent(db: Session, tenant_id: str, rule: str | None, before: str | None, after: str | None) -> bool:
+    """A person in this organisation already approved this exact rewrite for this rule."""
+    if not rule:
+        return False
+    for c in (db.query(Correction).filter(Correction.tenant_id == tenant_id, Correction.rule == rule,
+                                          Correction.status == "APPROVED", Correction.before_value == before,
+                                          Correction.after_value == after).limit(20)):
+        if (c.approval or {}).get("by") == "person":
+            return True
+    return False
+
+
+def _sole_approver(db: Session, tenant_id: str) -> bool:
+    roles = [r for (r,) in db.query(Membership.role).filter(Membership.tenant_id == tenant_id)]
+    return sum(1 for r in roles if has_permission(r, Permission.DATA_WRITE)) <= 1
+
+
+def propose_auto(db: Session, report: Report, actor: str) -> tuple[int, int]:
     """Turn the safe, deterministic fixes (corrected-copy rules) into PROPOSED
     corrections linked to their issues. Idempotent: a cell that already has a
     correction is skipped."""
@@ -95,22 +146,41 @@ def propose_auto(db: Session, report: Report, actor: str) -> int:
         x = vr.extra or {}
         if x.get("cell") and x.get("issue_status") in ("AUTO_FIX_PROPOSED", "DETECTED", "REQUIRES_HUMAN_REVIEW"):
             by_cell.setdefault(x["cell"], vr)
-    n = 0
+    n = applied = 0
     for ch in changes:
         if (ch.sheet, ch.cell) in taken:
             continue
         vr = by_cell.get(ch.cell)
         after = ch.new.isoformat()[:10] if isinstance(ch.new, (dt.date, dt.datetime)) else (
             None if ch.new is None else str(ch.new))
-        propose(db, report, ch.sheet, ch.cell, after, f"Automatic fix: {ch.rule}", actor,
-                issue_id=vr.id if vr is not None else None, rule=(vr.rule if vr is not None else None), source="auto")
+        try:
+            c = propose(db, report, ch.sheet, ch.cell, after, f"Automatic fix: {ch.rule}", actor,
+                        issue_id=vr.id if vr is not None else None, rule=(vr.rule if vr is not None else None),
+                        source="auto")
+        except CorrectionError:
+            continue  # blocked by policy: never applied, the issue stays open
         n += 1
-    return n
+        # Safe deterministic fixes apply at once; a rewrite applies only on precedent.
+        if c.policy == policy.AUTO or (c.policy == policy.AUTO_WITH_POLICY and c.policy_reason.startswith("Applied")):
+            decide(db, report, c, True, "system", f"Applied automatically under policy {c.policy}", by_policy=True)
+            applied += 1
+    return n, applied
 
 
-def decide(db: Session, report: Report, c: Correction, approve: bool, actor: str, note: str | None) -> Correction:
+def decide(db: Session, report: Report, c: Correction, approve: bool, actor: str, note: str | None,
+           by_policy: bool = False) -> Correction:
     if c.status != "PROPOSED":
         raise CorrectionError("This correction has already been decided.")
+    sole = False
+    if approve and not by_policy and c.policy == policy.APPROVAL_REQUIRED and actor == c.proposed_by:
+        sole = _sole_approver(db, report.tenant_id)
+        if not sole:
+            raise CorrectionError("This changes a financial or business value: someone other than the proposer "
+                                  "approves it.")
+    c.approval = {"by": "policy" if by_policy else "person", "policy": c.policy, "actor": actor,
+                  "at": utcnow().isoformat(), "approve": approve,
+                  "second_person": (not by_policy and actor != c.proposed_by),
+                  "sole_approver": sole}
     c.status = "APPROVED" if approve else "REJECTED"
     c.decided_by, c.decided_at, c.decision_note = actor, utcnow(), (note or None)
     if approve and c.issue_id:
@@ -128,7 +198,7 @@ def decide(db: Session, report: Report, c: Correction, approve: bool, actor: str
     audit_service.log_action(db, report.tenant_id, report.id,
                              "CORRECTION_APPROVED" if approve else "CORRECTION_REJECTED", "CORRECTION", c.id,
                              after={"sheet": c.sheet_name, "cell": c.cell, "before": c.before_value,
-                                    "after": c.after_value, "note": note}, actor=actor)
+                                    "after": c.after_value, "note": note, "approval": c.approval}, actor=actor)
     return c
 
 
@@ -150,7 +220,14 @@ def _deterministic(data: bytes) -> bytes:
         for info in sorted(src.infolist(), key=lambda i: i.filename):
             zi = zipfile.ZipInfo(info.filename, date_time=FIXED_TS)
             zi.compress_type = zipfile.ZIP_DEFLATED
-            z.writestr(zi, src.read(info.filename))
+            body = src.read(info.filename)
+            if info.filename == "docProps/core.xml":
+                # openpyxl stamps the save time as "modified": pin it to "created".
+                created = re.search(rb"<dcterms:created[^>]*>([^<]*)</dcterms:created>", body)
+                if created:
+                    body = re.sub(rb"(<dcterms:modified[^>]*>)[^<]*(</dcterms:modified>)",
+                                  lambda m: m.group(1) + created.group(1) + m.group(2), body)
+            z.writestr(zi, body)
     return out.getvalue()
 
 

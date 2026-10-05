@@ -1,15 +1,12 @@
-# Competitive-advantage rebuild: Phase 2 (reconciliation core), branch `rebuild`
+# Competitive-advantage rebuild: Phase 3 (safe autonomy, audit, jobs), branch `rebuild`
 
-| Type | State |
+| Area | Change |
 |---|---|
-| Arithmetic, cross-column, tolerance | Existing (incurred = paid + reserve, paid <= incurred, dates, 0.01 tolerance); unchanged |
-| Totals vs detail | New `totals_mismatch`: each total/subtotal line against its section or everything above it (tolerance 0.005 per row); finding points at the total line's cell |
-| Cross-sheet | New `cross_sheet_conflict`: same claim and known period on two sheets with different paid, reserve or incurred |
-| Current vs previous submission, record-level | New `paid_decreased`, `rollforward_break`: claim-by-claim match with the latest earlier processed file from the same sender (skipped when the sender is unknown, or the currency changed). Evidence names the previous file, sheet and row |
-| Duplicates, near-duplicates, development, reference data | Existing (exact/probable duplicates, development pairs, ISO 4217, status list); unchanged |
-| Re-check after corrections | Approving a correction, a bulk safe fix and building a version re-run every check on the corrected workbook. Fixed only if the rule stops firing on that cell; otherwise reopened with expected/actual. New findings on touched rows reported. Audited |
+| Execution policy | Every correction is classified by code: AUTO (value unchanged, e.g. text that is a number) applies at once; AUTO_WITH_POLICY (a rewrite such as Euro -> EUR) applies only when a person in the organisation approved the same rewrite before; REVIEW_REQUIRED; APPROVAL_REQUIRED for amounts, currency, status and dates (someone other than the proposer, unless they are the only writer, which is recorded); BLOCKED for formulas, header rows and the claim reference |
+| Correction record | before, after, why, rule, evidence (rule version, expected, actual, message), proposer and time, policy and reason, approval (person or policy, second person, sole approver), re-check result. Migration 0022, additive |
+| Versions | original, analysed (annotated workbook, hashed on first trail build), corrected, approved; SHA-256 on each; the source is never written. Fixed a bug where the corrected version's hash changed with the save time |
+| Trail | `GET /reports/{id}/trail`: arrival (hash, channel, sender, who), every job, rules and ruleset, findings by rule, issues by status, corrections in full, versions, deliveries and webhooks, last re-check, unverified corrections, audit chain intact, stored source still matches its hash |
+| Jobs | Re-checks of large workbooks (> 2000 rows, `RECHECK_INLINE_MAX_ROWS`) run as a RECHECK job (queued/running/retrying/succeeded/failed), retry-safe, leaving the report COMPLETE. Identical bytes from the same sender while one is queued or processing return the existing report instead of processing twice. Existing: Idempotency-Key replay, inbound email claimed once per message and attachment |
 
-All four new rules are deterministic, versioned (ruleset 2026.10.2), and carry expected, actual, difference and the source cell. No AI is used for any of them.
-False positives: none of the new rules fired on the 4 regression replicas or the generated 500-row file (finding counts unchanged).
-Limits: health score is computed by the engine before previous-submission findings are added, so those two rules show as issues but do not move the score. Reconciliation against a summary SHEET (not a total line) is not yet covered.
-Checks: engine 100 passed; backend 397 passed (1 Windows-only memory-limit test fails); frontend lint, typecheck, 24 unit, build OK. Windows test shim as in Phase 1. Not deployed.
+Checks: backend 403 passed (1 Windows-only memory-limit test); new tests for policy, approval, precedent, RECHECK job, trail, in-flight duplicates. Engine 100. Frontend lint, typecheck, 24 unit, build OK.
+Existing and kept: the inbound email webhook is verified with a constant-time shared secret. Left: no screen yet for the trail or for policy badges on corrections.

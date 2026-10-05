@@ -63,6 +63,7 @@ def test_corrections_never_touch_the_source_and_versions_are_deterministic(api: 
 
     v1 = api.post(f"/api/v1/reports/{rid}/versions").json()
     v1_again = api.post(f"/api/v1/reports/{rid}/versions").json()
+    assert v1["sha256"] == v1_again["sha256"], (v1, v1_again)
     assert v1["kind"] == "corrected" and v1_again["id"] == v1["id"], "same input, same version"
     body = api.get(f"/api/v1/reports/{rid}/versions/{v1['id']}/download").content
     assert hashlib.sha256(body).hexdigest() == v1["sha256"]

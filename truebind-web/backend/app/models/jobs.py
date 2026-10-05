@@ -14,7 +14,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 from ..database import Base
 from ._util import created_at_col, uuid_pk
 
-JOB_KINDS = ("INGEST", "PROCESS")
+# RECHECK re-runs the checks after corrections on a processed report; it never
+# changes the report's own status.
+JOB_KINDS = ("INGEST", "PROCESS", "RECHECK")
 JOB_STATUSES = ("QUEUED", "RUNNING", "RETRYING", "SUCCEEDED", "FAILED", "CANCELLED")
 # Waiting to run: new (QUEUED) or scheduled again after a retryable failure (RETRYING).
 PENDING_JOB_STATUSES = ("QUEUED", "RETRYING")

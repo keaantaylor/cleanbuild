@@ -7,7 +7,6 @@ and versions are fingerprinted. Every change is audited.
 
 from __future__ import annotations
 
-import logging
 from typing import Literal
 
 from bordereaux.rules import RULES
@@ -21,12 +20,11 @@ from ..database import get_db
 from ..models.corrections import Correction, WorkbookVersion
 from ..models.reports import ClaimRow, Report, Sheet, ValidationResult
 from ..security.auth import Context, require_reader, require_writer
-from ..services import audit_service, corrections_service, deliverables, issues, reconciliation_service
+from ..services import audit_service, corrections_service, deliverables, issues, reconciliation_service, trail_service
 from ..services.persistence_service import FIELD_TO_COLUMN
 from .deps import get_report_or_404
 
 router = APIRouter(prefix="/api/v1/reports", tags=["issues"])
-log = logging.getLogger("truebind.issues")
 
 
 class _Req(BaseModel):
@@ -222,7 +220,7 @@ def bulk_decision(report_id: str, body: BulkRequest, ctx: Context = Depends(requ
         skipped = len(ids) - len(changed)
         if changed:
             db.flush()
-            recheck = reconciliation_service.recheck_draft(db, report, ctx.actor)
+            recheck = reconciliation_service.schedule_recheck(db, report, ctx.actor, ctx.user_id)
     else:
         status = _BULK_STATUS[body.action]
         note = body.note or _BULK_NOTE.get(body.action)
@@ -243,11 +241,24 @@ def bulk_decision(report_id: str, body: BulkRequest, ctx: Context = Depends(requ
             "recheck": recheck}
 
 
+@router.get("/{report_id}/trail")
+def report_trail(report_id: str, ctx: Context = Depends(require_reader), db: Session = Depends(get_db)) -> dict:
+    """The bordereau from arrival to final approval: file hash, processing,
+    analysis, issues, corrections with policy and approval, versions with
+    hashes, deliveries and webhooks, re-checks and the audit chain."""
+    report = get_report_or_404(db, ctx, report_id)
+    out = trail_service.build(db, report, ctx.actor)
+    db.commit()  # the analysed version is fingerprinted on first build
+    return out
+
+
 def _correction(c: Correction) -> dict:
     return {"id": c.id, "issue_id": c.issue_id, "sheet": c.sheet_name, "cell": c.cell, "before": c.before_value,
             "after": c.after_value, "reason": c.reason, "rule": c.rule, "source": c.source, "status": c.status,
             "proposed_by": c.proposed_by, "created_at": c.created_at.isoformat(), "decided_by": c.decided_by,
-            "decided_at": c.decided_at.isoformat() if c.decided_at else None, "decision_note": c.decision_note}
+            "decided_at": c.decided_at.isoformat() if c.decided_at else None, "decision_note": c.decision_note,
+            "policy": c.policy, "policy_reason": c.policy_reason, "field_code": c.field_code, "evidence": c.evidence,
+            "approval": c.approval, "result": c.result}
 
 
 def _version(v: WorkbookVersion) -> dict:
@@ -295,14 +306,18 @@ def propose_auto_corrections(report_id: str, ctx: Context = Depends(require_writ
     currency spellings, spaces, policy-number zeros, status wording)."""
     report = _complete(db, ctx, report_id)
     try:
-        n = corrections_service.propose_auto(db, report, ctx.actor)
+        n, applied = corrections_service.propose_auto(db, report, ctx.actor)
     except deliverables.SourceUnavailable as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    recheck = None
+    if applied:  # policy AUTO applied some at once: verify them like any other correction
+        db.flush()
+        recheck = reconciliation_service.schedule_recheck(db, report, ctx.actor, ctx.user_id)
     if n == 0:
         audit_service.log_action(db, ctx.tenant_id, report.id, "CORRECTION_PROPOSED", "REPORT", report.id,
                                  after={"automatic": 0}, actor=ctx.actor, actor_user_id=ctx.user_id)
     db.commit()
-    return {"proposed": n}
+    return {"proposed": n, "auto_applied": applied, "recheck": recheck}
 
 
 @router.post("/{report_id}/corrections/{correction_id}/decision")
@@ -316,12 +331,12 @@ def decide_correction(report_id: str, correction_id: str, body: DecisionRequest,
         corrections_service.decide(db, report, c, body.approve, ctx.actor, body.note)
     except corrections_service.CorrectionError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    out = _correction(c)
+    recheck = None
     if body.approve:  # re-run the checks; an approved value is not assumed to be right
         db.flush()
-        out["recheck"] = reconciliation_service.recheck_draft(db, report, ctx.actor)
+        recheck = reconciliation_service.schedule_recheck(db, report, ctx.actor, ctx.user_id)
     db.commit()
-    return out
+    return {**_correction(c), "recheck": recheck}
 
 
 @router.get("/{report_id}/versions")
@@ -347,12 +362,8 @@ def create_corrected_version(report_id: str, ctx: Context = Depends(require_writ
         db.rollback()
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     # Never assume a write fixed the data: re-run the checks on the corrected file.
-    try:
-        recheck = reconciliation_service.recheck_after_corrections(db, report, body, v, ctx.actor)
-    except Exception as exc:  # noqa: BLE001 -- the version stands; say plainly the re-check did not run
-        log.exception("re-check after corrections failed for report %s", report.id)
-        recheck = {"status": "not_run", "reason": f"The re-check could not run ({type(exc).__name__}). "
-                                                  "Treat the version as unverified."}
+    db.flush()
+    recheck = reconciliation_service.schedule_recheck(db, report, ctx.actor, ctx.user_id, version_id=v.id)
     db.commit()
     return {**_version(v), "recheck": recheck}
 

@@ -24,7 +24,7 @@ from ..security.permissions import Permission
 from ..security.file_guard import safe_display_name
 from ..security.ratelimit import limiter
 from ..services import (audit_pack_service, audit_service, delivery_service, export_service, idempotency, intake_service,
-                        job_service, retention_service)
+                        job_service, report_state, retention_service)
 from ..services.storage import sha256_file
 from .deps import Paging, get_report_or_404, latest_job, report_out
 
@@ -64,11 +64,26 @@ def upload_report(file: UploadFile, sender: str | None = Form(default=None, max_
         if not verdict.accepted:
             db.commit()
             raise HTTPException(status_code=_REJECT_STATUS.get(verdict.code, 400), detail=verdict.reason)
+        # The same bytes from the same sender already queued or processing: hand back that
+        # report instead of processing the file twice (double submit, retried webhook).
+        digest = sha256_file(tmp)
+        twin = (db.query(Report).filter(Report.tenant_id == ctx.tenant_id, Report.source_sha256 == digest,
+                                        Report.status.in_(sorted(report_state.ACTIVE)))
+                .order_by(Report.created_at.desc()).all())
+        # An Idempotency-Key request is answered by its stored replay instead.
+        twin = None if key is not None else next((r for r in twin if (r.sender or "") == (sender or "")), None)
+        if twin is not None:
+            audit_service.log_action(db, ctx.tenant_id, twin.id, "UPLOAD_REJECTED", "REPORT", twin.id,
+                                     after={"reason": "duplicate_in_flight", "file_name": display},
+                                     actor=ctx.actor, actor_user_id=ctx.user_id)
+            db.commit()
+            return JSONResponse(status_code=200, content=report_out(db, twin).model_dump(mode="json"),
+                                headers={"X-Duplicate-Of": twin.id})
         idem = None
         if key is not None:
             claimed = idempotency.claim(
                 db, tenant_id=ctx.tenant_id, user_id=ctx.user_id, scope="reports.upload", key=key,
-                request_fingerprint=idempotency.fingerprint(sha256_file(tmp), display, sender or "", programme or ""))
+                request_fingerprint=idempotency.fingerprint(digest, display, sender or "", programme or ""))
             if isinstance(claimed, JSONResponse):
                 return claimed
             idem = claimed

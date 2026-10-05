@@ -41,14 +41,19 @@ def active_job(db: Session, report_id: str) -> Job | None:
             .order_by(Job.created_at.desc()).first())
 
 
-def enqueue(db: Session, report: Report, kind: str, actor: str, actor_user_id: str | None) -> Job:
+def enqueue(db: Session, report: Report, kind: str, actor: str, actor_user_id: str | None,
+            params: dict | None = None) -> Job:
     if active_job(db, report.id) is not None:
         raise JobConflict("this report already has a job queued or running")
     job = Job(tenant_id=report.tenant_id, report_id=report.id, kind=kind, status="QUEUED",
-              max_attempts=JOB_MAX_ATTEMPTS)
+              max_attempts=JOB_MAX_ATTEMPTS, metrics={"params": params} if params else None)
     db.add(job)
     db.flush()
     job_signal.notify(db)  # wakes an idle worker once this transaction commits
+    if kind == "RECHECK":  # a processed report stays COMPLETE while its corrections are re-checked
+        audit_service.log_action(db, report.tenant_id, report.id, "JOB_QUEUED", "JOB", job.id,
+                                 after={"kind": kind, "params": params}, actor=actor, actor_user_id=actor_user_id)
+        return job
     report_state.transition(db, report, "QUEUED", actor=actor, actor_user_id=actor_user_id, reason=f"{kind} job")
     report.processing_error = None
     report.error_code = None
@@ -89,7 +94,7 @@ def claim_next(db: Session, worker_id: str) -> Job | None:
     tenant_id = job.tenant_id
     set_tenant(db, tenant_id)
     report = db.get(Report, job.report_id)
-    if report is not None:
+    if report is not None and job.kind in REPORT_STATUS_FOR_KIND:  # RECHECK leaves the report COMPLETE
         report_state.transition(db, report, REPORT_STATUS_FOR_KIND[job.kind], reason=f"claimed by {worker_id}")
     audit_service.log_action(db, tenant_id, job.report_id, "JOB_STARTED", "JOB", job.id,
                              after={"worker": worker_id, "attempt": job.attempts})
@@ -140,7 +145,7 @@ def finish(db: Session, job: Job, ok: bool, code: str | None = None, message: st
         job.metrics = {**(job.metrics or {}), **metrics}
     if ok:
         job.status = "SUCCEEDED"
-        if report is not None:
+        if report is not None and job.kind != "RECHECK":
             if job.kind == "INGEST":
                 alert_service.raise_alert(db, job.tenant_id, report.id, "INFO", alert_service.REVIEW_NEEDED,
                                           f"{report.file_name}: the workbook was read and a column mapping is "
@@ -165,7 +170,7 @@ def finish(db: Session, job: Job, ok: bool, code: str | None = None, message: st
         if delay == 0:
             job_signal.notify(db)
         job.error_code, job.error_message, job.error_detail = code, message, (detail or "")[:4000]
-        if report is not None:
+        if report is not None and job.kind != "RECHECK":
             report_state.transition(db, report, "QUEUED", reason=f"retry after {code}")
     else:
         job.status = "FAILED"
@@ -185,7 +190,7 @@ def finish(db: Session, job: Job, ok: bool, code: str | None = None, message: st
 def _notify(db: Session, job: Job, report: Report | None) -> None:
     """Queue webhook events (and SFTP auto-delivery) for a finished job.
     Delivery happens later in the worker; a problem here never fails the job."""
-    if report is None:
+    if report is None or job.kind == "RECHECK":  # the report did not change state
         return
     if job.status == "SUCCEEDED":
         event = "report.waiting_for_review" if job.kind == "INGEST" else "report.completed"

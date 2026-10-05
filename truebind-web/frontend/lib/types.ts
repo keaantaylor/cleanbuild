@@ -624,6 +624,6 @@ export type BulkAction = "apply_safe_fix" | "send_to_sender" | "override" | "res
 
 /** Checks re-run after corrections: a fix counts only if the rule stops firing. */
 export interface Recheck {
-  status: "ran" | "not_run"; reason?: string; rechecked?: number; passed?: number; still_failing?: number;
+  status: "ran" | "not_run" | "queued"; reason?: string; job_id?: string; rechecked?: number; passed?: number; still_failing?: number;
   new_findings?: number;
 }

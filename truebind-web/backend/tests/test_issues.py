@@ -84,3 +84,50 @@ def test_automatic_corrections_are_proposed_once_and_mark_issues_fixed(api: Api)
     api.post(f"/api/v1/reports/{rid}/corrections/{euro['id']}/decision", json={"approve": True})
     issue = next(i for i in _issues(api, rid)["items"] if i["cell"] == "F16")
     assert issue["status"] == "AUTO_FIXED"
+
+
+def test_symptom_is_linked_to_its_cause_on_the_same_row():
+    from app.services import issues as svc
+    base = {"sheet": "Claims", "row": 7, "status": "DETECTED", "column": None, "outcome": "FAIL",
+            "label": "", "rule_version": "1.0"}
+    cause = {**base, "id": "a", "rule": "amount_stored_as_text", "root_cause": "amount_stored_as_text:Paid"}
+    symptom = {**base, "id": "b", "rule": "arithmetic_mismatch", "root_cause": "arithmetic_mismatch:Total Incurred"}
+    other_row = {**symptom, "id": "c", "row": 8}
+    items = [cause, symptom, other_row]
+    svc.link_symptoms(items)
+    assert symptom["symptom_of"] == "amount_stored_as_text:Paid"
+    assert cause["symptom_of"] is None and other_row["symptom_of"] is None
+    groups = svc.group_root_causes(items, {"Claims:7": (1000.0, "USD"), "Claims:8": (250.0, "USD")})
+    arith = next(g for g in groups if g["rule"] == "arithmetic_mismatch")
+    # Row 8 has no cause, so the group is still a cause in its own right.
+    assert arith["kind"] == "cause" and arith["symptoms"] == 1 and arith["rows"] == 2
+    assert arith["amount_affected"] == [{"currency": "USD", "amount": 1250.0}]
+    assert arith["caused_by"] == [{"root_cause": "amount_stored_as_text:Paid", "count": 1}]
+
+
+def test_bulk_decision_resolves_every_issue_of_one_cause_and_is_audited(api: Api):
+    rid = _run(api, _book(_rows()))
+    causes = _issues(api, rid)["root_causes"]
+    arith = next(c for c in causes if c["rule"] == "arithmetic_mismatch")
+    url = f"/api/v1/reports/{rid}/issues/bulk"
+    # Override needs a reason.
+    assert api.post(url, json={"root_cause": arith["root_cause"], "action": "override"}).status_code == 422
+    r = api.post(url, json={"root_cause": arith["root_cause"], "action": "send_to_sender"})
+    assert r.status_code == 200 and r.json()["changed"] == arith["open"]
+    left = _issues(api, rid, root_cause=arith["root_cause"])["items"]
+    assert left and all(i["status"] == "BLOCKED" for i in left)
+    assert all(i["history"][-1]["note"] == "Queried with the sender" for i in left)
+    # Nothing open is left, so a second decision finds nothing.
+    assert api.post(url, json={"root_cause": "no_such_rule:X", "action": "resolve"}).status_code == 404
+
+
+def test_bulk_safe_fix_applies_only_to_rules_with_a_deterministic_fix(api: Api):
+    rid = _run(api, _book(_rows()))
+    causes = _issues(api, rid)["root_causes"]
+    url = f"/api/v1/reports/{rid}/issues/bulk"
+    arith = next(c for c in causes if c["rule"] == "arithmetic_mismatch")
+    assert api.post(url, json={"root_cause": arith["root_cause"], "action": "apply_safe_fix"}).status_code == 409
+    euro = next(c for c in causes if c["rule"] == "currency_normalised")
+    r = api.post(url, json={"root_cause": euro["root_cause"], "action": "apply_safe_fix"})
+    assert r.status_code == 200 and r.json()["changed"] >= 1
+    assert all(i["status"] == "AUTO_FIXED" for i in _issues(api, rid, root_cause=euro["root_cause"])["items"])

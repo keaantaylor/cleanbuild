@@ -73,6 +73,7 @@ def _issue(vr: ValidationResult, row: ClaimRow | None, sheet_name: str | None) -
         "expected": x.get("expected"), "actual": x.get("actual"), "difference": x.get("difference"),
         "evidence": vr.message, "sentence": x.get("sentence"), "suggested_action": r.fix if r else None,
         "owner": x.get("owner"), "root_cause": x.get("root_cause"), "history": x.get("history") or [],
+        "auto_fix": bool(r and r.auto_fix), "symptom_of": None,
     }
 
 
@@ -105,22 +106,24 @@ def list_issues(report_id: str, status: str | None = Query(default=None, max_len
         q = q.filter(ClaimRow.sheet_id == sheet_id)
     rows = q.order_by(ClaimRow.sheet_id, ClaimRow.row_index, ValidationResult.rule).all()
     items = [_issue(vr, row, name) for vr, row, name in rows]
+    issues.link_symptoms(items)
+    amounts = {f"{name}:{row.source_row_number}": (_incurred(row), row.currency) for _, row, name in rows}
     if status:
         items = [i for i in items if i["status"] == status]
-    groups: dict[str, dict] = {}
-    for i in items:
-        g = groups.setdefault(i["root_cause"] or i["rule"], {"root_cause": i["root_cause"] or i["rule"], "rule": i["rule"],
-                                                             "label": i["label"], "column": i["column"], "count": 0,
-                                                             "open": 0})
-        g["count"] += 1
-        g["open"] += i["status"] not in issues.CLOSED
+    groups = issues.group_root_causes(items, amounts)
     if root_cause:
         items = [i for i in items if i["root_cause"] == root_cause]
     by_status: dict[str, int] = {}
     for i in items:
         by_status[i["status"]] = by_status.get(i["status"], 0) + 1
-    return {"total": len(items), "items": items[offset:offset + limit], "by_status": by_status,
-            "root_causes": sorted(groups.values(), key=lambda g: -g["count"])}
+    return {"total": len(items), "items": items[offset:offset + limit], "by_status": by_status, "root_causes": groups}
+
+
+def _incurred(row: ClaimRow) -> float:
+    """The row's money at stake: total incurred, else paid plus reserve."""
+    if row.incurred_amount is not None:
+        return float(row.incurred_amount)
+    return float((row.paid_amount or 0) + (row.reserve_amount or 0))
 
 
 @router.get("/{report_id}/issues/{issue_id}")
@@ -130,6 +133,10 @@ def get_issue(report_id: str, issue_id: str, ctx: Context = Depends(require_read
     report = _complete(db, ctx, report_id)
     vr, row, sheet_name = _get_issue(db, report, issue_id)
     out = _issue(vr, row, sheet_name)
+    siblings = [_issue(s, row, sheet_name) for s in db.query(ValidationResult)
+                .filter(ValidationResult.claim_row_id == row.id, ValidationResult.report_id == report.id)]
+    issues.link_symptoms(siblings)
+    out["symptom_of"] = next((s["symptom_of"] for s in siblings if s["id"] == vr.id), None)
     field = out["field_code"]
     spec = FIELDS_BY_CODE.get(field or "")
     original = None
@@ -168,6 +175,66 @@ def set_issue_status(report_id: str, issue_id: str, body: StatusRequest, ctx: Co
                              actor=ctx.actor, actor_user_id=ctx.user_id)
     db.commit()
     return _issue(vr, row, sheet_name)
+
+
+class BulkRequest(_Req):
+    root_cause: str = Field(min_length=1, max_length=300)
+    action: Literal["apply_safe_fix", "send_to_sender", "override", "resolve"]
+    note: str | None = Field(default=None, max_length=2000)
+
+
+# Each action ends in one issue status; the lifecycle still decides per issue.
+_BULK_STATUS = {"send_to_sender": "BLOCKED", "override": "OVERRIDDEN", "resolve": "RESOLVED"}
+_BULK_NOTE = {"send_to_sender": "Queried with the sender", "resolve": "Resolved"}
+
+
+@router.post("/{report_id}/issues/bulk")
+def bulk_decision(report_id: str, body: BulkRequest, ctx: Context = Depends(require_writer),
+                  db: Session = Depends(get_db)) -> dict:
+    """One decision for every open issue that shares a root cause. Issues are
+    selected on the server from the report and the cause key; nothing about
+    which rows are affected is taken from the browser."""
+    report = _complete(db, ctx, report_id)
+    targets = [vr for vr in db.query(ValidationResult).filter(ValidationResult.report_id == report.id)
+               if ((vr.extra or {}).get("root_cause") or vr.rule) == body.root_cause
+               and ((vr.extra or {}).get("issue_status") or issues.initial_status(vr.status, vr.rule or ""))
+               not in issues.CLOSED]
+    if not targets:
+        raise HTTPException(status_code=404, detail="No open issues have this cause.")
+    if body.action == "override" and not (body.note or "").strip():
+        raise HTTPException(status_code=422, detail="Say why the values are accepted as reported.")
+    changed, skipped = [], 0
+    if body.action == "apply_safe_fix":
+        if not RULES.get(targets[0].rule or "") or not RULES[targets[0].rule].auto_fix:
+            raise HTTPException(status_code=409, detail="This cause has no safe automatic fix.")
+        try:
+            corrections_service.propose_auto(db, report, ctx.actor)
+        except deliverables.SourceUnavailable as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        db.flush()
+        ids = {vr.id for vr in targets}
+        for c in db.query(Correction).filter(Correction.report_id == report.id, Correction.status == "PROPOSED"):
+            if c.issue_id in ids:
+                corrections_service.decide(db, report, c, True, ctx.actor, body.note or "Safe fix applied in bulk")
+                changed.append(c.issue_id)
+        skipped = len(ids) - len(changed)
+    else:
+        status = _BULK_STATUS[body.action]
+        note = body.note or _BULK_NOTE.get(body.action)
+        for vr in targets:
+            extra = dict(vr.extra or {})
+            extra.setdefault("issue_status", issues.initial_status(vr.status, vr.rule or ""))
+            try:
+                vr.extra = issues.transition(extra, status, ctx.actor, note)
+                changed.append(vr.id)
+            except issues.TransitionError:
+                skipped += 1
+    audit_service.log_action(db, ctx.tenant_id, report.id, "ISSUES_BULK_DECIDED", "REPORT", report.id,
+                             after={"root_cause": body.root_cause, "action": body.action, "note": body.note,
+                                    "changed": len(changed), "skipped": skipped, "issue_ids": changed[:1000]},
+                             actor=ctx.actor, actor_user_id=ctx.user_id)
+    db.commit()
+    return {"root_cause": body.root_cause, "action": body.action, "changed": len(changed), "skipped": skipped}
 
 
 def _correction(c: Correction) -> dict:

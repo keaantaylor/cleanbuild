@@ -379,7 +379,13 @@ const REVIEW: Record<string, { label: string; tone: "ok" | "warn" | "err" | "mut
 };
 const METHOD: Record<string, string> = { MAPPED_BY_ALIAS: "alias rule", MAPPED_BY_AI: "AI (headers only)", MANUAL: "manual", UNMAPPED: "" };
 
-/** Per-sheet mapping review: nothing is validated until each sheet is confirmed. */
+/** A field needs a person only when the match is uncertain or a required field has no column. */
+function needsDecision(f: MappingField): boolean {
+  return f.review_state === "REVIEW" || f.review_state === "AMBIGUOUS" || (!!f.required && !f.source_column);
+}
+
+/** Per-sheet mapping review: nothing is validated until each sheet is confirmed.
+ * High-confidence matches sit behind one summary line; only decisions are shown. */
 export function MappingReview({ report, sheets, onSheetsChange, onProcess, processLabel = "Produce health report" }: { report: Report; sheets: Sheet[]; onSheetsChange: (s: Sheet[]) => void; onProcess: () => Promise<void>; processLabel?: string }) {
   const firstOpen = sheets.find((s) => s.status === "PENDING_CONFIRMATION") ?? sheets.find((s) => s.status !== "SKIPPED");
   const [active, setActive] = useState<string | null>(firstOpen?.id ?? null);
@@ -388,7 +394,7 @@ export function MappingReview({ report, sheets, onSheetsChange, onProcess, proce
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [actionErr, setActionErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "review" | "unmapped">("all");
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     if (!active) return;
@@ -482,9 +488,11 @@ export function MappingReview({ report, sheets, onSheetsChange, onProcess, proce
   }
 
   const activeSheet = sheets.find((s) => s.id === active);
-  const toCheck = mapping?.fields.filter((f) => f.review_state === "REVIEW" || f.review_state === "AMBIGUOUS").length ?? 0;
-  const unmappedFields = mapping?.fields.filter((f) => !choices[f.field_code]).length ?? 0;
-  const visible = (mapping?.fields ?? []).filter((f) => (filter === "all" ? true : filter === "review" ? f.review_state === "REVIEW" || f.review_state === "AMBIGUOUS" : !choices[f.field_code]));
+  // Fixed when the mapping loads, so a row does not vanish while it is being decided.
+  const decide = useMemo(() => new Set((mapping?.fields ?? []).filter(needsDecision).map((f) => f.field_code)), [mapping]);
+  const toCheck = decide.size;
+  const autoMapped = mapping?.fields.filter((f) => f.source_column && !decide.has(f.field_code)).length ?? 0;
+  const visible = (mapping?.fields ?? []).filter((f) => showAll || decide.has(f.field_code));
   const unmappedCols = mapping ? mapping.headers.filter((h) => !usedCols[h]) : [];
 
   return (
@@ -555,20 +563,9 @@ export function MappingReview({ report, sheets, onSheetsChange, onProcess, proce
             )}
           </div>
           {mapping && active && (
-            <div className="flex gap-0.5 rounded-md p-[3px]" style={{ boxShadow: "inset 0 0 0 1px var(--line2)" }} role="tablist" aria-label="Filter fields">
-              {(
-                [
-                  ["all", "All", mapping.fields.length],
-                  ["review", "Needs review", toCheck],
-                  ["unmapped", "Unmapped", unmappedFields],
-                ] as const
-              ).map(([k, l, n]) => (
-                <button key={k} type="button" role="tab" aria-selected={filter === k} onClick={() => setFilter(k)} className="flex cursor-pointer items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-[12.5px]" style={{ background: filter === k ? "var(--accentTint)" : "transparent", color: filter === k ? "var(--text)" : "var(--muted)" }}>
-                  {l}
-                  <span className="tnum text-[11px]" style={{ color: "var(--faint)" }}>{n}</span>
-                </button>
-              ))}
-            </div>
+            <button type="button" className="tb-btn" onClick={() => setShowAll((v) => !v)} aria-pressed={showAll}>
+              {showAll ? `Show only the ${toCheck} to decide` : `Show all ${mapping.fields.length} fields`}
+            </button>
           )}
         </div>
         {actionErr && (
@@ -590,6 +587,13 @@ export function MappingReview({ report, sheets, onSheetsChange, onProcess, proce
           </div>
         ) : (
           <>
+            <div className="flex items-center gap-2 px-5 py-3 text-[14px]" style={{ boxShadow: "0 1px 0 var(--line)", background: "var(--okT)" }}>
+              <CheckCircle size={16} weight="fill" style={{ color: "var(--ok)" }} aria-hidden />
+              <span>
+                <span className="tnum font-medium">{autoMapped}</span> columns mapped automatically
+                {toCheck ? <> · <span className="tnum font-medium">{toCheck}</span> to decide</> : " · nothing to decide"}
+              </span>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] border-collapse text-[13px]">
                 <thead>
@@ -603,7 +607,7 @@ export function MappingReview({ report, sheets, onSheetsChange, onProcess, proce
                 <tbody>
                   {visible.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="px-5 py-6 text-center" style={{ color: "var(--faint)" }}>No fields match this filter.</td>
+                      <td colSpan={4} className="px-5 py-6 text-center" style={{ color: "var(--muted)" }}>Every field was matched with high confidence. Confirm the sheet to continue.</td>
                     </tr>
                   )}
                   {visible.map((f) => {

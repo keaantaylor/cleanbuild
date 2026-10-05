@@ -597,3 +597,27 @@ export interface Billing {
   enforced: boolean; plan: string | null; status: string | null; period_end: string | null; modules: string[] | null;
   monthly_rows: number | null; seats: number | null; rows_this_month: number; seats_used: number; plans: BillingPlan[]; customer: boolean;
 }
+
+/** One issue record (GET /reports/{id}/issues). */
+export interface Issue {
+  id: string; rule: string | null; rule_version: string | null; ruleset_version: string | null; label: string;
+  severity: string; outcome: string; status: string; sheet: string | null; cell: string | null; column: string | null;
+  field_code: string | null; row: number | null; claim_reference: string | null;
+  expected: number | string | null; actual: number | string | null; difference: number | null;
+  evidence: string | null; sentence: string | null; suggested_action: string | null; root_cause: string | null;
+  auto_fix: boolean; symptom_of: string | null; history: { at: string; status: string; actor: string; note?: string | null }[];
+  lineage?: { file: string; sheet: string | null; row: number | null; cell: string | null; column: string | null; original_value: string | null; normalised_value: string | number | null; mapped_field: { code: string; name: string } | null; transformation: string };
+}
+
+/** Issues sharing one cause: one card, one decision. */
+export interface RootCause {
+  root_cause: string; rule: string | null; rule_version: string | null; label: string; column: string | null; sheet: string | null;
+  severity: string; outcome: string; owner: "sender" | "us"; auto_fix: boolean; fix: string;
+  count: number; open: number; rows: number; symptoms: number; kind: "cause" | "symptom";
+  caused_by: { root_cause: string; count: number }[]; amount_affected: { currency: string | null; amount: number }[];
+  first_issue_id: string; first_open_issue_id: string | null;
+}
+
+export interface IssueList { total: number; items: Issue[]; by_status: Record<string, number>; root_causes: RootCause[] }
+
+export type BulkAction = "apply_safe_fix" | "send_to_sender" | "override" | "resolve";

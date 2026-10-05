@@ -111,3 +111,79 @@ def describe_transformation(field_dtype: str | None, original, normalised) -> st
     if o.lower() == n.lower():
         return "case standardised"
     return "normalised (alias or synonym)"
+
+
+# Root cause versus downstream symptom, decided by code. A finding is a symptom
+# when the same row also has a finding from one of the rules that can cause it:
+# an amount held as text breaks the incurred reconciliation, an unreadable date
+# breaks the date-order check. The cause is shown first; fixing it is expected
+# to clear the symptom on the next run.
+SYMPTOM_OF: dict[str, tuple[str, ...]] = {
+    "arithmetic_mismatch": ("amount_stored_as_text", "schema_violation", "missing_mandatory_field"),
+    "paid_exceeds_incurred": ("arithmetic_mismatch", "amount_stored_as_text", "schema_violation",
+                              "missing_mandatory_field"),
+    "incurred_over_limit": ("arithmetic_mismatch", "amount_stored_as_text", "schema_violation"),
+    "date_order": ("date_unreadable", "date_stored_as_text", "missing_mandatory_field"),
+    "date_in_future": ("date_unreadable", "date_stored_as_text"),
+    "loss_outside_policy_period": ("expiry_before_inception", "date_unreadable", "date_stored_as_text"),
+    "currency_inconsistency": ("invalid_currency", "currency_normalised"),
+    "closed_with_reserve": ("invalid_status",),
+    "repeat_period_unknown": ("missing_mandatory_field",),
+    "probable_duplicate": ("exact_duplicate",),
+}
+_SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "INFO": 3}
+
+
+def link_symptoms(items: list[dict]) -> None:
+    """Set `symptom_of` (the cause's root-cause key) on each issue that is a
+    downstream symptom of another issue on the same row. In place."""
+    by_row: dict[tuple, list[dict]] = {}
+    for i in items:
+        by_row.setdefault((i["sheet"], i["row"]), []).append(i)
+    for siblings in by_row.values():
+        for i in siblings:
+            causes = SYMPTOM_OF.get(i["rule"] or "")
+            cause = next((s for s in siblings if causes and s is not i and s["rule"] in causes), None)
+            i["symptom_of"] = (cause["root_cause"] or cause["rule"]) if cause else None
+
+
+def group_root_causes(items: list[dict], amounts: dict[str, tuple[float, str | None]]) -> list[dict]:
+    """One card per cause. `amounts` maps a row key (sheet:row) to (incurred,
+    currency); the amount affected is summed over distinct rows per currency.
+    Causes come first (by severity, then size), symptoms after."""
+    groups: dict[str, dict] = {}
+    for i in items:
+        key = i["root_cause"] or i["rule"]
+        r = catalogue_rule(i["rule"] or "")
+        g = groups.get(key)
+        if g is None:
+            g = groups[key] = {
+                "root_cause": key, "rule": i["rule"], "rule_version": i.get("rule_version"), "label": i["label"],
+                "column": i["column"], "sheet": i["sheet"], "severity": r.severity, "outcome": i["outcome"],
+                "owner": r.owner, "auto_fix": r.auto_fix, "fix": r.fix, "count": 0, "open": 0, "symptoms": 0,
+                "caused_by": {}, "first_issue_id": i["id"], "first_open_issue_id": None, "_rows": set(),
+            }
+        g["count"] += 1
+        is_open = i["status"] not in CLOSED
+        g["open"] += is_open
+        if is_open and g["first_open_issue_id"] is None:
+            g["first_open_issue_id"] = i["id"]
+        if i.get("symptom_of"):
+            g["symptoms"] += 1
+            g["caused_by"][i["symptom_of"]] = g["caused_by"].get(i["symptom_of"], 0) + 1
+        g["_rows"].add(f"{i['sheet']}:{i['row']}")
+    out = []
+    for g in groups.values():
+        affected: dict[str, float] = {}
+        rows = g.pop("_rows")
+        for rk in rows:
+            amount, ccy = amounts.get(rk, (0.0, None))
+            if amount:
+                affected[ccy or ""] = round(affected.get(ccy or "", 0.0) + abs(amount), 2)
+        g["rows"] = len(rows)
+        g["amount_affected"] = [{"currency": c or None, "amount": a} for c, a in sorted(affected.items())]
+        g["kind"] = "symptom" if g["symptoms"] == g["count"] else "cause"
+        g["caused_by"] = [{"root_cause": k, "count": n} for k, n in sorted(g["caused_by"].items(), key=lambda kv: -kv[1])]
+        out.append(g)
+    out.sort(key=lambda g: (g["kind"] == "symptom", g["open"] == 0, _SEVERITY_ORDER.get(g["severity"], 9), -g["count"]))
+    return out

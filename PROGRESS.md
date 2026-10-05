@@ -1,3 +1,12 @@
+# Competitive-advantage rebuild (branch `rebuild`) - resume here
+
+| Phase | State |
+|---|---|
+| 1 Make review usable: mapping shows only decisions; root-cause cards with one bulk decision; guided one-issue queue; exact cell + rule + evidence; restrained visuals on these screens | done: `POST /reports/{id}/issues/bulk` (apply_safe_fix / send_to_sender / override / resolve; cause key only, rows chosen server-side, one audit entry); root causes carry rows, amount affected per currency, cause vs downstream symptom (deterministic SYMPTOM_OF map, same row). UI: mapping summary line + "Show all"; report opens on "Review issues" (Issue n of N, cell, rule code+version, expected/actual/difference, affected-cells drill-down, actions, then advances); full report one tab away. 500-row generated file: 82 findings -> 14 decisions; mapping 22 fields -> 0. Backend 393 pass (1 Windows-only memory-limit test fails; tests run with a local chmod shim, see FINAL_REPORT), frontend lint/typecheck/24 unit/build OK |
+| 2 Per-counterparty memory (sender profiles, recurring causes, approved rules) | next session |
+| 3 Email-to-audit loop (send-to-sender letters per cause, replies matched back to issues) | later |
+| 4 Proof: approved versions, change log export, polish | later |
+
 # Rebuild (branch `rebuild`, never merged to main) - resume here
 
 | Phase | State |

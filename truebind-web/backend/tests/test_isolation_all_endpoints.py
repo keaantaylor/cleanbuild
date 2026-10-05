@@ -55,6 +55,8 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     ("put", "/api/v1/reports/{report_id}/binder"): {"binder_id": None},
     ("patch", "/api/v1/reports/{report_id}/checks/findings/{finding_id}"): {"disposition": "CONFIRMED"},
     ("post", "/api/v1/reports/{report_id}/issues/{issue_id}/status"): {"status": "RESOLVED"},
+    ("post", "/api/v1/reports/{report_id}/issues/bulk"): {"root_cause": "arithmetic_mismatch:Total Incurred",
+                                                          "action": "resolve"},
     ("post", "/api/v1/reports/{report_id}/corrections"): {"sheet_id": "x", "cell": "A1", "reason": "x"},
     ("post", "/api/v1/reports/{report_id}/corrections/{correction_id}/decision"): {"approve": True},
     ("post", "/api/v1/reports/{report_id}/versions/{version_id}/approve"): {"note": "x"},

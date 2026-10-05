@@ -150,6 +150,9 @@ def test_every_state_change_is_audited_and_the_chain_holds(monkeypatch: pytest.M
     trail.step("POST", base + "/versions/{version_id}/approve", lambda: owner.post(
         f"/api/v1/reports/{rid}/versions/{ver['id']}/approve", json={"note": "ok"}))
     trail.step("POST", base + "/corrections/auto", lambda: owner.post(f"/api/v1/reports/{rid}/corrections/auto"))
+    cause = next(c for c in owner.get(f"/api/v1/reports/{rid}/issues").json()["root_causes"] if c["open"])
+    trail.step("POST", base + "/issues/bulk", lambda: owner.post(
+        f"/api/v1/reports/{rid}/issues/bulk", json={"root_cause": cause["root_cause"], "action": "send_to_sender"}))
     pair = owner.get(f"/api/v1/reports/{rid}/duplicates").json()["items"][0]
     trail.step("PATCH", "/api/v1/reports/{report_id}/duplicates/{validation_result_id}/review", lambda: owner.patch(
         f"/api/v1/reports/{rid}/duplicates/{pair['validation_result_id']}/review",

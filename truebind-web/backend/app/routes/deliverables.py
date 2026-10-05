@@ -101,16 +101,43 @@ def month_on_month(report_id: str, previous_report_id: str | None = Query(defaul
 
 @router.get("/{report_id}/sheets/{sheet_id}/grid")
 def sheet_grid(report_id: str, sheet_id: str, offset: int = Query(default=0, ge=0, le=2_000_000),
-               limit: int = Query(default=100, ge=1, le=500), ctx: Context = Depends(require_reader),
-               db: Session = Depends(get_db)) -> dict:
+               limit: int = Query(default=100, ge=1, le=500),
+               col_offset: int = Query(default=0, ge=0, le=grid_view.MAX_COLS),
+               col_limit: int = Query(default=grid_view.MAX_COLS, ge=1, le=grid_view.MAX_COLS),
+               rows: str | None = Query(default=None, max_length=4000, pattern=r"^\d+(,\d+)*$"),
+               ctx: Context = Depends(require_reader), db: Session = Depends(get_db)) -> dict:
     """Inline preview of the source sheet, a page of rows at a time: each cell's
     original value, its review colour (ok / warn / err / grey) and the findings
     on it. Values are exactly as received."""
     report = _complete(db, ctx, report_id)
     sheet = get_sheet_or_404(db, ctx, report, sheet_id)
     try:
-        page = grid_view.grid_page(db, report, sheet, offset, limit)
+        wanted = [int(x) for x in rows.split(",")][:500] if rows else None
+        page = grid_view.grid_page(db, report, sheet, offset, limit, col_offset, col_limit, wanted)
     except deliverables.SourceUnavailable as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     db.commit()  # the values cache, written on first use
     return page
+
+
+@router.get("/{report_id}/sheets/{sheet_id}/grid/search")
+def sheet_grid_search(report_id: str, sheet_id: str, q: str = Query(default="", max_length=200),
+                      ctx: Context = Depends(require_reader), db: Session = Depends(get_db)) -> dict:
+    """Cells whose value or formula contains the text, in reading order (max 200)."""
+    report = _complete(db, ctx, report_id)
+    sheet = get_sheet_or_404(db, ctx, report, sheet_id)
+    try:
+        hits = grid_view.search(db, report, sheet, q)
+    except deliverables.SourceUnavailable as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    db.commit()
+    return {"items": hits, "capped": len(hits) >= 200}
+
+
+@router.get("/{report_id}/sheets/{sheet_id}/grid/issues")
+def sheet_grid_issues(report_id: str, sheet_id: str, ctx: Context = Depends(require_reader),
+                      db: Session = Depends(get_db)) -> dict:
+    """Every flagged cell on the sheet, for filtering and issue-to-issue navigation."""
+    report = _complete(db, ctx, report_id)
+    sheet = get_sheet_or_404(db, ctx, report, sheet_id)
+    return {"items": grid_view.issue_cells(db, report, sheet)}

@@ -37,7 +37,7 @@ function amounts(g: RootCause): string {
   return g.amount_affected.map((a) => formatMoney(a.amount, a.currency)).join(" + ");
 }
 
-export function ReviewQueue({ reportId, canWrite = true }: { reportId: string; canWrite?: boolean }) {
+export function ReviewQueue({ reportId, canWrite = true, onShowCell }: { reportId: string; canWrite?: boolean; onShowCell?: (sheet: string | null, cell: string) => void }) {
   const [groups, setGroups] = useState<RootCause[] | null>(null);
   const [order, setOrder] = useState<string[]>([]); // the queue, fixed at load
   const [idx, setIdx] = useState(0);
@@ -111,6 +111,7 @@ export function ReviewQueue({ reportId, canWrite = true }: { reportId: string; c
     <IssueScreen
       key={key}
       reportId={reportId}
+      onShowCell={onShowCell}
       g={g}
       byKey={byKey}
       position={idx + 1}
@@ -128,7 +129,8 @@ export function ReviewQueue({ reportId, canWrite = true }: { reportId: string; c
   );
 }
 
-function IssueScreen({ reportId, g, byKey, position, total, canWrite, result, onDecided, onSkip, onBack }: {
+function IssueScreen({ reportId, g, byKey, position, total, canWrite, result, onDecided, onSkip, onBack, onShowCell }: {
+  onShowCell?: (sheet: string | null, cell: string) => void;
   reportId: string; g: RootCause | undefined; byKey: Record<string, RootCause>; position: number; total: number; canWrite: boolean;
   result?: string; onDecided: (label: string) => Promise<void>; onSkip: () => void; onBack?: () => void;
 }) {
@@ -207,7 +209,12 @@ function IssueScreen({ reportId, g, byKey, position, total, canWrite, result, on
           <>
             <dl className="m-0 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-6 gap-y-1.5 text-[14px]">
               <dt style={{ color: "var(--muted)" }}>Cell</dt>
-              <dd className="m-0 font-medium">{where(first)}{first.column ? ` · ${first.column}` : ""}{first.claim_reference ? ` · claim ${first.claim_reference}` : ""}</dd>
+              <dd className="m-0 font-medium">
+                {where(first)}{first.column ? ` · ${first.column}` : ""}{first.claim_reference ? ` · claim ${first.claim_reference}` : ""}
+                {onShowCell && first.cell && !first.cell.startsWith("row ") && (
+                  <button type="button" className="ml-2 cursor-pointer text-[13px] font-medium underline underline-offset-2" style={{ color: "var(--accentText)" }} onClick={() => onShowCell(first.sheet, first.cell!)}>Show in workbook</button>
+                )}
+              </dd>
               <dt style={{ color: "var(--muted)" }}>Rule</dt>
               <dd className="m-0 font-[family-name:var(--font-mono)] text-[13px]">{(first.rule ?? "").toUpperCase()} v{first.rule_version ?? "1.0"}</dd>
               {first.lineage?.original_value != null && (<><dt style={{ color: "var(--muted)" }}>In the file</dt><dd className="m-0">{first.lineage.original_value}</dd></>)}

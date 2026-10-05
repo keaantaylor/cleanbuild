@@ -100,7 +100,16 @@ def _tenant_a(api: Api) -> dict[str, str]:
                                                                  "after_value": "Named Ltd", "reason": "x"}).json()
     api.post(f"/api/v1/reports/{rid}/corrections/{corr['id']}/decision", json={"approve": True})
     version = api.post(f"/api/v1/reports/{rid}/versions").json()
+    from app import connectors
+    from test_workbook_connectors import FakeProvider
+
+    connectors.PROVIDERS["fake"] = FakeProvider()
+    try:
+        link = api.post(f"/api/v1/reports/{rid}/connectors/fake/open").json()
+    finally:
+        connectors.PROVIDERS.pop("fake", None)
     return {
+        "link_id": link["id"],
         "issue_id": exc["validation_result_id"],
         "correction_id": corr["id"],
         "version_id": version["id"],
@@ -137,6 +146,7 @@ def _fill(path: str, ids: dict[str, str]) -> str:
     url = path
     if "/duplicates/{validation_result_id}" in path:
         url = url.replace("{validation_result_id}", ids["dup_id"])
+    url = url.replace("{provider}", "microsoft365")  # a provider name is public, not tenant data
     for name, value in ids.items():
         url = url.replace("{" + name + "}", value)
     return url

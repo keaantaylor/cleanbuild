@@ -151,6 +151,16 @@ def test_every_state_change_is_audited_and_the_chain_holds(monkeypatch: pytest.M
     sugg = owner.get("/api/v1/memory/rule-suggestions").json()["items"][0]
     trail.step("POST", "/api/v1/memory/rules", lambda: owner.post("/api/v1/memory/rules", json={
         k: sugg[k] for k in ("field_code", "rule", "match_value", "replace_value")}))
+    from app import connectors
+    from test_workbook_connectors import FakeProvider
+
+    monkeypatch.setitem(connectors.PROVIDERS, "fake", FakeProvider())
+    link = trail.step("POST", base + "/connectors/{provider}/open",
+                      lambda: owner.post(f"/api/v1/reports/{rid}/connectors/fake/open")).json()
+    trail.step("POST", base + "/connectors/links/{link_id}/pull",
+               lambda: owner.post(f"/api/v1/reports/{rid}/connectors/links/{link['id']}/pull"))
+    trail.step("POST", base + "/connectors/links/{link_id}/push",
+               lambda: owner.post(f"/api/v1/reports/{rid}/connectors/links/{link['id']}/push"))
     ver = trail.step("POST", base + "/versions", lambda: owner.post(f"/api/v1/reports/{rid}/versions")).json()
     trail.step("POST", base + "/versions/{version_id}/approve", lambda: owner.post(
         f"/api/v1/reports/{rid}/versions/{ver['id']}/approve", json={"note": "ok"}))

@@ -18,6 +18,7 @@ import { reportStatus } from "@/components/nocturne/status";
 import { ChecksPanel } from "@/components/nocturne/checks";
 import { WorkbookPreview } from "@/components/nocturne/workbook-preview";
 import { ReviewQueue } from "@/components/nocturne/review-queue";
+import { WorkbookGrid, type GridFocus } from "@/components/nocturne/workbook-grid";
 import { exportFile } from "@/lib/exports";
 import { downloadPdf, type PdfBlock } from "@/lib/pdf";
 
@@ -156,7 +157,9 @@ function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
   const [send, setSend] = useState(false);
   const [tab, setTab] = useState<"owner" | "duplicates" | "money" | "mapping" | "compare" | "more">("owner");
   const [reprocessing, setReprocessing] = useState(false);
-  const [view, setView] = useState<"review" | "report">("review");
+  const [view, setView] = useState<"workbook" | "review" | "report">("workbook");
+  const [focus, setFocus] = useState<GridFocus | null>(null);
+  const showCell = (sheet: string | null, cell: string) => { setFocus({ sheet, cell, nonce: Date.now() }); setView("workbook"); };
   const name = report.file_name.replace(/\.\w+$/, "");
   const hv = s.health_view;
 
@@ -193,14 +196,20 @@ function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
       </div>
 
       <div role="tablist" aria-label="Report view" className="no-print flex w-full max-w-[1100px] gap-1 rounded-md p-1" style={{ background: "var(--surface)", boxShadow: "inset 0 0 0 1px var(--line)" }}>
-        {([["review", "Review issues"], ["report", "Full report"]] as const).map(([k, l]) => (
+        {([["workbook", "Workbook"], ["review", "Review issues"], ["report", "Full report"]] as const).map(([k, l]) => (
           <button key={k} type="button" role="tab" aria-selected={view === k} onClick={() => setView(k)} className="min-h-[36px] flex-1 cursor-pointer rounded px-3 text-[14px] sm:flex-none" style={{ background: view === k ? "var(--accentTint)" : "transparent", color: view === k ? "var(--text)" : "var(--muted)", fontWeight: view === k ? 600 : 400 }}>{l}</button>
         ))}
       </div>
 
+      {view === "workbook" && (
+        <div className="no-print w-full max-w-[1400px]">
+          <WorkbookView report={report} focus={focus} />
+        </div>
+      )}
+
       {view === "review" && (
         <div className="no-print w-full max-w-[1100px]">
-          <ReviewQueue reportId={report.id} />
+          <ReviewQueue reportId={report.id} onShowCell={showCell} />
         </div>
       )}
 
@@ -462,6 +471,11 @@ function MappingTab({ report, s }: { report: Report; s: ReportSummary }) {
       <Sheets reportId={report.id} s={s} />
     </div>
   );
+}
+
+function WorkbookView({ report, focus }: { report: Report; focus: GridFocus | null }) {
+  const sheets = useApi(() => api.listSheets(report.id), [report.id]);
+  return sheets.data ? <WorkbookGrid report={report} sheets={sheets.data} focus={focus} /> : <LoadingState label="Loading the workbook" rows={6} />;
 }
 
 function ReviewedWorkbook({ report }: { report: Report }) {

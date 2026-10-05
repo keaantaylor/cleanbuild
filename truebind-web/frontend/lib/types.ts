@@ -188,9 +188,25 @@ export interface CouldntCheck {
   fix: "mapping" | "data";
 }
 
-export interface GridCell { v: string | null; tone: "ok" | "warn" | "err" | "grey" | null; notes: { result: string; status: string; label: string; text: string; fix: string }[] }
-export interface GridRow { row: number; kind: "header" | "structural" | "claim" | "other"; cells: GridCell[]; row_notes: GridCell["notes"] }
-export interface GridPage { sheet_id: string; sheet_name: string; total_rows: number; columns: number; header_row: number; offset: number; rows: GridRow[] }
+/** Reconciliation state of a cell; always shown with its words. */
+export type CellState = "verified" | "requires_reconciliation" | "undetermined";
+export interface CellIssue {
+  issue_id: string; rule: string | null; rule_version: string | null; outcome: string; status: string; state: CellState;
+  label: string; expected: number | string | null; actual: number | string | null; difference: number | null;
+  known_exception?: { by?: string; reason?: string; at?: string } | null;
+}
+export interface CellCorrection { id: string; status: string; after: string | null; policy: string | null; verified: boolean | null | undefined }
+export interface GridCell {
+  v: string | null; tone: "ok" | "warn" | "err" | "grey" | null; notes: { result: string; status: string; label: string; text: string; fix: string }[];
+  f?: string | null; state?: CellState | null; issues?: CellIssue[]; correction?: CellCorrection | null;
+}
+export interface GridRow { row: number; kind: "header" | "structural" | "claim" | "other"; cells: GridCell[]; row_notes: GridCell["notes"]; row_issues?: CellIssue[] }
+export interface GridPage { sheet_id: string; sheet_name: string; total_rows: number; columns: number; header_row: number; offset: number; col_offset?: number; headers?: (string | null)[]; rows: GridRow[] }
+export interface GridHit { row: number; col: number; cell: string; v: string | null }
+export interface GridIssueCell { row: number; col: number | null; cell: string; state: CellState | null; open: number; issue_ids: string[] }
+export interface ConnectorInfo { key: string; label: string; open_label: string; configured: boolean }
+export interface ConnectorLink { id: string; provider: string; label: string; web_url: string; base_sha256: string; created_by: string; created_at: string; last_pulled_at: string | null }
+export interface CorrectionOut { id: string; sheet: string; cell: string; before: string | null; after: string | null; status: string; policy: string | null; policy_reason: string | null; recheck?: Recheck | null }
 
 export interface ExceptionGroups {
   groups: { rule: string; label: string; status: ValidationStatus; severity: Severity; count: number; fix: string }[];

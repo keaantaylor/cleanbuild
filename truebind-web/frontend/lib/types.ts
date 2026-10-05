@@ -38,7 +38,7 @@ export interface Report {
 export interface Job {
   id: string;
   kind: "INGEST" | "PROCESS";
-  status: "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELLED";
+  status: "QUEUED" | "RUNNING" | "RETRYING" | "SUCCEEDED" | "FAILED" | "CANCELLED";
   stage: string | null;
   attempts: number;
   max_attempts: number;

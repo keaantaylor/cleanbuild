@@ -1,0 +1,164 @@
+{
+ "file": "Harbour_MGA_Claims_Bordereau_Aug_2026.xlsx",
+ "seed": 11,
+ "claim_rows": 242,
+ "first_row": 3,
+ "planted": [
+  {
+   "kind": "arithmetic",
+   "rule": "arithmetic_mismatch",
+   "outcome": "FAIL",
+   "data_index": 92,
+   "header": "Total Incurred",
+   "sheet": "Claims",
+   "row": 95,
+   "cell": "M95"
+  },
+  {
+   "kind": "missing_name",
+   "rule": "missing_mandatory_field",
+   "outcome": "FAIL",
+   "data_index": 107,
+   "header": "Insured Name",
+   "sheet": "Claims",
+   "row": 110,
+   "cell": "C110"
+  },
+  {
+   "kind": "bad_currency",
+   "rule": "invalid_currency",
+   "outcome": "FAIL",
+   "data_index": 181,
+   "header": "Currency",
+   "sheet": "Claims",
+   "row": 184,
+   "cell": "J184"
+  },
+  {
+   "kind": "currency_variant",
+   "rule": "currency_normalised",
+   "outcome": "REVIEW",
+   "data_index": 206,
+   "header": "Currency",
+   "sheet": "Claims",
+   "row": 209,
+   "cell": "J209"
+  },
+  {
+   "kind": "notified_before_loss",
+   "rule": "date_order",
+   "outcome": "FAIL",
+   "data_index": 44,
+   "header": "Date Rptd",
+   "sheet": "Claims",
+   "row": 47,
+   "cell": "H47"
+  },
+  {
+   "kind": "loss_outside_period",
+   "rule": "loss_outside_policy_period",
+   "outcome": "FAIL",
+   "data_index": 195,
+   "header": "Date of Loss",
+   "sheet": "Claims",
+   "row": 198,
+   "cell": "G198"
+  },
+  {
+   "kind": "over_limit",
+   "rule": "incurred_over_limit",
+   "outcome": "FAIL",
+   "data_index": 177,
+   "header": "Total Incurred",
+   "sheet": "Claims",
+   "row": 180,
+   "cell": "M180"
+  },
+  {
+   "kind": "negative_reserve",
+   "rule": "negative_reserve",
+   "outcome": "FAIL",
+   "data_index": 238,
+   "header": "Outstanding Reserve",
+   "sheet": "Claims",
+   "row": 241,
+   "cell": "L241"
+  },
+  {
+   "kind": "closed_with_reserve",
+   "rule": "closed_with_reserve",
+   "outcome": "REVIEW",
+   "data_index": 222,
+   "header": "Outstanding Reserve",
+   "sheet": "Claims",
+   "row": 225,
+   "cell": "L225"
+  },
+  {
+   "kind": "bad_status",
+   "rule": "invalid_status",
+   "outcome": "FAIL",
+   "data_index": 51,
+   "header": "Claim Status",
+   "sheet": "Claims",
+   "row": 54,
+   "cell": "I54"
+  },
+  {
+   "kind": "date_text",
+   "rule": "date_stored_as_text",
+   "outcome": "REVIEW",
+   "data_index": 89,
+   "header": "Date of Loss",
+   "sheet": "Claims",
+   "row": 92,
+   "cell": "G92"
+  },
+  {
+   "kind": "exact_duplicate",
+   "rule": "exact_duplicate",
+   "outcome": "FAIL",
+   "data_index": 240,
+   "pair_index": 39,
+   "header": "Claim Ref",
+   "sheet": "Claims",
+   "row": 243,
+   "cell": "A243",
+   "pair_row": 42
+  },
+  {
+   "kind": "probable_duplicate",
+   "rule": "probable_duplicate",
+   "outcome": "REVIEW",
+   "data_index": 241,
+   "pair_index": 194,
+   "header": "Claim Ref",
+   "sheet": "Claims",
+   "row": 244,
+   "cell": "A244",
+   "pair_row": 197
+  }
+ ],
+ "planted_rows": [
+  42,
+  47,
+  54,
+  92,
+  95,
+  110,
+  180,
+  184,
+  197,
+  198,
+  209,
+  225,
+  241,
+  243,
+  244
+ ],
+ "non_claims_sheets": [
+  "Summary",
+  "Notes"
+ ],
+ "subtotal_row": 245
+}

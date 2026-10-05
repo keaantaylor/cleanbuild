@@ -87,6 +87,8 @@ def classify(*, field_code: str | None, source: str, rule: str | None, before: s
         return Decision(BLOCKED, "Header and title rows are not corrected.")
     if field_code in IDENTITY_FIELDS and not same_value(before, after):
         return Decision(BLOCKED, "The claim reference identifies the record. Ask the sender to resubmit it.")
+    if source == "rule":
+        return Decision(AUTO_WITH_POLICY, "Applied: an approved reusable rule created by a person.")
     if source == "auto" and rule and catalogue_rule(rule).auto_fix:
         if same_value(before, after):
             return Decision(AUTO, "Formatting only: the value is unchanged.")

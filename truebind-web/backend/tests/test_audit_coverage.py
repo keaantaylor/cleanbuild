@@ -146,6 +146,11 @@ def test_every_state_change_is_audited_and_the_chain_holds(monkeypatch: pytest.M
         "issue_id": target["id"]})).json()
     trail.step("POST", base + "/corrections/{correction_id}/decision", lambda: owner.post(
         f"/api/v1/reports/{rid}/corrections/{corr['id']}/decision", json={"approve": True}))
+    from app.services import memory_service
+    monkeypatch.setattr(memory_service, "SUGGEST_AFTER", 1)
+    sugg = owner.get("/api/v1/memory/rule-suggestions").json()["items"][0]
+    trail.step("POST", "/api/v1/memory/rules", lambda: owner.post("/api/v1/memory/rules", json={
+        k: sugg[k] for k in ("field_code", "rule", "match_value", "replace_value")}))
     ver = trail.step("POST", base + "/versions", lambda: owner.post(f"/api/v1/reports/{rid}/versions")).json()
     trail.step("POST", base + "/versions/{version_id}/approve", lambda: owner.post(
         f"/api/v1/reports/{rid}/versions/{ver['id']}/approve", json={"note": "ok"}))

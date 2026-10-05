@@ -21,7 +21,8 @@ from ..models.corrections import Correction, WorkbookVersion
 from ..models.deliveries import Delivery
 from ..models.jobs import Job
 from ..models.reports import Report, ValidationResult
-from . import audit_service, deliverables, issues
+from ..models.memory import InfoRequest
+from . import audit_service, deliverables, email_loop, issues
 from .storage import derived_key, get_store
 
 
@@ -115,6 +116,10 @@ def build(db: Session, report: Report, actor: str) -> dict:
               for d in deliveries),
             *({"type": "webhook", "event": w.event_type, "message_id": w.message_id, "status": w.status,
                "attempts": w.attempts, "at": _iso(w.created_at)} for w in hooks)],
+        "information_requests": [email_loop.out(r) for r in db.query(InfoRequest).filter(
+            InfoRequest.tenant_id == report.tenant_id,
+            (InfoRequest.report_id == report.id) | (InfoRequest.reply_report_id == report.id))
+            .order_by(InfoRequest.number)],
         "final_verification": {
             "approved_version": ({"number": approved[-1].number, "sha256": approved[-1].sha256,
                                   "approved_by": approved[-1].created_by, "at": _iso(approved[-1].created_at)}

@@ -377,7 +377,7 @@ const REVIEW: Record<string, { label: string; tone: "ok" | "warn" | "err" | "mut
   UNMAPPED: { label: "Unmapped", tone: "muted" },
   CONFIRMED: { label: "Confirmed", tone: "med" },
 };
-const METHOD: Record<string, string> = { MAPPED_BY_ALIAS: "alias rule", MAPPED_BY_AI: "AI (headers only)", MANUAL: "manual", UNMAPPED: "" };
+const METHOD: Record<string, string> = { MAPPED_BY_ALIAS: "alias rule", MAPPED_BY_AI: "AI (headers only)", MAPPED_BY_MEMORY: "remembered", MANUAL: "manual", UNMAPPED: "" };
 
 /** A field needs a person only when the match is uncertain or a required field has no column. */
 function needsDecision(f: MappingField): boolean {

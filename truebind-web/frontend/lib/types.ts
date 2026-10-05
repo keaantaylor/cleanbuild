@@ -2,7 +2,7 @@ export type ReportStatus =
   | "UPLOADED" | "QUEUED" | "INGESTING" | "WAITING_FOR_REVIEW" | "PROCESSING"
   | "COMPLETE" | "FAILED" | "CANCELLED" | "EXPIRED";
 export type SheetStatus = "PENDING_CONFIRMATION" | "CONFIRMED" | "SKIPPED";
-export type MappingState = "MAPPED_BY_ALIAS" | "MAPPED_BY_AI" | "UNMAPPED" | "MANUAL";
+export type MappingState = "MAPPED_BY_ALIAS" | "MAPPED_BY_AI" | "MAPPED_BY_MEMORY" | "UNMAPPED" | "MANUAL";
 export type Severity = "CRITICAL" | "HIGH" | "MEDIUM" | "INFO";
 export type CheckType = "MANDATORY_FIELD" | "ARITHMETIC" | "DUPLICATE" | "MAPPING_COMPLETENESS" | "DATE" | "CURRENCY" | "STATUS" | "RECONCILIATION" | "OTHER";
 export type ObligationStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "OVERDUE";

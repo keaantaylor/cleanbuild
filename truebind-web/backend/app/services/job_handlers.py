@@ -35,6 +35,7 @@ from ..models.jobs import Job
 from ..models.reports import Report, Sheet
 from . import (job_service, module_service, parse_cache, persistence_service, pipeline_service,
                reconciliation_service, report_state)
+from . import email_loop, memory_service
 from .storage import IntegrityError, get_store
 
 log = logging.getLogger("truebind.jobs")
@@ -214,6 +215,8 @@ def run_process(db: Session, job: Job) -> dict:
     t_persist = perf_counter() - t
     t = perf_counter()
     module_service.run_all(db, report)  # same transaction as the results: all or nothing
+    memory_service.mark_known_exceptions(db, report)
+    email_loop.verify_resubmission(db, report)
     t_checks = perf_counter() - t
     report_state.transition(db, report, "COMPLETE", reason="processed")
     return {"parse_s": round(t_parse, 2), "parse_cached": parse_cached, "pipeline_s": round(t_pipe, 2),

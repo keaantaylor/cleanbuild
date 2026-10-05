@@ -117,7 +117,7 @@ def test_bulk_decision_resolves_every_issue_of_one_cause_and_is_audited(api: Api
     assert r.status_code == 200 and r.json()["changed"] == arith["open"]
     left = _issues(api, rid, root_cause=arith["root_cause"])["items"]
     assert left and all(i["status"] == "BLOCKED" for i in left)
-    assert all(i["history"][-1]["note"] == "Queried with the sender" for i in left)
+    assert all(i["history"][-1]["note"].startswith("Queried with the sender [TB-") for i in left)
     # Nothing open is left, so a second decision finds nothing.
     assert api.post(url, json={"root_cause": "no_such_rule:X", "action": "resolve"}).status_code == 404
 

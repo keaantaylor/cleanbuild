@@ -33,7 +33,7 @@ from ..database import set_tenant
 from ..models.idempotency import IdempotencyKey
 from ..models.identity import Tenant
 from ..security.file_guard import safe_display_name
-from . import idempotency, intake_service
+from . import email_loop, idempotency, intake_service
 
 log = logging.getLogger("truebind.inbound")
 
@@ -52,6 +52,11 @@ class InboundMessage:
     sender: str
     recipients: list[str]
     attachments: list[Attachment] = field(default_factory=list)
+    # Untrusted: used only to find the request a reply answers ([TB-n] or
+    # Message-ID), and stored as text for a person to read. Never interpreted.
+    subject: str = ""
+    in_reply_to: str = ""
+    text: str = ""
 
 
 @dataclass
@@ -60,6 +65,7 @@ class IntakeResult:
     rejected: list[dict[str, str]] = field(default_factory=list)
     duplicates: int = 0
     routed: bool = False
+    reply_to: int | None = None  # the [TB-n] request this e-mail answered
 
 
 def new_token() -> str:
@@ -86,11 +92,16 @@ def from_postmark(payload: dict[str, Any]) -> InboundMessage:
         except (binascii.Error, ValueError):
             continue
         attachments.append(Attachment(str(a.get("Name") or "attachment"), content))
+    headers = {str(h.get("Name") or "").lower(): str(h.get("Value") or "")
+               for h in (payload.get("Headers") or []) if isinstance(h, dict)}
     return InboundMessage(
         message_id=str(payload.get("MessageID") or ""),
         sender=parseaddr(str(payload.get("From") or ""))[1],
         recipients=[r for r in recipients if r],
         attachments=attachments,
+        subject=str(payload.get("Subject") or "")[:500],
+        in_reply_to=" ".join(filter(None, [headers.get("in-reply-to"), headers.get("references")]))[:2000],
+        text=str(payload.get("StrippedTextReply") or payload.get("TextBody") or "")[:20000],
     )
 
 
@@ -104,11 +115,22 @@ def from_mime(raw: bytes, destinations: list[str], message_id: str) -> InboundMe
                 attachments.append(Attachment(part.get_filename() or "attachment", payload))
             if len(attachments) >= MAX_ATTACHMENTS:
                 break
+    text = ""
+    if isinstance(msg, EmailMessage):
+        body = msg.get_body(preferencelist=("plain",))
+        if body is not None:
+            try:
+                text = str(body.get_content())[:20000]
+            except (LookupError, ValueError):
+                text = ""
     return InboundMessage(
         message_id=message_id or str(msg.get("Message-ID") or ""),
         sender=parseaddr(str(msg.get("From") or ""))[1],
         recipients=destinations or [a for _n, a in getaddresses([str(msg.get("To") or "")])],
         attachments=attachments,
+        subject=str(msg.get("Subject") or "")[:500],
+        in_reply_to=" ".join(filter(None, [str(msg.get("In-Reply-To") or ""), str(msg.get("References") or "")]))[:2000],
+        text=text,
     )
 
 
@@ -132,6 +154,14 @@ def ingest(db: Session, message: InboundMessage, provider: str) -> IntakeResult:
     result.routed = True
     set_tenant(db, tenant.id)
     actor = f"email:{message.sender or 'unknown sender'}"[:255]
+    # A reply to an information request updates that request and its issues.
+    req = email_loop.match_reply(db, tenant.id, message.sender, message.subject, message.in_reply_to)
+    if req is not None and not any(r.get("message_id") == message.message_id[:255] for r in (req.replies or [])):
+        email_loop.record_reply(db, req, message.sender, message.message_id, message.text,
+                                [safe_display_name(a.name) for a in message.attachments])
+        db.commit()
+        set_tenant(db, tenant.id)
+        result.reply_to = req.number
     for index, att in enumerate(message.attachments):
         display = safe_display_name(att.name)
         with tempfile.NamedTemporaryFile(prefix="in-", delete=False) as fh:
@@ -188,6 +218,8 @@ def ingest(db: Session, message: InboundMessage, provider: str) -> IntakeResult:
                 sender=message.sender,
             )
             idempotency.complete(claimed, 202, {"report_id": report.id})
+            if req is not None and req.reply_report_id is None:
+                email_loop.link_resubmission(db, req, report)
             db.commit()
             set_tenant(db, tenant.id)
             result.accepted.append(report.id)

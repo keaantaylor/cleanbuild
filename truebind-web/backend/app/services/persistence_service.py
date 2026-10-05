@@ -36,7 +36,7 @@ from ..models.reports import (
     Sheet,
     ValidationResult,
 )
-from . import alert_service, anonymise, audit_service, health_view, issues, pipeline_service
+from . import memory_service, alert_service, anonymise, audit_service, health_view, issues, pipeline_service
 from .pipeline_service import FIELDS, FIELDS_BY_CODE, classify_sheet_status, mapping_mod
 from .pipeline_service import REQUIRED_CODES as _REQUIRED
 
@@ -137,8 +137,19 @@ def persist_ingest(db: Session, report: Report, sheets, proposals, ai_meta: dict
         if proposal is None:
             continue
         by_field = {sg.field_code: sg for sg in proposal.mapping.suggestions if sg.field_code}
+        remembered = memory_service.remembered_mapping(db, report, [str(h) for h in headers]) if not s.skipped else None
         for f in FIELDS:
             sg = by_field.get(f.code)
+            if remembered is not None:
+                col, src = remembered[0].get(f.code), remembered[1]
+                mappings.append({"id": new_uuid(), "tenant_id": tid, "report_id": report.id, "sheet_id": sheet_id,
+                                 "field_code": f.code, "field_name": f.name, "source_column": col,
+                                 "mapping_state": "MAPPED_BY_MEMORY" if col else "UNMAPPED",
+                                 "review_state": "HIGH_CONFIDENCE" if col else "UNMAPPED",
+                                 "evidence": (f"Remembered: confirmed for {src['file_name']} by "
+                                              f"{src['confirmed_by'] or 'a reviewer'}")[:1000],
+                                 "rule_version": "memory", "ai_model": None, "confidence_score": 1.0 if col else None})
+                continue
             if sg is None:
                 mappings.append({"id": new_uuid(), "tenant_id": tid, "report_id": report.id, "sheet_id": sheet_id,
                                  "field_code": f.code, "field_name": f.name, "source_column": None,
@@ -203,7 +214,7 @@ def confirm_sheet_mapping(db: Session, report: Report, sheet: Sheet, choices: di
                   "review_state": row.review_state}
         if col is None:
             row.mapping_state, row.source_column = "UNMAPPED", None
-        elif not (row.source_column == col and row.mapping_state in ("MAPPED_BY_ALIAS", "MAPPED_BY_AI")):
+        elif not (row.source_column == col and row.mapping_state in ("MAPPED_BY_ALIAS", "MAPPED_BY_AI", "MAPPED_BY_MEMORY")):
             row.mapping_state, row.source_column = "MANUAL", col
             row.evidence = "chosen by a person"
         row.review_state = "CONFIRMED" if col else "UNMAPPED"
@@ -235,7 +246,7 @@ def proposals_from_db(db: Session, report: Report, sheets):
         rows = db.query(Mapping).filter_by(sheet_id=db_sheets[s.sheet_name].id).all()
         sugg = [MappingSuggestion(m.source_column, m.field_code, m.confidence_score or 0.0,
                                   "ai" if m.mapping_state == "MAPPED_BY_AI" else "alias")
-                for m in rows if m.source_column and m.mapping_state in ("MAPPED_BY_ALIAS", "MAPPED_BY_AI")]
+                for m in rows if m.source_column and m.mapping_state in ("MAPPED_BY_ALIAS", "MAPPED_BY_AI", "MAPPED_BY_MEMORY")]
         out.append(SheetMappingProposal(s, MappingBatchResult(suggestions=sugg)))
     return out
 

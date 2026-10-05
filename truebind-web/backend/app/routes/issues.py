@@ -21,6 +21,7 @@ from ..models.corrections import Correction, WorkbookVersion
 from ..models.reports import ClaimRow, Report, Sheet, ValidationResult
 from ..security.auth import Context, require_reader, require_writer
 from ..services import audit_service, corrections_service, deliverables, issues, reconciliation_service, trail_service
+from ..services import email_loop, memory_service
 from ..services.persistence_service import FIELD_TO_COLUMN
 from .deps import get_report_or_404
 
@@ -73,7 +74,7 @@ def _issue(vr: ValidationResult, row: ClaimRow | None, sheet_name: str | None) -
         "expected": x.get("expected"), "actual": x.get("actual"), "difference": x.get("difference"),
         "evidence": vr.message, "sentence": x.get("sentence"), "suggested_action": r.fix if r else None,
         "owner": x.get("owner"), "root_cause": x.get("root_cause"), "history": x.get("history") or [],
-        "auto_fix": bool(r and r.auto_fix), "symptom_of": None,
+        "auto_fix": bool(r and r.auto_fix), "symptom_of": None, "known_exception": x.get("known_exception"),
     }
 
 
@@ -111,6 +112,9 @@ def list_issues(report_id: str, status: str | None = Query(default=None, max_len
     if status:
         items = [i for i in items if i["status"] == status]
     groups = issues.group_root_causes(items, amounts)
+    recurring = memory_service.recurring_causes(db, report)
+    for g in groups:  # how many of this sender's previous files had the same cause
+        g["recurring"] = recurring.get(g["root_cause"], 0)
     if root_cause:
         items = [i for i in items if i["root_cause"] == root_cause]
     by_status: dict[str, int] = {}
@@ -181,6 +185,7 @@ class BulkRequest(_Req):
     root_cause: str = Field(min_length=1, max_length=300)
     action: Literal["apply_safe_fix", "send_to_sender", "override", "resolve"]
     note: str | None = Field(default=None, max_length=2000)
+    to: str | None = Field(default=None, max_length=320)  # send_to_sender: defaults to the sender's address
 
 
 # Each action ends in one issue status; the lifecycle still decides per issue.
@@ -203,7 +208,7 @@ def bulk_decision(report_id: str, body: BulkRequest, ctx: Context = Depends(requ
         raise HTTPException(status_code=404, detail="No open issues have this cause.")
     if body.action == "override" and not (body.note or "").strip():
         raise HTTPException(status_code=422, detail="Say why the values are accepted as reported.")
-    changed, skipped, recheck = [], 0, None
+    changed, skipped, recheck, request = [], 0, None, None
     if body.action == "apply_safe_fix":
         if not RULES.get(targets[0].rule or "") or not RULES[targets[0].rule].auto_fix:
             raise HTTPException(status_code=409, detail="This cause has no safe automatic fix.")
@@ -224,6 +229,13 @@ def bulk_decision(report_id: str, body: BulkRequest, ctx: Context = Depends(requ
     else:
         status = _BULK_STATUS[body.action]
         note = body.note or _BULK_NOTE.get(body.action)
+        if body.action == "send_to_sender":  # one information request for the cause, with a [TB-n] reference
+            try:
+                request = email_loop.create_request(db, report, body.root_cause, [vr.id for vr in targets], body.to,
+                                                    ctx.actor, ctx.user_id)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            note = f"{note} [TB-{request.number}]"
         for vr in targets:
             extra = dict(vr.extra or {})
             extra.setdefault("issue_status", issues.initial_status(vr.status, vr.rule or ""))
@@ -238,7 +250,7 @@ def bulk_decision(report_id: str, body: BulkRequest, ctx: Context = Depends(requ
                              actor=ctx.actor, actor_user_id=ctx.user_id)
     db.commit()
     return {"root_cause": body.root_cause, "action": body.action, "changed": len(changed), "skipped": skipped,
-            "recheck": recheck}
+            "recheck": recheck, "request": email_loop.out(request) if request is not None else None}
 
 
 @router.get("/{report_id}/trail")

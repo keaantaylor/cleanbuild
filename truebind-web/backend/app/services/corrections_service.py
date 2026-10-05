@@ -121,6 +121,12 @@ def has_precedent(db: Session, tenant_id: str, rule: str | None, before: str | N
     """A person in this organisation already approved this exact rewrite for this rule."""
     if not rule:
         return False
+    from ..models.memory import ApprovedRule
+
+    if db.query(ApprovedRule).filter(ApprovedRule.tenant_id == tenant_id, ApprovedRule.status == "ACTIVE",
+                                     ApprovedRule.rule == rule, ApprovedRule.match_value == before,
+                                     ApprovedRule.replace_value == after).first() is not None:
+        return True
     for c in (db.query(Correction).filter(Correction.tenant_id == tenant_id, Correction.rule == rule,
                                           Correction.status == "APPROVED", Correction.before_value == before,
                                           Correction.after_value == after).limit(20)):
@@ -164,7 +170,50 @@ def propose_auto(db: Session, report: Report, actor: str) -> tuple[int, int]:
         if c.policy == policy.AUTO or (c.policy == policy.AUTO_WITH_POLICY and c.policy_reason.startswith("Applied")):
             decide(db, report, c, True, "system", f"Applied automatically under policy {c.policy}", by_policy=True)
             applied += 1
-    return n, applied
+    a, b = _apply_approved_rules(db, report, actor, by_cell, taken)
+    return n + a, applied + b
+
+
+def _apply_approved_rules(db: Session, report: Report, actor: str, by_cell: dict, taken: set) -> tuple[int, int]:
+    """Cells matching a person-approved reusable rule get that rule's value,
+    proposed and applied under policy, each recorded as its own correction."""
+    from . import memory_service
+    from .persistence_service import _cell_locator
+
+    rules = [r for r in memory_service.active_rules(db, report.tenant_id, report.sender) if r.field_code]
+    if not rules:
+        return 0, 0
+    sheets = db.query(Sheet).filter(Sheet.report_id == report.id, Sheet.status == "CONFIRMED").all()
+    values = grid_view._cached_values(db, report, [s.sheet_name for s in sheets])
+    locator = _cell_locator(db, report)
+    n = 0
+    for sh in sheets:
+        header = (sh.header_row_index or 0) + 1
+        for r in rules:
+            cell1, _ = locator.locate(sh.sheet_name, r.field_code, 1)
+            if not cell1 or cell1.startswith("row "):
+                continue
+            letter = cell1.rstrip("0123456789")
+            ci = _col_index(letter) - 1
+            for rn, row in enumerate(values.get(sh.sheet_name, []), start=1):
+                v = row[ci] if rn > header and ci < len(row) else None
+                cell = f"{letter}{rn}"
+                if v is None or str(v).strip() != (r.match_value or "").strip() or (sh.sheet_name, cell) in taken:
+                    continue
+                vr = by_cell.get(cell)
+                try:
+                    c = propose(db, report, sh.sheet_name, cell, r.replace_value, f"Approved rule {r.id[:8]}", actor,
+                                issue_id=vr.id if vr is not None else None, rule=r.rule, source="rule")
+                except CorrectionError:
+                    continue
+                decide(db, report, c, True, "system", f"Applied by approved rule {r.id}", by_policy=True)
+                c.approval = {**(c.approval or {}), "rule_id": r.id}
+                taken.add((sh.sheet_name, cell))
+                r.applied += 1
+                n += 1
+                audit_service.log_action(db, report.tenant_id, report.id, "RULE_APPLIED", "CORRECTION", c.id,
+                                         after={"rule_id": r.id, "cell": cell, "sheet": sh.sheet_name}, actor="system")
+    return n, n
 
 
 def decide(db: Session, report: Report, c: Correction, approve: bool, actor: str, note: str | None,

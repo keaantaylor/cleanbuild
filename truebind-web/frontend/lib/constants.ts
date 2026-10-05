@@ -3,6 +3,7 @@ import type { MappingState, Severity } from "./types";
 export const MAPPING_STATE_LABEL: Record<MappingState, string> = {
   MAPPED_BY_ALIAS: "Matched",
   MAPPED_BY_AI: "AI-suggested",
+  MAPPED_BY_MEMORY: "Remembered",
   UNMAPPED: "Unmapped",
   MANUAL: "Manually picked",
 };
@@ -10,6 +11,7 @@ export const MAPPING_STATE_LABEL: Record<MappingState, string> = {
 export const MAPPING_STATE_SYMBOL: Record<MappingState, string> = {
   MAPPED_BY_ALIAS: "●",
   MAPPED_BY_AI: "◐",
+  MAPPED_BY_MEMORY: "■",
   UNMAPPED: "▲",
   MANUAL: "◆",
 };

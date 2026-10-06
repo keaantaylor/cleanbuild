@@ -27,10 +27,15 @@ from ..models.reports import Report, Sheet, ValidationResult
 from ..schemas.reports import AlertOut, AuditLogOut, JobOut, Page, UtcDatetime
 from ..security.auth import Context, require_reader, require_writer
 from ..security.ratelimit import limiter
-from ..services import audit_service, delivery_service, job_service, sftp_service
+from ..services import issues, audit_service, delivery_service, job_service, sftp_service
 from .deps import Paging, get_report_or_404, report_out
 
 router = APIRouter(prefix="/api/v1", tags=["operations"])
+
+
+def _n(n: int, word: str) -> str:
+    """'1 sheet', '3 sheets': a count with its noun, never 'sheet(s)'."""
+    return f"{n} {word}{'' if n == 1 else 's'}"
 
 _IN_FLIGHT = ("UPLOADED", "QUEUED", "INGESTING", "PROCESSING")
 
@@ -128,7 +133,7 @@ def work_queue(ctx: Context = Depends(require_reader), db: Session = Depends(get
         if r.status == "WAITING_FOR_REVIEW":
             pending = db.query(Sheet).filter(Sheet.report_id == r.id, Sheet.status == "PENDING_CONFIRMATION").count()
             add("mapping", "HIGH", f"Confirm the mapping for {r.file_name}",
-                f"{pending} sheet(s) awaiting confirmation before the report can be produced.", r,
+                f"{_n(pending, 'sheet')} awaiting confirmation before the report can be produced.", r,
                 href=f"/upload?reportId={r.id}", count=pending)
         elif r.status == "FAILED":
             add("failed", "HIGH", f"Processing failed: {r.file_name}", r.processing_error or "See the report.", r)
@@ -142,7 +147,7 @@ def work_queue(ctx: Context = Depends(require_reader), db: Session = Depends(get
     by_id = {r.id: r for r in reports}
     for rid, n in crit:
         if rid in by_id:
-            add("critical", "CRITICAL", f"{n} critical finding(s) in {by_id[rid].file_name}",
+            add("critical", "CRITICAL", f"{_n(n, 'critical finding')} in {by_id[rid].file_name}",
                 "Rows missing required data or sheets that could not be mapped.", by_id[rid],
                 href=f"/exceptions?reportId={rid}&severity=CRITICAL", count=n)
     dup_rows = (db.query(ValidationResult.report_id, ValidationResult.extra)
@@ -150,19 +155,19 @@ def work_queue(ctx: Context = Depends(require_reader), db: Session = Depends(get
     unreviewed = Counter(rid for rid, extra in dup_rows if not (extra or {}).get("review_status"))
     for rid, n in unreviewed.items():
         if rid in by_id:
-            add("duplicates", "MEDIUM", f"{n} duplicate candidate(s) to review in {by_id[rid].file_name}",
+            add("duplicates", "MEDIUM", f"{_n(n, 'duplicate candidate')} to review in {by_id[rid].file_name}",
                 "Confirm or dismiss each pair; nothing is merged automatically.", by_id[rid],
                 href=f"/duplicates?reportId={rid}", count=n)
     today = date.today()
     overdue = (db.query(Obligation).filter(Obligation.tenant_id == tid, Obligation.status != "RESOLVED",
                                            Obligation.deadline < today).count())
     if overdue:
-        add("obligations", "HIGH", f"{overdue} overdue follow-up(s)", "Assigned follow-ups past their deadline.",
+        add("obligations", "HIGH", f"{_n(overdue, 'overdue follow-up')}", "Assigned follow-ups past their deadline.",
             href="/todo", count=overdue)
     failed_exports = db.query(Delivery).filter(Delivery.tenant_id == tid, Delivery.status != "DELIVERED",
                                                Delivery.created_at >= utcnow() - timedelta(days=7)).count()
     if failed_exports:
-        add("exports", "MEDIUM", f"{failed_exports} export(s) not delivered in the last 7 days",
+        add("exports", "MEDIUM", f"{_n(failed_exports, 'export')} not delivered in the last 7 days",
             "See Exports for the reason.", href="/exports", count=failed_exports)
     items.sort(key=lambda i: (_PRIORITY[i["priority"]], -i["count"]))
     return {"items": items, "total": len(items)}
@@ -268,7 +273,7 @@ def channels(ctx: Context = Depends(require_reader), db: Session = Depends(get_d
             {"id": "email", "name": "E-mail", "status": "active" if email_out else "not_configured",
              "detail": "Send outputs to a recipient." + ("" if email_out else " Set SMTP_HOST on the server to enable.")},
             {"id": "webhook", "name": "Webhooks", "status": "active" if hooks else "not_set_up",
-             "detail": (f"{hooks} signed endpoint(s) receive report events." if hooks else
+             "detail": (f"{_n(hooks, 'signed endpoint')} {'receives' if hooks == 1 else 'receive'} report events." if hooks else
                         "Add an https endpoint to receive signed report events.")},
             {"id": "sftp_out", "name": "SFTP delivery",
              "status": "active" if sftp and sftp.enabled else "not_set_up",
@@ -322,6 +327,15 @@ def review_exception(report_id: str, validation_result_id: str, body: ExceptionR
         after["assignee"] = body.assignee or None
     if body.note:
         after["note"] = body.note
+    # Keep the issue record in step: the decision moves its status and is added to its history.
+    target = issues.REVIEW_TO_STATUS[body.review_status]
+    try:
+        after = issues.transition(after, target, ctx.actor, body.note or f"Review decision: {body.review_status}")
+    except issues.TransitionError:
+        history = list(after.get("history") or [])
+        history.append({"at": utcnow().isoformat(), "status": target, "from": after.get("issue_status"),
+                        "actor": ctx.actor, "note": body.note or f"Review decision: {body.review_status}"})
+        after = {**after, "issue_status": target, "history": history}
     vr.extra = after
     audit_service.log_action(db, ctx.tenant_id, report.id, "EXCEPTION_STATUS_CHANGED", "EXCEPTION", vr.id,
                              before={k: before.get(k) for k in ("review_status", "assignee")},

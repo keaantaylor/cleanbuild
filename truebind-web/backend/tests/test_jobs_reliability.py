@@ -54,7 +54,7 @@ def test_retry_limit_comes_from_settings(api: Api, db: Session, monkeypatch: pyt
         db.expire_all()
         set_tenant(db, job.tenant_id)
         j = db.get(Job, job.id)
-        assert j is not None and j.status == "QUEUED" and j.attempts == attempt
+        assert j is not None and j.status == "RETRYING" and j.attempts == attempt
         j.run_after = None
         db.commit()
 
@@ -83,7 +83,7 @@ def test_process_failing_mid_save_is_retried_without_partial_or_duplicate_result
     db.expire_all()
     set_tenant(db, api.me["tenant"]["id"])
     job = db.query(Job).filter_by(report_id=rid, kind="PROCESS").one()
-    assert job.status == "QUEUED" and job.error_code == "internal_error"
+    assert job.status == "RETRYING" and job.error_code == "internal_error"
     assert _results(db, rid) == (Counter(), Counter()), "the failed attempt left nothing behind"
     job.run_after = None
     db.commit()

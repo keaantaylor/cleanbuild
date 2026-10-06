@@ -135,6 +135,39 @@ def test_every_state_change_is_audited_and_the_chain_holds(monkeypatch: pytest.M
         trail.step("POST", "/api/v1/reports/{report_id}/sheets/{sheet_id}/mapping", confirm)
     trail.step("POST", "/api/v1/reports/{report_id}/process", lambda: owner.post(f"/api/v1/reports/{rid}/process"))
     run_jobs()
+    # --- issues, corrections and workbook versions
+    base = "/api/v1/reports/{report_id}"
+    sheet_id = owner.get(f"/api/v1/reports/{rid}/sheets").json()[0]["id"]
+    target = next(i for i in owner.get(f"/api/v1/reports/{rid}/issues").json()["items"] if i["rule"] == "arithmetic_mismatch")
+    trail.step("POST", base + "/issues/{issue_id}/status", lambda: owner.post(
+        f"/api/v1/reports/{rid}/issues/{target['id']}/status", json={"status": "REQUIRES_HUMAN_REVIEW", "note": "check"}))
+    corr = trail.step("POST", base + "/corrections", lambda: owner.post(f"/api/v1/reports/{rid}/corrections", json={
+        "sheet_id": sheet_id, "cell": target["cell"], "after_value": "150", "reason": "Sender confirmed",
+        "issue_id": target["id"]})).json()
+    trail.step("POST", base + "/corrections/{correction_id}/decision", lambda: owner.post(
+        f"/api/v1/reports/{rid}/corrections/{corr['id']}/decision", json={"approve": True}))
+    from app.services import memory_service
+    monkeypatch.setattr(memory_service, "SUGGEST_AFTER", 1)
+    sugg = owner.get("/api/v1/memory/rule-suggestions").json()["items"][0]
+    trail.step("POST", "/api/v1/memory/rules", lambda: owner.post("/api/v1/memory/rules", json={
+        k: sugg[k] for k in ("field_code", "rule", "match_value", "replace_value")}))
+    from app import connectors
+    from test_workbook_connectors import FakeProvider
+
+    monkeypatch.setitem(connectors.PROVIDERS, "fake", FakeProvider())
+    link = trail.step("POST", base + "/connectors/{provider}/open",
+                      lambda: owner.post(f"/api/v1/reports/{rid}/connectors/fake/open")).json()
+    trail.step("POST", base + "/connectors/links/{link_id}/pull",
+               lambda: owner.post(f"/api/v1/reports/{rid}/connectors/links/{link['id']}/pull"))
+    trail.step("POST", base + "/connectors/links/{link_id}/push",
+               lambda: owner.post(f"/api/v1/reports/{rid}/connectors/links/{link['id']}/push"))
+    ver = trail.step("POST", base + "/versions", lambda: owner.post(f"/api/v1/reports/{rid}/versions")).json()
+    trail.step("POST", base + "/versions/{version_id}/approve", lambda: owner.post(
+        f"/api/v1/reports/{rid}/versions/{ver['id']}/approve", json={"note": "ok"}))
+    trail.step("POST", base + "/corrections/auto", lambda: owner.post(f"/api/v1/reports/{rid}/corrections/auto"))
+    cause = next(c for c in owner.get(f"/api/v1/reports/{rid}/issues").json()["root_causes"] if c["open"])
+    trail.step("POST", base + "/issues/bulk", lambda: owner.post(
+        f"/api/v1/reports/{rid}/issues/bulk", json={"root_cause": cause["root_cause"], "action": "send_to_sender"}))
     pair = owner.get(f"/api/v1/reports/{rid}/duplicates").json()["items"][0]
     trail.step("PATCH", "/api/v1/reports/{report_id}/duplicates/{validation_result_id}/review", lambda: owner.patch(
         f"/api/v1/reports/{rid}/duplicates/{pair['validation_result_id']}/review",

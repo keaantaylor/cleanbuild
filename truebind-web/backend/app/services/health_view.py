@@ -63,6 +63,11 @@ class CellLocator:
                     self._col[(sheet, field_code)] = (get_column_letter(headers.index(source_column) + 1),
                                                        source_column)
 
+    def field_at(self, sheet: str, column_letter: str) -> str | None:
+        """The canonical field mapped to a column of a sheet, if any."""
+        return next((code for (s, code), (letter, _) in self._col.items()
+                     if s == sheet and letter == column_letter.upper()), None)
+
     def locate(self, sheet: str | None, field_code: str | None, source_row) -> tuple[str | None, str | None]:
         """(cell, source column name); cell is the row reference alone
         ("row 14") when the finding concerns the whole row."""

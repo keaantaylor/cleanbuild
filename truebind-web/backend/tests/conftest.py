@@ -20,6 +20,8 @@ import os
 from collections.abc import Iterator
 from typing import Any
 import shutil
+import stat
+import time
 import sys
 import tempfile
 from pathlib import Path
@@ -79,10 +81,27 @@ def _truncate() -> None:
                 conn.execute(text(f"DELETE FROM {t}"))
 
 
+def _force_remove(func, path, _exc):
+    """Originals are stored read-only, and Windows won't delete a read-only file
+    (or one a finishing worker still holds open): make it writable and retry
+    briefly; a file still locked after that is left, as ignore_errors did."""
+    for _ in range(20):
+        try:
+            os.chmod(path, stat.S_IWRITE)
+            func(path)
+            return
+        except FileNotFoundError:
+            return
+        except OSError:  # locked file, or its folder not yet empty
+            time.sleep(0.05)
+
+
 @pytest.fixture(autouse=True)
 def _clean_state():
     _truncate()
-    shutil.rmtree(Path(os.environ["TRUEBIND_STORAGE_DIR"]) / "tenants", ignore_errors=True)
+    tenants = Path(os.environ["TRUEBIND_STORAGE_DIR"]) / "tenants"
+    if tenants.exists():
+        shutil.rmtree(tenants, onexc=_force_remove)
     limiter.reset()
     yield
 

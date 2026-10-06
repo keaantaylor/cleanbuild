@@ -17,6 +17,9 @@ import { ProcessingPanel } from "@/components/nocturne/intake";
 import { reportStatus } from "@/components/nocturne/status";
 import { ChecksPanel } from "@/components/nocturne/checks";
 import { WorkbookPreview } from "@/components/nocturne/workbook-preview";
+import { ReviewQueue } from "@/components/nocturne/review-queue";
+import { TrailView } from "@/components/nocturne/trail";
+import { WorkbookGrid, type GridFocus } from "@/components/nocturne/workbook-grid";
 import { exportFile } from "@/lib/exports";
 import { downloadPdf, type PdfBlock } from "@/lib/pdf";
 
@@ -155,6 +158,9 @@ function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
   const [send, setSend] = useState(false);
   const [tab, setTab] = useState<"owner" | "duplicates" | "money" | "mapping" | "compare" | "more">("owner");
   const [reprocessing, setReprocessing] = useState(false);
+  const [view, setView] = useState<"workbook" | "review" | "report" | "trail">("report");
+  const [focus, setFocus] = useState<GridFocus | null>(null);
+  const showCell = (sheet: string | null, cell: string) => { setFocus({ sheet, cell, nonce: Date.now() }); setView("workbook"); };
   const name = report.file_name.replace(/\.\w+$/, "");
   const hv = s.health_view;
 
@@ -190,6 +196,31 @@ function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
         <button type="button" className="tb-btn tb-btn-primary" onClick={() => setSend(true)}><EnvelopeSimple />Send</button>
       </div>
 
+      <div role="tablist" aria-label="Report view" className="no-print flex w-full max-w-[1100px] gap-1 rounded-md p-1" style={{ background: "var(--surface)", boxShadow: "inset 0 0 0 1px var(--line)" }}>
+        {([["report", "Health report"], ["review", "Review issues"], ["workbook", "Workbook"], ["trail", "Trail"]] as const).map(([k, l]) => (
+          <button key={k} type="button" role="tab" aria-selected={view === k} onClick={() => setView(k)} className="min-h-[36px] flex-1 cursor-pointer rounded px-3 text-[14px] sm:flex-none" style={{ background: view === k ? "var(--accentTint)" : "transparent", color: view === k ? "var(--text)" : "var(--muted)", fontWeight: view === k ? 600 : 400 }}>{l}</button>
+        ))}
+      </div>
+
+      {view === "workbook" && (
+        <div className="no-print w-full max-w-[1400px]">
+          <WorkbookView report={report} focus={focus} />
+        </div>
+      )}
+
+      {view === "review" && (
+        <div className="no-print w-full max-w-[1100px]">
+          <ReviewQueue reportId={report.id} onShowCell={showCell} />
+        </div>
+      )}
+
+      {view === "trail" && (
+        <div className="no-print w-full max-w-[1100px]">
+          <TrailView reportId={report.id} />
+        </div>
+      )}
+
+      {view === "report" && (<>
       <article className="flex w-full max-w-[1100px] flex-col gap-8 rounded-md px-6 pb-[48px] pt-[52px] sm:px-[60px]" style={{ background: "#fbfbfd", color: PAPER.text, boxShadow: "0 0 0 1px rgba(28,30,42,.08)" }}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-[9px] text-[15px] font-semibold"><Mark size={24} radius={6} />TrueBind</div>
@@ -305,6 +336,7 @@ function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
           </>
         )}
       </div>
+      </>)}
 
       <SendModal open={send} onClose={() => setSend(false)} report={report} />
     </>
@@ -446,6 +478,11 @@ function MappingTab({ report, s }: { report: Report; s: ReportSummary }) {
       <Sheets reportId={report.id} s={s} />
     </div>
   );
+}
+
+function WorkbookView({ report, focus }: { report: Report; focus: GridFocus | null }) {
+  const sheets = useApi(() => api.listSheets(report.id), [report.id]);
+  return sheets.data ? <WorkbookGrid report={report} sheets={sheets.data} focus={focus} /> : <LoadingState label="Loading the workbook" rows={6} />;
 }
 
 function ReviewedWorkbook({ report }: { report: Report }) {

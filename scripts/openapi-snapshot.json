@@ -74,6 +74,25 @@
     "title": "AlertOut",
     "type": "object"
    },
+   "ApproveVersionRequest": {
+    "additionalProperties": false,
+    "properties": {
+     "note": {
+      "anyOf": [
+       {
+        "maxLength": 2000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Note"
+     }
+    },
+    "title": "ApproveVersionRequest",
+    "type": "object"
+   },
    "AssignBinderIn": {
     "properties": {
      "binder_id": {
@@ -965,6 +984,85 @@
      "source"
     ],
     "title": "ConversionOut",
+    "type": "object"
+   },
+   "CorrectionRequest": {
+    "additionalProperties": false,
+    "properties": {
+     "after_value": {
+      "anyOf": [
+       {
+        "maxLength": 32000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "After Value"
+     },
+     "cell": {
+      "maxLength": 16,
+      "minLength": 2,
+      "title": "Cell",
+      "type": "string"
+     },
+     "issue_id": {
+      "anyOf": [
+       {
+        "maxLength": 36,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Issue Id"
+     },
+     "reason": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+     },
+     "sheet_id": {
+      "maxLength": 36,
+      "title": "Sheet Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "sheet_id",
+     "cell",
+     "reason"
+    ],
+    "title": "CorrectionRequest",
+    "type": "object"
+   },
+   "DecisionRequest": {
+    "additionalProperties": false,
+    "properties": {
+     "approve": {
+      "title": "Approve",
+      "type": "boolean"
+     },
+     "note": {
+      "anyOf": [
+       {
+        "maxLength": 2000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Note"
+     }
+    },
+    "required": [
+     "approve"
+    ],
+    "title": "DecisionRequest",
     "type": "object"
    },
    "DeliveryOut": {
@@ -4814,6 +4912,42 @@
     "title": "SsoConfigOut",
     "type": "object"
    },
+   "StatusRequest": {
+    "additionalProperties": false,
+    "properties": {
+     "note": {
+      "anyOf": [
+       {
+        "maxLength": 2000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Note"
+     },
+     "status": {
+      "enum": [
+       "DETECTED",
+       "AUTO_FIX_PROPOSED",
+       "AUTO_FIXED",
+       "REQUIRES_INFORMATION",
+       "REQUIRES_HUMAN_REVIEW",
+       "RESOLVED",
+       "OVERRIDDEN",
+       "BLOCKED"
+      ],
+      "title": "Status",
+      "type": "string"
+     }
+    },
+    "required": [
+     "status"
+    ],
+    "title": "StatusRequest",
+    "type": "object"
+   },
    "SubmissionOut": {
     "properties": {
      "created_at": {
@@ -8221,6 +8355,211 @@
     ]
    }
   },
+  "/api/v1/reports/{report_id}/corrections": {
+   "get": {
+    "operationId": "list_corrections_api_v1_reports__report_id__corrections_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Corrections Api V1 Reports  Report Id  Corrections Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Corrections",
+    "tags": [
+     "issues"
+    ]
+   },
+   "post": {
+    "description": "Propose a change to one cell. The source file is not touched; the change\napplies only to a corrected version, and only once approved.",
+    "operationId": "propose_correction_api_v1_reports__report_id__corrections_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CorrectionRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Propose Correction Api V1 Reports  Report Id  Corrections Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Propose Correction",
+    "tags": [
+     "issues"
+    ]
+   }
+  },
+  "/api/v1/reports/{report_id}/corrections/auto": {
+   "post": {
+    "description": "Propose the safe formatting fixes (dates and amounts held as text,\ncurrency spellings, spaces, policy-number zeros, status wording).",
+    "operationId": "propose_auto_corrections_api_v1_reports__report_id__corrections_auto_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Propose Auto Corrections Api V1 Reports  Report Id  Corrections Auto Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Propose Auto Corrections",
+    "tags": [
+     "issues"
+    ]
+   }
+  },
+  "/api/v1/reports/{report_id}/corrections/{correction_id}/decision": {
+   "post": {
+    "operationId": "decide_correction_api_v1_reports__report_id__corrections__correction_id__decision_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "correction_id",
+      "required": true,
+      "schema": {
+       "title": "Correction Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DecisionRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Decide Correction Api V1 Reports  Report Id  Corrections  Correction Id  Decision Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Decide Correction",
+    "tags": [
+     "issues"
+    ]
+   }
+  },
   "/api/v1/reports/{report_id}/deliveries": {
    "post": {
     "operationId": "create_delivery_api_v1_reports__report_id__deliveries_post",
@@ -9193,6 +9532,259 @@
     ]
    }
   },
+  "/api/v1/reports/{report_id}/issues": {
+   "get": {
+    "description": "Every issue as a record, plus issues grouped by root cause (rule + column).",
+    "operationId": "list_issues_api_v1_reports__report_id__issues_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 32,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     },
+     {
+      "in": "query",
+      "name": "rule",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 64,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Rule"
+      }
+     },
+     {
+      "in": "query",
+      "name": "sheet_id",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 36,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Sheet Id"
+      }
+     },
+     {
+      "in": "query",
+      "name": "root_cause",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 300,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Root Cause"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 100,
+       "maximum": 1000,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "offset",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "minimum": 0,
+       "title": "Offset",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Issues Api V1 Reports  Report Id  Issues Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Issues",
+    "tags": [
+     "issues"
+    ]
+   }
+  },
+  "/api/v1/reports/{report_id}/issues/{issue_id}": {
+   "get": {
+    "description": "One issue with its lineage: where the value came from and what was done to it.",
+    "operationId": "get_issue_api_v1_reports__report_id__issues__issue_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "issue_id",
+      "required": true,
+      "schema": {
+       "title": "Issue Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Issue Api V1 Reports  Report Id  Issues  Issue Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Issue",
+    "tags": [
+     "issues"
+    ]
+   }
+  },
+  "/api/v1/reports/{report_id}/issues/{issue_id}/status": {
+   "post": {
+    "operationId": "set_issue_status_api_v1_reports__report_id__issues__issue_id__status_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "issue_id",
+      "required": true,
+      "schema": {
+       "title": "Issue Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/StatusRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Set Issue Status Api V1 Reports  Report Id  Issues  Issue Id  Status Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Set Issue Status",
+    "tags": [
+     "issues"
+    ]
+   }
+  },
   "/api/v1/reports/{report_id}/jobs": {
    "get": {
     "operationId": "report_jobs_api_v1_reports__report_id__jobs_get",
@@ -9813,6 +10405,205 @@
     "summary": "Get Report Summary",
     "tags": [
      "reports"
+    ]
+   }
+  },
+  "/api/v1/reports/{report_id}/versions": {
+   "get": {
+    "operationId": "list_versions_api_v1_reports__report_id__versions_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Versions Api V1 Reports  Report Id  Versions Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Versions",
+    "tags": [
+     "issues"
+    ]
+   },
+   "post": {
+    "description": "Build a corrected version: the original plus every approved correction.",
+    "operationId": "create_corrected_version_api_v1_reports__report_id__versions_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Corrected Version Api V1 Reports  Report Id  Versions Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Corrected Version",
+    "tags": [
+     "issues"
+    ]
+   }
+  },
+  "/api/v1/reports/{report_id}/versions/{version_id}/approve": {
+   "post": {
+    "operationId": "approve_version_api_v1_reports__report_id__versions__version_id__approve_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "version_id",
+      "required": true,
+      "schema": {
+       "title": "Version Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ApproveVersionRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Approve Version Api V1 Reports  Report Id  Versions  Version Id  Approve Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Approve Version",
+    "tags": [
+     "issues"
+    ]
+   }
+  },
+  "/api/v1/reports/{report_id}/versions/{version_id}/download": {
+   "get": {
+    "operationId": "download_version_api_v1_reports__report_id__versions__version_id__download_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "report_id",
+      "required": true,
+      "schema": {
+       "title": "Report Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "version_id",
+      "required": true,
+      "schema": {
+       "title": "Version Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Download Version",
+    "tags": [
+     "issues"
     ]
    }
   },

@@ -2,9 +2,9 @@ export type ReportStatus =
   | "UPLOADED" | "QUEUED" | "INGESTING" | "WAITING_FOR_REVIEW" | "PROCESSING"
   | "COMPLETE" | "FAILED" | "CANCELLED" | "EXPIRED";
 export type SheetStatus = "PENDING_CONFIRMATION" | "CONFIRMED" | "SKIPPED";
-export type MappingState = "MAPPED_BY_ALIAS" | "MAPPED_BY_AI" | "UNMAPPED" | "MANUAL";
+export type MappingState = "MAPPED_BY_ALIAS" | "MAPPED_BY_AI" | "MAPPED_BY_MEMORY" | "UNMAPPED" | "MANUAL";
 export type Severity = "CRITICAL" | "HIGH" | "MEDIUM" | "INFO";
-export type CheckType = "MANDATORY_FIELD" | "ARITHMETIC" | "DUPLICATE" | "MAPPING_COMPLETENESS" | "DATE" | "CURRENCY" | "STATUS" | "OTHER";
+export type CheckType = "MANDATORY_FIELD" | "ARITHMETIC" | "DUPLICATE" | "MAPPING_COMPLETENESS" | "DATE" | "CURRENCY" | "STATUS" | "RECONCILIATION" | "OTHER";
 export type ObligationStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "OVERDUE";
 export type AlertSource = "COVERAGE" | "MANDATORY_FAIL" | "NOT_EVALUABLE" | "DUPLICATE" | "OVERDUE" | "MAPPING_COMPLETENESS";
 
@@ -38,7 +38,7 @@ export interface Report {
 export interface Job {
   id: string;
   kind: "INGEST" | "PROCESS";
-  status: "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELLED";
+  status: "QUEUED" | "RUNNING" | "RETRYING" | "SUCCEEDED" | "FAILED" | "CANCELLED";
   stage: string | null;
   attempts: number;
   max_attempts: number;
@@ -188,9 +188,25 @@ export interface CouldntCheck {
   fix: "mapping" | "data";
 }
 
-export interface GridCell { v: string | null; tone: "ok" | "warn" | "err" | "grey" | null; notes: { result: string; status: string; label: string; text: string; fix: string }[] }
-export interface GridRow { row: number; kind: "header" | "structural" | "claim" | "other"; cells: GridCell[]; row_notes: GridCell["notes"] }
-export interface GridPage { sheet_id: string; sheet_name: string; total_rows: number; columns: number; header_row: number; offset: number; rows: GridRow[] }
+/** Reconciliation state of a cell; always shown with its words. */
+export type CellState = "verified" | "requires_reconciliation" | "undetermined";
+export interface CellIssue {
+  issue_id: string; rule: string | null; rule_version: string | null; outcome: string; status: string; state: CellState;
+  label: string; expected: number | string | null; actual: number | string | null; difference: number | null;
+  known_exception?: { by?: string; reason?: string; at?: string } | null;
+}
+export interface CellCorrection { id: string; status: string; after: string | null; policy: string | null; verified: boolean | null | undefined }
+export interface GridCell {
+  v: string | null; tone: "ok" | "warn" | "err" | "grey" | null; notes: { result: string; status: string; label: string; text: string; fix: string }[];
+  f?: string | null; state?: CellState | null; issues?: CellIssue[]; correction?: CellCorrection | null;
+}
+export interface GridRow { row: number; kind: "header" | "structural" | "claim" | "other"; cells: GridCell[]; row_notes: GridCell["notes"]; row_issues?: CellIssue[] }
+export interface GridPage { sheet_id: string; sheet_name: string; total_rows: number; columns: number; header_row: number; offset: number; col_offset?: number; headers?: (string | null)[]; rows: GridRow[] }
+export interface GridHit { row: number; col: number; cell: string; v: string | null }
+export interface GridIssueCell { row: number; col: number | null; cell: string; state: CellState | null; open: number; issue_ids: string[] }
+export interface ConnectorInfo { key: string; label: string; open_label: string; configured: boolean }
+export interface ConnectorLink { id: string; provider: string; label: string; web_url: string; base_sha256: string; created_by: string; created_at: string; last_pulled_at: string | null }
+export interface CorrectionOut { id: string; sheet: string; cell: string; before: string | null; after: string | null; status: string; policy: string | null; policy_reason: string | null; recheck?: Recheck | null }
 
 export interface ExceptionGroups {
   groups: { rule: string; label: string; status: ValidationStatus; severity: Severity; count: number; fix: string }[];
@@ -596,4 +612,84 @@ export interface BillingPlan { name: string; label: string; modules: string[]; m
 export interface Billing {
   enforced: boolean; plan: string | null; status: string | null; period_end: string | null; modules: string[] | null;
   monthly_rows: number | null; seats: number | null; rows_this_month: number; seats_used: number; plans: BillingPlan[]; customer: boolean;
+}
+
+/** One issue record (GET /reports/{id}/issues). */
+export interface Issue {
+  id: string; rule: string | null; rule_version: string | null; ruleset_version: string | null; label: string;
+  severity: string; outcome: string; status: string; sheet: string | null; cell: string | null; column: string | null;
+  field_code: string | null; row: number | null; claim_reference: string | null;
+  expected: number | string | null; actual: number | string | null; difference: number | null;
+  evidence: string | null; sentence: string | null; suggested_action: string | null; root_cause: string | null;
+  auto_fix: boolean; symptom_of: string | null; history: { at: string; status: string; actor: string; note?: string | null }[];
+  lineage?: { file: string; sheet: string | null; row: number | null; cell: string | null; column: string | null; original_value: string | null; normalised_value: string | number | null; mapped_field: { code: string; name: string } | null; transformation: string };
+}
+
+/** Issues sharing one cause: one card, one decision. */
+export interface RootCause {
+  root_cause: string; rule: string | null; rule_version: string | null; label: string; column: string | null; sheet: string | null;
+  severity: string; outcome: string; owner: "sender" | "us"; auto_fix: boolean; fix: string;
+  count: number; open: number; rows: number; symptoms: number; kind: "cause" | "symptom";
+  caused_by: { root_cause: string; count: number }[]; amount_affected: { currency: string | null; amount: number }[];
+  first_issue_id: string; first_open_issue_id: string | null;
+}
+
+export interface IssueList { total: number; items: Issue[]; by_status: Record<string, number>; root_causes: RootCause[] }
+
+export type BulkAction = "apply_safe_fix" | "send_to_sender" | "override" | "resolve";
+
+/** Checks re-run after corrections: a fix counts only if the rule stops firing. */
+export interface Recheck {
+  status: "ran" | "not_run" | "queued"; reason?: string; job_id?: string; rechecked?: number; passed?: number; still_failing?: number;
+  new_findings?: number;
+}
+
+// Trail, information requests and sender memory (backend Phases 3–4).
+export interface InfoRequest {
+  id: string; number: number; reference: string; report_id: string; root_cause: string; issues: number;
+  to: string | null; subject: string; body: string; delivery: string | null; delivery_error: string | null;
+  status: string; replies: { at?: string; from?: string; text?: string }[]; reply_report_id: string | null;
+  resolution: Record<string, unknown> | null; created_by: string | null; created_at: string;
+}
+export interface WorkbookVersion {
+  id: string; number: number; kind: string; sha256: string; size: number; corrections: number;
+  based_on: string | null; created_by: string | null; created_at: string | null;
+}
+export interface TrailCorrection {
+  id: string; sheet: string; cell: string; before: string | null; after: string | null; why: string | null; rule: string | null;
+  policy: string | null; policy_reason: string | null; source: string | null; proposed_by: string | null; proposed_at: string | null;
+  status: string; decided_by: string | null; decided_at: string | null; result: Record<string, unknown> | null;
+}
+export interface Trail {
+  report_id: string;
+  arrival: { file_name: string; sha256: string | null; size: number; channel: string; sender: string | null; programme: string | null; received_at: string | null; received_by: string | null };
+  processing: { id: string; kind: string; status: string; attempts: number; queued_at: string | null; started_at: string | null; finished_at: string | null; error_code: string | null }[];
+  analysis: { status: string; rows: number; grade: string | null; ruleset_versions: string[]; findings: number; findings_by_rule: Record<string, number>; analysed_version_sha256: string | null };
+  issues: { total: number; open: number; by_status: Record<string, number> };
+  corrections: TrailCorrection[];
+  versions: WorkbookVersion[];
+  information_requests: InfoRequest[];
+  final_verification: {
+    approved_version: { number: number; sha256: string; approved_by: string | null; at: string | null } | null;
+    last_recheck: unknown; open_issues: number; unverified_corrections: number;
+    audit_chain_intact: boolean; audit_chain_first_bad_seq: number | null; source_unchanged: boolean | null;
+  };
+  audit: { seq: number; action: string; entity: string; entity_id: string; actor: string; at: string | null; hash: string }[];
+}
+export interface Counterparty { sender: string; submissions: number; last_received_at: string | null }
+export interface CounterpartyProfile {
+  sender: string;
+  submissions: { report_id: string; file_name: string; received_at: string; status: string; sha256: string | null }[];
+  structures: { sheet: string; headers: string[]; seen: number }[];
+  reporting_periods: string[];
+  recurring_errors: { rule: string; findings: number; by_status: Record<string, number> }[];
+  known_exceptions: { rule: string | null; cell: string | null; actual: unknown; reason: string | null }[];
+  approved_corrections: { rule: string | null; before: string | null; after: string | null; times: number }[];
+  approved_rules: { id: string; field_code: string | null; rule: string | null; match_value: string | null; replace_value: string | null; applied: number }[];
+  contacts: unknown[];
+  open_requests: unknown[];
+}
+export interface RuleSuggestion {
+  field_code: string | null; rule: string | null; match_value: string | null; replace_value: string | null;
+  observed: number; sender: string | null; prompt: string;
 }

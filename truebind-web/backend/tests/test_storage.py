@@ -14,6 +14,8 @@ Acceptance:
 from __future__ import annotations
 
 import hashlib
+import os
+import stat
 from pathlib import Path
 
 import pytest
@@ -44,6 +46,26 @@ def test_originals_are_content_addressed_and_idempotent(tmp_path: Path) -> None:
     assert again == obj, "identical bytes map to the same immutable object"
     with store.local_copy(obj.key, sha) as p:
         assert p.read_bytes() == content
+
+
+def test_original_is_stored_where_read_only_files_cannot_be_unlinked(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Windows refuses to unlink a read-only file. Storing an original used to
+    500 every upload there (the read-only staging name couldn't be removed)."""
+    real_unlink = os.unlink
+
+    def windows_unlink(path: str | os.PathLike[str], *a: object, **k: object) -> None:
+        if not os.stat(path).st_mode & stat.S_IWUSR:
+            raise PermissionError(13, "Access is denied", str(path))
+        real_unlink(path)
+
+    monkeypatch.setattr(os, "unlink", windows_unlink)
+    store = LocalObjectStore(tmp_path / "objects")
+    content = b"bordereau bytes on windows"
+    obj = store.put_original(TENANT, "xlsx", _file(tmp_path, content))
+    dest = tmp_path / "objects" / obj.key
+    assert dest.read_bytes() == content
+    assert not dest.stat().st_mode & stat.S_IWUSR, "the stored original stays read-only"
+    assert not list(dest.parent.glob(".incoming-*")), "no staging file is left behind"
 
 
 def test_storage_has_no_overwrite_path_and_one_retention_delete() -> None:

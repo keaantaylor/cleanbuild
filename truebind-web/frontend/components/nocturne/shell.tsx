@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  AddressBook,
   Bell,
   CaretRight,
   ChartLineUp,
@@ -47,6 +48,7 @@ export const NAV: { label: string; items: NavItem[] }[] = [
     { id: "reports", label: "Reports", icon: FileText, href: "/reports" },
     { id: "exceptions", label: "Exceptions", icon: Warning, href: "/exceptions" },
     { id: "duplicates", label: "Duplicates", icon: Copy, href: "/duplicates" },
+    { id: "senders", label: "Senders", icon: AddressBook, href: "/senders" },
     { id: "scorecard", label: "Scorecard", icon: ChartLineUp, href: "/scorecard" },
   ] },
   { label: "Deliver", items: [

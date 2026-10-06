@@ -33,7 +33,9 @@ from ..ai.mapper import ProviderAIMapper
 from ..ai.masking import masked_samples
 from ..models.jobs import Job
 from ..models.reports import Report, Sheet
-from . import job_service, module_service, parse_cache, persistence_service, pipeline_service, report_state
+from . import (job_service, module_service, parse_cache, persistence_service, pipeline_service,
+               reconciliation_service, report_state)
+from . import email_loop, memory_service
 from .storage import IntegrityError, get_store
 
 log = logging.getLogger("truebind.jobs")
@@ -205,6 +207,7 @@ def run_process(db: Session, job: Job) -> dict:
     result = pipeline_service.run_workbook_pipeline(
         sheets, confirmed, proposals, source_name=report.file_name,
         on_stage=lambda stage, facts: job_service.set_stage(db, job, stage, **facts))
+    result = reconciliation_service.with_previous_submission(db, report, result)
     t_pipe = perf_counter() - t0 - t_parse
     job_service.set_stage(db, job, "saving")
     t = perf_counter()
@@ -212,6 +215,8 @@ def run_process(db: Session, job: Job) -> dict:
     t_persist = perf_counter() - t
     t = perf_counter()
     module_service.run_all(db, report)  # same transaction as the results: all or nothing
+    memory_service.mark_known_exceptions(db, report)
+    email_loop.verify_resubmission(db, report)
     t_checks = perf_counter() - t
     report_state.transition(db, report, "COMPLETE", reason="processed")
     return {"parse_s": round(t_parse, 2), "parse_cached": parse_cached, "pipeline_s": round(t_pipe, 2),
@@ -220,7 +225,21 @@ def run_process(db: Session, job: Job) -> dict:
             "rows": int(len(result.canonical)), "peak_rss_mb": _peak_rss_mb()}
 
 
-HANDLERS = {"INGEST": run_ingest, "PROCESS": run_process}
+def run_recheck(db: Session, job: Job) -> dict:
+    """Re-run every check after corrections, for a workbook too large to do
+    inside the request. Idempotent: it recomputes from the stored original and
+    the approved corrections, so a retry gives the same answer."""
+    report = db.get(Report, job.report_id)
+    if report is None or report.status != "COMPLETE":
+        raise JobFailure("not_complete", "The report is not processed.", False)
+    params = (job.metrics or {}).get("params") or {}
+    summary = reconciliation_service.run_recheck(db, report, params.get("actor") or "system",
+                                                 params.get("version_id"))
+    db.commit()
+    return {"recheck": {k: v for k, v in summary.items() if k != "new"}}
+
+
+HANDLERS = {"INGEST": run_ingest, "PROCESS": run_process, "RECHECK": run_recheck}
 
 
 def execute(db: Session, job_id: str, tenant_id: str) -> None:

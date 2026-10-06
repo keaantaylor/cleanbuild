@@ -24,9 +24,9 @@ router = APIRouter(prefix="/api/v1/system", tags=["system"])
 def processing_status(ctx: Context = Depends(require_reader), db: Session = Depends(get_db)) -> dict:
     set_tenant(db, ctx.tenant_id)
     counts = dict(db.query(Job.status, func.count()).filter(Job.tenant_id == ctx.tenant_id,
-                                                            Job.status.in_(("QUEUED", "RUNNING")))
+                                                            Job.status.in_(("QUEUED", "RETRYING", "RUNNING")))
                   .group_by(Job.status).all())
-    oldest = (db.query(func.min(Job.created_at)).filter(Job.tenant_id == ctx.tenant_id, Job.status == "QUEUED")
+    oldest = (db.query(func.min(Job.created_at)).filter(Job.tenant_id == ctx.tenant_id, Job.status.in_(("QUEUED", "RETRYING")))
               .scalar())
     workers = job_service.live_workers(db)
     last = db.query(func.max(WorkerHeartbeat.last_seen_at)).scalar()

@@ -152,7 +152,7 @@ def coverage_statement(label: str, state: str, rules: list[dict[str, Any]], reas
     if state == "NOT_RUN":
         return f"{label} has not run on this report yet."
     if state == "NOT_ASSESSED":
-        return f"{label} was not assessed: {reason or 'no reason recorded'}."
+        return f"{label} was not assessed: {(reason or 'no reason recorded').rstrip('.')}."
     parts = [
         f"{r['label']}: {r['assessed']} assessed"
         + (f", {r['not_assessed']} not assessed ({'; '.join(r['reasons'])})" if r["not_assessed"] else "")

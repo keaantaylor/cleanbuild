@@ -1,0 +1,18 @@
+{
+  "500": {
+    "id": "ae89d1df-8afb-49ee-9ac9-5c6241a3256e",
+    "rows": 530,
+    "ingest": 1.119,
+    "confirm": 0.173,
+    "process": 2.647,
+    "total": 3.939
+  },
+  "10000": {
+    "id": "dbd7d5ec-3583-4a1e-b472-eaf8cea55db9",
+    "rows": 10607,
+    "ingest": 3.749,
+    "confirm": 0.162,
+    "process": 8.375,
+    "total": 12.286
+  }
+}

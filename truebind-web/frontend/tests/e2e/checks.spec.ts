@@ -30,6 +30,7 @@ test("an analyst checks a bordereau against its binder and dismisses a finding w
   await page.getByRole("button", { name: "Produce health report" }).click();
   await expect(page).toHaveURL(/\/reports\/[^/]+$/, { timeout: 60_000 });
   await expect(page.getByRole("button", { name: "Audit pack" })).toBeVisible({ timeout: 180_000 });
+  await page.getByRole("tab", { name: "Full report" }).click(); // the report opens on the workbook
   await page.getByRole("tab", { name: "Other checks & evidence" }).click();
 
   const binderCard = page.locator("section", { hasText: "Binder compliance" }).first();

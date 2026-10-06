@@ -39,6 +39,9 @@ test("sign up, upload the golden workbook, confirm mapping, read the report, sig
   expect(s.arithmetic_mismatches).toBe(38);
   expect(s.arithmetic_not_evaluable).toBe(0);
 
+  // The report opens on the workbook; the health report is one tab away.
+  await expect(page.getByRole("grid")).toBeVisible();
+  await page.getByRole("tab", { name: "Full report" }).click();
   // Page 1: a verdict, three separate counts and the top fixes, from the same health view the PDF uses.
   const hv = s.health_view;
   await expect(page.getByRole("heading", { level: 1, name: hv.verdict_label })).toBeVisible();
@@ -51,7 +54,7 @@ test("sign up, upload the golden workbook, confirm mapping, read the report, sig
   await expect(page.locator('td[style*="rgb(255, 199, 206)"]').first()).toBeVisible({ timeout: 30_000 });
   await page.getByRole("tab", { name: "Original" }).click();
   await expect(page.locator('td[style*="rgb(255, 199, 206)"]')).toHaveCount(0);
-  await page.getByRole("tab", { name: "Review" }).click();
+  await page.getByRole("tab", { name: "Review", exact: true }).click();
   await page.getByRole("tab", { name: "Mapping" }).click();
   await expect(page.getByText("Field completeness")).toBeVisible();
 

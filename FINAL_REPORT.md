@@ -1,19 +1,13 @@
-# Strategy + build pass — final report (branch fix/strategy-pass)
+# Competitive-advantage rebuild: Phase 5 (workbook as product + connectors), branch `rebuild`
 
-| Item | Status |
+| Area | Change |
 |---|---|
-| Forms: demo + Health Check (file ≤10 MB, consent) saved to DB, emailed to LEADS_NOTIFY_EMAIL (stored only if unset) | Done |
-| Logout bug: logo → Overview; marketing pages keep the session (e2e test) | Done |
-| Big files: bulk inserts, originals in DB until done, 10-min timeout with clear message, stale jobs failed | Done (10k rows: 24 s incl. deliverables build) |
-| Noise: Settled=Closed, paid unmapped = couldn't check, probable duplicates need corroboration, non-claims tabs auto-skipped, Pol No./Date Rptd aliases | Done |
-| Export safety: = + - @ neutralised in CSV/Excel; tests incl. AI prompts | Done |
-| Consistent counts/severity across app, PDF, exports; one rule catalogue | Done |
-| Health report redesign, annotated workbook, corrected copy, query letter, month-on-month | Done |
-| 30-day deletion, anonymise names, true security page, DPA draft | Done |
-| Pricing, demo page, strategy + next-products docs | Done |
-| Accounting negatives ('1,234.56-'), blank-currency flag, launch-readiness SEO/legal pages | Left for next session |
+| Workbook view | The report now opens on the workbook. Rows and columns are virtualised (tiles of 100 rows x 40 columns; a large sheet keeps under 1,500 cells in the page). Sheet tabs; frozen column letters, the sheet's own header row and row numbers; search across values and formulas; "rows with issues only"; range selection with count and sum; keyboard navigation (arrows, Shift, PageUp/Down, Ctrl+Home/End, Tab, Ctrl+F, Alt+N/P for next/previous issue); column resize. No new dependency |
+| Cell states | Verified / Requires reconciliation / Undetermined, always as words (legend, cell title, inspector) with a left bar and tint, never colour alone |
+| Inspector | Value, formula, state, each issue with expected / actual / difference and rule + version, known exceptions; propose a correction (policy shown), approve or reject inline, with the re-check result |
+| Issue to cell | "Show in workbook" in the review queue switches sheet and selects the exact cell |
+| Grid service | Values and formulas cached separately (formulas show their calculated value, the formula in the inspector); up to 1,000 columns; tiles by row and column range or explicit rows; search and issue-cell endpoints |
+| Connectors | One interface, two providers: Microsoft 365 (Graph, app-only: "Open in Excel") and Google Sheets (service account). Open uploads a new file and never overwrites the source; "Read edits" turns changed cells into PROPOSED corrections under the execution policy (formulas, headers, claim references refused); "Write back" uploads the working copy as a new version. Credentials from server environment only, never stored or returned. Migration 0024 |
 
-Metrics: 10k rows 23.1 s → 6.1 s processing; probable duplicates 2k rows 1,378 → 9; generated files recall 100%, 0 false positives; REVIEWED files 87–88% of issue types TrueBind checks.
-Tests: backend 384, engine 94, e2e 9/9, build OK. OpenAPI additive only.
-Locked preview: https://cleanbuild-3vibbdz1b-keaantaylors-projects.vercel.app (frontend; live backend not yet updated).
-Only you: see "Waiting for Kealan" in PROGRESS.md (approve backend deploy incl. migrations 0017–0020, set LEADS_NOTIFY_EMAIL/LEADS_ADMIN_EMAILS/SMTP_*, hosting region wording, prices, DB password rotation).
+Checks: backend 412 passed (1 Windows-only memory-limit test); engine 100; frontend lint, typecheck, 24 unit, build OK; e2e 10/10, incl. a new workbook spec (virtualised DOM, keyboard, next issue, issue to cell). The golden-flow and checks specs were updated for the new report tabs (they had been out of date since Phase 1).
+Left: connectors are verified with mocked Graph/Drive transports, not against live tenants (needs M365_* / GOOGLE_* credentials); connections are server-wide, not per organisation; Google write-back over a converted sheet is best-effort; no cell editing in the grid itself (corrections go through the inspector).

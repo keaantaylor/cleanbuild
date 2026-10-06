@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from ..config import JOB_LEASE_S, JOB_MAX_ATTEMPTS, MAX_CONCURRENT_JOBS_PER_TENANT, WORKER_STALE_S
 from ..database import set_tenant
 from ..models._util import utcnow
-from ..models.jobs import TERMINAL_JOB_STATUSES, Job, WorkerHeartbeat
+from ..models.jobs import PENDING_JOB_STATUSES, TERMINAL_JOB_STATUSES, Job, WorkerHeartbeat
 from ..models.reports import Report
 from . import alert_service, audit_service, job_signal, report_state, webhooks
 
@@ -37,18 +37,23 @@ class JobConflict(Exception):
 
 
 def active_job(db: Session, report_id: str) -> Job | None:
-    return (db.query(Job).filter(Job.report_id == report_id, Job.status.in_(("QUEUED", "RUNNING")))
+    return (db.query(Job).filter(Job.report_id == report_id, Job.status.in_(("QUEUED", "RETRYING", "RUNNING")))
             .order_by(Job.created_at.desc()).first())
 
 
-def enqueue(db: Session, report: Report, kind: str, actor: str, actor_user_id: str | None) -> Job:
+def enqueue(db: Session, report: Report, kind: str, actor: str, actor_user_id: str | None,
+            params: dict | None = None) -> Job:
     if active_job(db, report.id) is not None:
         raise JobConflict("this report already has a job queued or running")
     job = Job(tenant_id=report.tenant_id, report_id=report.id, kind=kind, status="QUEUED",
-              max_attempts=JOB_MAX_ATTEMPTS)
+              max_attempts=JOB_MAX_ATTEMPTS, metrics={"params": params} if params else None)
     db.add(job)
     db.flush()
     job_signal.notify(db)  # wakes an idle worker once this transaction commits
+    if kind == "RECHECK":  # a processed report stays COMPLETE while its corrections are re-checked
+        audit_service.log_action(db, report.tenant_id, report.id, "JOB_QUEUED", "JOB", job.id,
+                                 after={"kind": kind, "params": params}, actor=actor, actor_user_id=actor_user_id)
+        return job
     report_state.transition(db, report, "QUEUED", actor=actor, actor_user_id=actor_user_id, reason=f"{kind} job")
     report.processing_error = None
     report.error_code = None
@@ -64,7 +69,7 @@ def claim_next(db: Session, worker_id: str) -> Job | None:
     running = (select(Job.tenant_id, func.count().label("n")).where(Job.status == "RUNNING")
                .group_by(Job.tenant_id).subquery())
     q = (select(Job).outerjoin(running, running.c.tenant_id == Job.tenant_id)
-         .where(Job.status == "QUEUED", (Job.run_after.is_(None)) | (Job.run_after <= now),
+         .where(Job.status.in_(PENDING_JOB_STATUSES), (Job.run_after.is_(None)) | (Job.run_after <= now),
                 func.coalesce(running.c.n, 0) < MAX_CONCURRENT_JOBS_PER_TENANT)
          .order_by(Job.created_at).limit(1))
     if db.get_bind().dialect.name == "postgresql":
@@ -76,7 +81,7 @@ def claim_next(db: Session, worker_id: str) -> Job | None:
     # Compare-and-set: even where SKIP LOCKED is unavailable (SQLite), two
     # workers can never both win the same job.
     won = db.execute(
-        update(Job).where(Job.id == job.id, Job.status == "QUEUED")
+        update(Job).where(Job.id == job.id, Job.status.in_(PENDING_JOB_STATUSES))
         .values(status="RUNNING", attempts=Job.attempts + 1, lease_owner=worker_id,
                 lease_expires_at=now + timedelta(seconds=JOB_LEASE_S), heartbeat_at=now, started_at=now,
                 stage="starting")
@@ -89,7 +94,7 @@ def claim_next(db: Session, worker_id: str) -> Job | None:
     tenant_id = job.tenant_id
     set_tenant(db, tenant_id)
     report = db.get(Report, job.report_id)
-    if report is not None:
+    if report is not None and job.kind in REPORT_STATUS_FOR_KIND:  # RECHECK leaves the report COMPLETE
         report_state.transition(db, report, REPORT_STATUS_FOR_KIND[job.kind], reason=f"claimed by {worker_id}")
     audit_service.log_action(db, tenant_id, job.report_id, "JOB_STARTED", "JOB", job.id,
                              after={"worker": worker_id, "attempt": job.attempts})
@@ -140,7 +145,7 @@ def finish(db: Session, job: Job, ok: bool, code: str | None = None, message: st
         job.metrics = {**(job.metrics or {}), **metrics}
     if ok:
         job.status = "SUCCEEDED"
-        if report is not None:
+        if report is not None and job.kind != "RECHECK":
             if job.kind == "INGEST":
                 alert_service.raise_alert(db, job.tenant_id, report.id, "INFO", alert_service.REVIEW_NEEDED,
                                           f"{report.file_name}: the workbook was read and a column mapping is "
@@ -157,7 +162,7 @@ def finish(db: Session, job: Job, ok: bool, code: str | None = None, message: st
             report_state.transition(db, report, "CANCELLED", reason="cancelled")
         audit_service.log_action(db, job.tenant_id, job.report_id, "JOB_CANCELLED", "JOB", job.id)
     elif retryable and job.attempts < job.max_attempts:
-        job.status = "QUEUED"
+        job.status = "RETRYING"
         # A lost worker says nothing about the file: retry at once. Other
         # retryable errors (e.g. a database blip) back off briefly.
         delay = 0 if code == "worker_lost" else 15 * job.attempts
@@ -165,7 +170,7 @@ def finish(db: Session, job: Job, ok: bool, code: str | None = None, message: st
         if delay == 0:
             job_signal.notify(db)
         job.error_code, job.error_message, job.error_detail = code, message, (detail or "")[:4000]
-        if report is not None:
+        if report is not None and job.kind != "RECHECK":
             report_state.transition(db, report, "QUEUED", reason=f"retry after {code}")
     else:
         job.status = "FAILED"
@@ -185,7 +190,7 @@ def finish(db: Session, job: Job, ok: bool, code: str | None = None, message: st
 def _notify(db: Session, job: Job, report: Report | None) -> None:
     """Queue webhook events (and SFTP auto-delivery) for a finished job.
     Delivery happens later in the worker; a problem here never fails the job."""
-    if report is None:
+    if report is None or job.kind == "RECHECK":  # the report did not change state
         return
     if job.status == "SUCCEEDED":
         event = "report.waiting_for_review" if job.kind == "INGEST" else "report.completed"

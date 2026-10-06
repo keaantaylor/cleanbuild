@@ -1,4 +1,4 @@
-import type { Alert, AuditLogEntry, Billing, Binder, Preflight, SanctionsList, Scorecard, Submission, BinderInput, Disposition, ModuleFinding, ModuleRun, Channels, ClaimRow, Delivery, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Invitation, InvitationCreated, Job, Me, MappingField, ExceptionGroups, GridPage, MonthOnMonth, QueryLetter, Member, MfaChallenge, MfaStatus, Obligation, OrgSettings, Overview, Report, ReportSummary, Role, Sheet, SheetMapping, SftpDestination, SftpInput, SsoConfig, SsoConfigInput, SystemStatus, Template, WebhookDelivery, WebhookEndpoint, WebhookEvent, WorkQueue } from "./types";
+import type { Counterparty, CounterpartyProfile, InfoRequest, RuleSuggestion, Trail, WorkbookVersion, BulkAction, ConnectorInfo, ConnectorLink, CorrectionOut, GridHit, GridIssueCell, Issue, IssueList, Recheck, Alert, AuditLogEntry, Billing, Binder, Preflight, SanctionsList, Scorecard, Submission, BinderInput, Disposition, ModuleFinding, ModuleRun, Channels, ClaimRow, Delivery, DuplicatePair, ExceptionRow, ExceptionSummary, ExcludedRow, Invitation, InvitationCreated, Job, Me, MappingField, ExceptionGroups, GridPage, MonthOnMonth, QueryLetter, Member, MfaChallenge, MfaStatus, Obligation, OrgSettings, Overview, Report, ReportSummary, Role, Sheet, SheetMapping, SftpDestination, SftpInput, SsoConfig, SsoConfigInput, SystemStatus, Template, WebhookDelivery, WebhookEndpoint, WebhookEvent, WorkQueue } from "./types";
 
 // Default: same hostname as the page, port 8000. Using the page's own host
 // matters: a page on localhost calling an API on 127.0.0.1 is cross-site, so
@@ -220,6 +220,11 @@ export const api = {
   waitForReport,
   listReports: () => items(request<Page<Report>>("/reports?limit=200")),
   getReport: (reportId: string) => request<Report>(`/reports/${reportId}`),
+  listIssues: (reportId: string, params: { root_cause?: string; limit?: number } = {}) =>
+    request<IssueList>(`/reports/${reportId}/issues${qs({ root_cause: params.root_cause, limit: params.limit?.toString() })}`),
+  getIssue: (reportId: string, issueId: string) => request<Issue>(`/reports/${reportId}/issues/${issueId}`),
+  decideRootCause: (reportId: string, rootCause: string, action: BulkAction, note?: string) =>
+    request<{ changed: number; skipped: number; recheck: Recheck | null }>(`/reports/${reportId}/issues/bulk`, { method: "POST", body: JSON.stringify({ root_cause: rootCause, action, note: note || null }) }),
   getReportSummary: async (reportId: string): Promise<ReportSummary | null> => {
     const r = await request<{ report: Report; summary: Omit<ReportSummary, "report"> | null }>(`/reports/${reportId}/summary`);
     return r.summary ? { ...r.summary, report: r.report } : null;
@@ -377,9 +382,36 @@ export const api = {
   correctedWorkbookUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/corrected.xlsx`,
   sheetGrid: (reportId: string, sheetId: string, offset: number, limit: number) =>
     request<GridPage>(`/reports/${reportId}/sheets/${sheetId}/grid${qs({ offset, limit })}`),
+  gridTile: (reportId: string, sheetId: string, p: { offset?: number; limit?: number; colOffset?: number; colLimit?: number; rows?: number[] }) =>
+    request<GridPage>(`/reports/${reportId}/sheets/${sheetId}/grid${qs({ offset: p.offset, limit: p.limit, col_offset: p.colOffset, col_limit: p.colLimit, rows: p.rows?.join(",") })}`),
+  gridSearch: (reportId: string, sheetId: string, q: string) =>
+    request<{ items: GridHit[]; capped: boolean }>(`/reports/${reportId}/sheets/${sheetId}/grid/search${qs({ q })}`),
+  gridIssues: (reportId: string, sheetId: string) => request<{ items: GridIssueCell[] }>(`/reports/${reportId}/sheets/${sheetId}/grid/issues`),
+  proposeCorrection: (reportId: string, body: { sheet_id: string; cell: string; after_value: string | null; reason: string; issue_id?: string }) =>
+    request<CorrectionOut>(`/reports/${reportId}/corrections`, { method: "POST", body: JSON.stringify(body) }),
+  decideCorrection: (reportId: string, correctionId: string, approve: boolean, note?: string) =>
+    request<CorrectionOut>(`/reports/${reportId}/corrections/${correctionId}/decision`, { method: "POST", body: JSON.stringify({ approve, note: note || null }) }),
+  listConnectors: () => request<{ items: ConnectorInfo[] }>("/connectors"),
+  connectorLinks: (reportId: string) => request<{ items: ConnectorLink[] }>(`/reports/${reportId}/connectors`),
+  openInProvider: (reportId: string, provider: string) => request<ConnectorLink>(`/reports/${reportId}/connectors/${provider}/open`, { method: "POST" }),
+  pullConnector: (reportId: string, linkId: string) =>
+    request<{ changed_cells: number; proposed: number; blocked: number; already_pending: number }>(`/reports/${reportId}/connectors/links/${linkId}/pull`, { method: "POST" }),
+  pushConnector: (reportId: string, linkId: string) => request<ConnectorLink>(`/reports/${reportId}/connectors/links/${linkId}/push`, { method: "POST" }),
   queryLetter: (reportId: string) => request<QueryLetter>(`/reports/${reportId}/query-letter`),
   compareReports: (reportId: string, previousId: string, pct: number, min: number) =>
     request<MonthOnMonth>(`/reports/${reportId}/compare${qs({ previous_report_id: previousId, reserve_jump_pct: pct, reserve_jump_min: min })}`),
   exportAuditCsvUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/audit.csv`,
   exportByStatusUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/claims.csv`,
+  reportTrail: (reportId: string) => request<Trail>(`/reports/${reportId}/trail`),
+  reportRequests: (reportId: string) => request<{ items: InfoRequest[] }>(`/reports/${reportId}/requests`),
+  listVersions: (reportId: string) => request<{ items: WorkbookVersion[] }>(`/reports/${reportId}/versions`),
+  createVersion: (reportId: string) => request<WorkbookVersion>(`/reports/${reportId}/versions`, { method: "POST" }),
+  approveVersion: (reportId: string, versionId: string, note?: string) =>
+    request<WorkbookVersion>(`/reports/${reportId}/versions/${versionId}/approve`, { method: "POST", body: JSON.stringify({ note: note || null }) }),
+  versionDownloadUrl: (reportId: string, versionId: string) => `${API_BASE}/reports/${reportId}/versions/${versionId}/download`,
+  counterparties: () => request<{ items: Counterparty[] }>("/counterparties"),
+  counterpartyProfile: (sender: string) => request<CounterpartyProfile>(`/counterparties/profile${qs({ sender })}`),
+  ruleSuggestions: () => request<{ items: RuleSuggestion[] }>("/memory/rule-suggestions"),
+  approveRule: (body: { field_code: string | null; rule: string | null; match_value: string | null; replace_value: string | null }) =>
+    request<{ id: string }>("/memory/rules", { method: "POST", body: JSON.stringify(body) }),
 };

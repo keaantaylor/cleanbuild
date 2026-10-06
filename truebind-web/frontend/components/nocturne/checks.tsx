@@ -71,14 +71,14 @@ function ModuleCard({ run, report, canWrite, onRan, extra }: { run: ModuleRun; r
         </div>
       </div>
       {extra}
-      {run.reason && run.state !== "ASSESSED" && <span className="text-[12.5px]" style={{ color: "var(--warn)" }}>{run.reason}</span>}
+      {run.reason && run.state !== "ASSESSED" && run.state !== "NOT_ASSESSED" && <span className="text-[12.5px]" style={{ color: "var(--warn)" }}>{run.reason}</span>}
       {(Object.keys(run.exposure ?? {}).length > 0 || run.unpriced_findings > 0) && (
         <span className="text-[13px]">
           <b className="font-medium">Open exposure:</b> {Object.entries(run.exposure).map(([c, a]) => decimalMoney(a, c)).join(" · ") || "none with a stated currency"}
-          {run.unpriced_findings > 0 && <span style={{ color: "var(--muted)" }}> · {run.unpriced_findings} finding(s) without a stated currency, not totalled</span>}
+          {run.unpriced_findings > 0 && <span style={{ color: "var(--muted)" }}> · {formatNumber(run.unpriced_findings)} {run.unpriced_findings === 1 ? "finding" : "findings"} without a stated currency, not totalled</span>}
         </span>
       )}
-      {run.rules.length > 0 && (
+      {run.rules.length > 0 && run.state !== "NOT_ASSESSED" && (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[520px] border-collapse text-[12.5px]">
             <caption className="sr-only">{run.label}: rows assessed per rule</caption>
@@ -106,7 +106,9 @@ function ModuleCard({ run, report, canWrite, onRan, extra }: { run: ModuleRun; r
       ) : !findings.data ? (
         <LoadingState label="Loading findings" rows={2} />
       ) : list.length === 0 ? (
-        <span className="text-[13px]" style={{ color: "var(--muted)" }}>{run.state === "ASSESSED" ? "No findings: every assessed row passed." : run.state === "PARTIAL" ? "No findings in the rows that could be assessed." : "No findings — nothing was assessed yet."}</span>
+        run.state === "ASSESSED" || run.state === "PARTIAL" ? (
+          <span className="text-[13px]" style={{ color: "var(--muted)" }}>{run.state === "ASSESSED" ? "No findings: every assessed row passed." : "No findings in the rows that could be assessed."}</span>
+        ) : null
       ) : (
         <ul className="m-0 flex list-none flex-col overflow-hidden rounded-md p-0" style={{ boxShadow: "inset 0 0 0 1px var(--line)" }} aria-label={`${run.label} findings`}>
           {list.map((f) => (

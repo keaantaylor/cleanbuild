@@ -17,7 +17,7 @@ from time import perf_counter
 
 import pandas as pd
 
-from . import dedupe, export, ingest, report, schema, validation
+from . import dedupe, export, ingest, reconcile, report, schema, validation
 from .ingest import SheetData
 from .mapping import AIMapper, MappingBatchResult, MappingSuggestion, build_mapping, derive_field_state
 import pandera.errors as pa_errors
@@ -329,6 +329,10 @@ def run_workbook_pipeline(
     _stage("validating", rows_mapped=int(len(canonical)))
     validation_result = validation.validate(canonical, sheet_field_state=sheet_field_state)
     validation_result = validation.add_row_findings(validation_result, schema_failures)
+    excluded_for_totals = [er for s in sheets if not s.skipped for er in s.excluded_rows]
+    validation_result = validation.add_exceptions(validation_result, [
+        reconcile.totals_vs_detail(canonical, excluded_for_totals, confirmed_mappings),
+        reconcile.cross_sheet_conflicts(canonical)])
     stage_timings["validation"], _t = perf_counter() - _t, perf_counter()
 
     _stage("checking_duplicates", row_findings=int(len(validation_result.exceptions)),

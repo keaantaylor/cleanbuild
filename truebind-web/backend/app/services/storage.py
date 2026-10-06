@@ -131,7 +131,16 @@ class LocalObjectStore:
                     raise ImmutableObjectError(key) from None
         finally:
             with contextlib.suppress(FileNotFoundError):
-                os.unlink(tmp)  # the staging name only; the stored original is `dest`
+                try:
+                    os.unlink(tmp)  # the staging name only; the stored original is `dest`
+                except PermissionError:
+                    # Windows won't unlink a read-only file, and the read-only flag is
+                    # shared by both hard links: clear it to drop the staging name,
+                    # then make the original read-only again.
+                    os.chmod(tmp, 0o600)
+                    os.unlink(tmp)
+                    if dest.exists():
+                        os.chmod(dest, 0o400)
         return StoredObject(key, digest, size)
 
     def delete_source(self, key: str, tenant_id: str, source_sha256: str, db: Any = None) -> int:

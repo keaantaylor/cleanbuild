@@ -16,12 +16,20 @@ export function saveBlob(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** A failed download, with the HTTP status so callers can treat 409 (file not
+ * available yet, or the stored original is gone) differently from a failure. */
+export class ExportError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
+
 async function fetchExport(url: string): Promise<Response> {
   const res = await fetch(url, { credentials: "include" });
   if (res.status === 401) {
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- full navigation clears session state
     window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname)}`);
-    throw new Error("Please sign in again.");
+    throw new ExportError("Please sign in again.", 401);
   }
   if (!res.ok) {
     let detail = `The export failed (${res.status}).`;
@@ -31,9 +39,34 @@ async function fetchExport(url: string): Promise<Response> {
     } catch {
       // not JSON
     }
-    throw new Error(detail);
+    throw new ExportError(detail, res.status);
   }
   return res;
+}
+
+/** The file name from a Content-Disposition header (RFC 6266), or the fallback. */
+export function filenameFromDisposition(header: string | null, fallback: string): string {
+  if (!header) return fallback;
+  const star = header.match(/filename\*\s*=\s*(?:UTF-8'')?([^;]+)/i);
+  if (star) {
+    try {
+      return decodeURIComponent(star[1].trim().replace(/^"|"$/g, ""));
+    } catch {
+      // fall through to the plain parameter
+    }
+  }
+  const plain = header.match(/filename\s*=\s*"([^"]+)"|filename\s*=\s*([^;]+)/i);
+  const name = (plain?.[1] ?? plain?.[2] ?? "").trim();
+  return name || fallback;
+}
+
+/** Download a file the backend builds, saved under the name the server gives
+ * it. Resolves to that name; throws ExportError (with the status) on failure. */
+export async function downloadServerFile(url: string, fallbackName: string): Promise<string> {
+  const res = await fetchExport(url);
+  const name = filenameFromDisposition(res.headers.get("Content-Disposition"), fallbackName);
+  saveBlob(await res.blob(), name);
+  return name;
 }
 
 /** Worksheet name from a file's base name, e.g. "claims_2026_exceptions" → "Exceptions". */

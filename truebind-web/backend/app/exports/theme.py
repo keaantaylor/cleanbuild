@@ -1,10 +1,10 @@
 """One design system for every Excel file TrueBind produces.
 
-Colours come from the truebind.ie tokens (frontend/styles/globals.css, light
-theme, which is the one that prints): ink #0f172a, accent #059669, ok #047857,
-warn #b45309, err #b91c1c, med #1d4ed8, na #94a3b8. Excel fills are light tints
-of those so text on them stays AA-readable, and every status is also written
-as a word in the cell, so the file reads the same in greyscale.
+Brand colours come from the truebind.ie tokens (frontend/styles/globals.css):
+ink #0f172a, mint #34d399, accent #059669 (light theme, the one that prints).
+Result colours are the app's own pairs (frontend/lib/severity.ts), all AA on
+their fill. Every status is also written as a word in the cell, so the file
+reads the same in greyscale.
 
 ``Formats`` is the write-once cache: XlsxWriter formats are created once per
 distinct style and reused, never one per cell.
@@ -25,13 +25,14 @@ THEME = {
     "mint": "#34D399",       # --accent (dark), the logo mint
     "head": "#E2E8F0",
     "link": "#1D4ED8",
-    # status: (fill, text)
-    "error": ("#FDE2E2", "#991B1B"),
-    "warning": ("#FEF3C7", "#92400E"),
-    "info": ("#DBEAFE", "#1E3A8A"),
-    "pass": ("#DCFCE7", "#14532D"),
-    "pass_subtle": ("#F0F7F2", "#14532D"),  # annotated workbook: OK cells, kept quiet
-    "na": ("#E2E8F0", "#334155"),           # couldn't check / couldn't map
+    # status: (fill, text). The same pairs as frontend/lib/severity.ts TONE, so a
+    # finding looks the same in the app, its PDF and every Excel file.
+    "error": ("#FFC7CE", "#9C0006"),
+    "warning": ("#FFF2CC", "#7F6000"),
+    "pass": ("#E2F0D9", "#375623"),
+    "na": ("#E7E6E6", "#3A3A3A"),           # couldn't check / couldn't map
+    "info": ("#DBEAFE", "#1E3A8A"),         # mapped by AI (--med)
+    "pass_subtle": ("#F0F7F2", "#375623"),  # annotated workbook: OK cells, kept quiet
 }
 
 # One word per status, always written into the cell next to its colour.

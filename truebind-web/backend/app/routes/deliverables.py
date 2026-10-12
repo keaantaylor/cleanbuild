@@ -1,9 +1,10 @@
-"""Customer deliverables for a processed report: the annotated workbook, the
-corrected copy, the query letter to the sender and the month-on-month check.
+"""Customer deliverables for a processed report: the Health Report, the
+annotated workbook, the corrected copy, the query letter to the sender and the month-on-month check.
 Every download is recorded in the audit trail and the deliveries list."""
 
 from __future__ import annotations
 
+import datetime as dt
 import hashlib
 import re
 from pathlib import Path
@@ -13,6 +14,8 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..exports import data as export_data
+from ..exports.health_report import build_health_report
 from ..models.reports import Report
 from ..security.auth import Context, require_reader
 from ..services import audit_service, deliverables, delivery_service, grid_view
@@ -42,6 +45,25 @@ def _download(db: Session, ctx: Context, report: Report, kind: str, name: str, b
                             ctx.actor)
     db.commit()
     return Response(body, media_type=XLSX, headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+def health_report_name(report: Report, today: dt.date) -> str:
+    """TrueBind_Health_Report_<sender or file>_<YYYY-MM-DD>.xlsx, ASCII-safe."""
+    label = report.sender or Path(report.file_name).stem
+    label = re.sub(r"[^A-Za-z0-9-]+", "_", label).strip("_")[:60] or "bordereau"
+    return f"TrueBind_Health_Report_{label}_{today:%Y-%m-%d}.xlsx"
+
+
+@router.get("/{report_id}/export/health-report.xlsx")
+def health_report(report_id: str, ctx: Context = Depends(require_reader), db: Session = Depends(get_db)):
+    """The TrueBind Health Report: Summary (coverage first), Coverage,
+    Exceptions, Duplicates, Reconciliation, Missing Data, Audit Trail and
+    About This Report. Built in memory; FastAPI runs this sync route in its
+    threadpool, so a large build never blocks the event loop."""
+    report = _complete(db, ctx, report_id)
+    now = dt.datetime.now(dt.UTC)
+    body = build_health_report(export_data.collect(db, report, ctx.actor, now))
+    return _download(db, ctx, report, "health_report_xlsx", health_report_name(report, now.date()), body)
 
 
 @router.get("/{report_id}/export/annotated.xlsx")

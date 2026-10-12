@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowCounterClockwise, CheckCircle, DownloadSimple, LockSimple, MagnifyingGlass, ShieldCheck, Sparkle, Warning } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, CheckCircle, DownloadSimple, FileXls, LockSimple, MagnifyingGlass, ShieldCheck, Sparkle, Warning } from "@phosphor-icons/react";
 import { api, ApiError } from "@/lib/api";
 import type { ClaimRow, ExceptionRow, ExceptionSummary } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
@@ -17,6 +17,7 @@ import { exportFile } from "@/lib/exports";
 import { resultTone, TONE, type ResultTone } from "@/lib/severity";
 
 const PAGE = 50; // findings per page inside an open issue group
+const VIEW_CAP = 100_000; // "Export this view" row limit; the Health Report has no limit
 const OUTCOME_DOT: Record<ResultTone, string> = { err: "var(--err)", warn: "var(--warn)", muted: "var(--muted)", ok: "var(--ok)" };
 const REVIEW_LABEL: Record<string, string> = { open: "Open", in_review: "In review", resolved: "Resolved", accepted: "Accepted as reported", false_positive: "Dismissed · not an issue" };
 const CHECKS = [
@@ -72,6 +73,31 @@ function Exceptions() {
     () => (reportId && openRule ? api.searchExceptions(reportId, { ...filters, rule: openRule, sort, limit: PAGE, offset }) : Promise.resolve(null)),
     [reportId, severity, checkType, status, q, sheetF, columnF, openRule, sort, offset],
   );
+  const [viewBusy, setViewBusy] = useState(false);
+  // "Export this view": every finding matching the current filters (and the open issue group, if any).
+  const exportView = async () => {
+    if (!reportId) return;
+    setViewBusy(true);
+    try {
+      const rows: ExceptionRow[] = [];
+      for (let off = 0; rows.length < VIEW_CAP; off += 1000) {
+        const p = await api.searchExceptions(reportId, { ...filters, rule: openRule ?? undefined, sort, limit: 1000, offset: off });
+        rows.push(...p.items);
+        if (!p.items.length || rows.length >= p.total) break;
+      }
+      const labels = Object.fromEntries((groups.data?.groups ?? []).map((g) => [g.rule, g.label]));
+      const described = [severity && `severity ${severity.toLowerCase()}`, checkType && `check ${checkType.toLowerCase()}`, status && `result ${status.toLowerCase()}`,
+        q && `search “${q}”`, sheetF && `one sheet`, columnF && `column ${columnF}`, openRule && `issue ${labels[openRule] ?? openRule}`].filter(Boolean).join(", ") || "all findings";
+      const base = report?.file_name.replace(/\.\w+$/, "") ?? "report";
+      const [{ exceptionsViewToXlsx }, { saveBlob }] = await Promise.all([import("@/lib/exceptions-view"), import("@/lib/exports")]);
+      saveBlob(await exceptionsViewToXlsx(rows, labels, { file: report?.file_name ?? base, filters: described }), `${base}_exceptions_view.xlsx`);
+      toast(`Exported ${formatNumber(rows.length)} finding${rows.length === 1 ? "" : "s"} (${described})${rows.length >= VIEW_CAP ? `; capped at ${formatNumber(VIEW_CAP)}, use the Health Report for everything` : ""}`, rows.length >= VIEW_CAP ? "warn" : "ok");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "This view could not be exported.", "err");
+    } finally {
+      setViewBusy(false);
+    }
+  };
   const counts = useApi(async () => {
     if (!reportId) return null;
     const totals = await Promise.all(SEVS.map((s) => api.searchExceptions(reportId, { severity: s, limit: 1 }).then((p) => p.total)));
@@ -169,6 +195,10 @@ function Exceptions() {
             <button type="button" className="tb-btn" onClick={() => void exportFile(api.exportExceptionsUrl(reportId), `${report?.file_name.replace(/\.\w+$/, "") ?? "report"}_exceptions`, toast)}>
               <DownloadSimple />
               Export
+            </button>
+            <button type="button" className="tb-btn" disabled={viewBusy || !reportId} aria-busy={viewBusy} onClick={() => void exportView()}>
+              <FileXls aria-hidden />
+              {viewBusy ? "Exporting…" : "Export this view"}
             </button>
             <Link href={`/reports/${reportId}`} className="tb-btn tb-btn-primary">Health Check report</Link>
           </>

@@ -17,6 +17,7 @@ import { ProcessingPanel } from "@/components/nocturne/intake";
 import { reportStatus } from "@/components/nocturne/status";
 import { ChecksPanel } from "@/components/nocturne/checks";
 import { WorkbookPreview } from "@/components/nocturne/workbook-preview";
+import { HealthReportDownload } from "@/components/nocturne/health-report-download";
 import { ReviewQueue } from "@/components/nocturne/review-queue";
 import { TrailView } from "@/components/nocturne/trail";
 import { WorkbookGrid, type GridFocus } from "@/components/nocturne/workbook-grid";
@@ -310,6 +311,8 @@ function ReportBody({ report, s }: { report: Report; s: ReportSummary }) {
           {rec(s)}. Source values unchanged. sha256 {report.source_sha256 ? `${report.source_sha256.slice(0, 12)}…` : "—"}
         </div>
       </article>
+
+      <HealthReportDownload report={report} s={s} name={name} />
 
       <ReviewedWorkbook report={report} />
 

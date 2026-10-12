@@ -378,6 +378,7 @@ export const api = {
   exportClaimsUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/claims.csv`,
   exportExceptionsUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/exceptions.csv`,
   auditPackUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/audit-pack.zip`,
+  healthReportUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/health-report.xlsx`,
   annotatedWorkbookUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/annotated.xlsx`,
   correctedWorkbookUrl: (reportId: string) => `${API_BASE}/reports/${reportId}/export/corrected.xlsx`,
   sheetGrid: (reportId: string, sheetId: string, offset: number, limit: number) =>

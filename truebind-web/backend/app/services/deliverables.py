@@ -43,10 +43,13 @@ from bordereaux.schema import FIELDS_BY_CODE
 from ..models.reports import ClaimRow, ExcludedRow, Mapping, Report, Sheet, ValidationResult
 from .storage import IntegrityError, get_store
 
-GREEN, AMBER, RED, GREY = "E2F0D9", "FFF2CC", "FFC7CE", "E7E6E6"
+# OK cells stay a quiet green so red and amber problem cells stand out at a glance.
+GREEN, AMBER, RED, GREY, BLUE = "F0F7F2", "FFF2CC", "FFC7CE", "E7E6E6", "DBEAFE"
 RED_TEXT = "9C0006"
 FILL = {k: PatternFill("solid", start_color=v, end_color=v) for k, v in
-        {"ok": GREEN, "warn": AMBER, "err": RED, "grey": GREY}.items()}
+        {"ok": GREEN, "warn": AMBER, "err": RED, "grey": GREY, "ai": BLUE}.items()}
+MAPPING_LABEL = {"MAPPED_BY_ALIAS": "Mapped by alias", "MAPPED_BY_AI": "Mapped by AI",
+                 "MAPPED_BY_MEMORY": "Mapped from memory", "MANUAL": "Mapped by hand"}
 DARK_RED = Font(color=RED_TEXT)
 BOLD = Font(bold=True)
 MAX_COMMENTS = 10_000
@@ -75,35 +78,44 @@ def _original_path(db: Session, report: Report):
         raise SourceUnavailable("The stored original is not available, so this file cannot be built.") from exc
 
 
+def original_bytes(db: Session, report: Report) -> bytes:
+    """The stored original, read into memory and verified against its SHA-256."""
+    try:
+        return get_store().read_bytes(report.storage_key or "", report.source_sha256 or "", db=db)
+    except (IntegrityError, FileNotFoundError) as exc:
+        raise SourceUnavailable("The stored original is not available, so this file cannot be built.") from exc
+
+
 def load_original(db: Session, report: Report) -> tuple[openpyxl.Workbook, bool]:
     """The customer's workbook as an editable openpyxl workbook, and whether
     its layout is the original's (xlsx/xlsm) or a faithful copy of the values
-    (csv/xls, which have no layout to keep)."""
+    (csv/xls, which have no layout to keep). Read in memory: no file is
+    written to the server's disk."""
     kind = (report.file_kind or Path(report.file_name).suffix.lstrip(".")).lower()
-    with _original_path(db, report) as path:
-        if kind in ("xlsx", "xlsm"):
-            return openpyxl.load_workbook(path), True
-        wb = openpyxl.Workbook()
-        wb.remove(wb.active)
-        if kind == "csv":
-            ws = wb.create_sheet(_sheet_title(Path(report.file_name).stem))
-            text = path.read_bytes().decode("utf-8-sig", errors="replace")
-            for r, row in enumerate(csv.reader(io.StringIO(text)), start=1):
-                for c, v in enumerate(row, start=1):
-                    if v != "":
-                        set_text(ws.cell(row=r, column=c), v)
-            return wb, False
-        import xlrd  # .xls
-
-        book = xlrd.open_workbook(str(path))
-        for sh in book.sheets():
-            ws = wb.create_sheet(_sheet_title(sh.name))
-            for r in range(sh.nrows):
-                for c in range(sh.ncols):
-                    v = sh.cell_value(r, c)
-                    if v not in ("", None):
-                        set_text(ws.cell(row=r + 1, column=c + 1), v)
+    data = original_bytes(db, report)
+    if kind in ("xlsx", "xlsm"):
+        return openpyxl.load_workbook(io.BytesIO(data)), True
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+    if kind == "csv":
+        ws = wb.create_sheet(_sheet_title(Path(report.file_name).stem))
+        text = data.decode("utf-8-sig", errors="replace")
+        for r, row in enumerate(csv.reader(io.StringIO(text)), start=1):
+            for c, v in enumerate(row, start=1):
+                if v != "":
+                    set_text(ws.cell(row=r, column=c), v)
         return wb, False
+    import xlrd  # .xls
+
+    book = xlrd.open_workbook(file_contents=data)
+    for sh in book.sheets():
+        ws = wb.create_sheet(_sheet_title(sh.name))
+        for r in range(sh.nrows):
+            for c in range(sh.ncols):
+                v = sh.cell_value(r, c)
+                if v not in ("", None):
+                    set_text(ws.cell(row=r + 1, column=c + 1), v)
+    return wb, False
 
 
 def _sheet_title(name: str) -> str:
@@ -132,6 +144,7 @@ class SheetFacts:
     claim_rows: list[int] = field(default_factory=list)  # Excel row numbers of claim rows
     excluded: list[tuple[int, int, str]] = field(default_factory=list)  # (first row, count, reason)
     columns: dict[str, str] = field(default_factory=dict)  # field_code -> source column name
+    states: dict[str, tuple[str, str, float | None]] = field(default_factory=dict)  # column -> (state, field, conf)
     findings: dict[int, list[Finding]] = field(default_factory=lambda: defaultdict(list))  # by Excel row
 
 
@@ -142,6 +155,7 @@ def report_facts(db: Session, report: Report) -> dict[str, SheetFacts]:
         s = sheets.get(m.sheet_id)
         if s and s.sheet_name in facts:
             facts[s.sheet_name].columns[m.field_code] = m.source_column
+            facts[s.sheet_name].states[m.source_column] = (m.mapping_state, m.field_name, m.confidence_score)
     for sid, row in db.query(ClaimRow.sheet_id, ClaimRow.source_row_number).filter(ClaimRow.report_id == report.id):
         s = sheets.get(sid)
         if s and s.sheet_name in facts and row is not None:
@@ -205,8 +219,24 @@ def annotated_workbook(db: Session, report: Report) -> bytes:
             continue
         ncols = max(len(sf.sheet.headers or []), 1)
         header_row = (sf.sheet.header_row_index or 0) + 1
+        headers = [str(h) if h is not None else "" for h in (sf.sheet.headers or [])]
         for c in range(1, ncols + 1):
-            ws.cell(row=header_row, column=c).fill = FILL["grey"]
+            cell = ws.cell(row=header_row, column=c)
+            heading = headers[c - 1] if c - 1 < len(headers) else ""
+            state, field_name, conf = sf.states.get(heading, ("UNMAPPED", None, None))
+            if not heading.strip():
+                cell.fill = FILL["grey"]
+            elif state == "UNMAPPED":
+                cell.fill = FILL["grey"]
+                cell.comment = Comment("Couldn't map: this column was not matched to any field, so no check "
+                                       "used it. Its values are unchanged.", "TrueBind", width=280, height=80)
+            elif state == "MAPPED_BY_AI":
+                cell.fill = FILL["ai"]
+                pct = f" (confidence {conf:.0%})" if conf is not None and conf <= 1 else ""
+                cell.comment = Comment(f"Mapped by AI to {field_name}{pct}; confirmed by a person before checks "
+                                       "ran.", "TrueBind", width=280, height=80)
+            else:
+                cell.fill = FILL["ok"]
         for first, count, _reason in sf.excluded:
             for r in range(first, first + min(count, 1000)):
                 for c in range(1, ncols + 1):
@@ -249,9 +279,100 @@ def annotated_workbook(db: Session, report: Report) -> bytes:
                     comments += 1
     _issues_sheet(wb, issues)
     _summary_sheet(wb, report, issues, comments >= MAX_COMMENTS)
+    _notes_sheet(wb, report, facts, issues, _layout_kept)
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
+
+
+def _notes_sheet(wb: openpyxl.Workbook, report: Report, facts: dict[str, SheetFacts],
+                 issues: list[tuple[Finding, str, str]], layout_kept: bool) -> None:
+    """The first sheet: what this copy is, the counts, the colour legend and a
+    link back to the full Health Report."""
+    from ..settings import get_settings
+
+    ws = wb.create_sheet("TrueBind Notes", 0)
+    wb.active = 0
+    summary = report.summary if isinstance(report.summary, dict) else {}
+    hv = summary.get("health_view") or {}
+    results = defaultdict(int)
+    for f, _, _ in issues:
+        results[RESULT.get(f.status, f.status)] += 1
+    states = defaultdict(int)
+    for sf in facts.values():
+        for h in sf.sheet.headers or []:
+            if h is None or not str(h).strip():
+                continue
+            state = sf.states.get(str(h), ("UNMAPPED",))[0]
+            states["ai" if state == "MAPPED_BY_AI" else "none" if state == "UNMAPPED" else "alias"] += 1
+    kind = (report.file_kind or Path(report.file_name).suffix.lstrip(".")).lower()
+    big, head = Font(bold=True, size=16), Font(bold=True, size=11)
+    ws.column_dimensions["A"].width = 22
+    ws.column_dimensions["B"].width = 96
+    ws.sheet_view.showGridLines = False
+    ws.page_setup.orientation = "landscape"
+    ws.page_setup.fitToWidth, ws.page_setup.fitToHeight = 1, 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+    def put(label=None, value=None, font=None, fill=None, wrap=False):
+        ws.append([None, None])
+        r = ws.max_row
+        if label is not None:
+            set_text(ws.cell(row=r, column=1), label)
+        if value is not None:
+            set_text(ws.cell(row=r, column=2), value)
+            if wrap:
+                ws.cell(row=r, column=2).alignment = Alignment(wrap_text=True, vertical="top")
+        if font:
+            ws.cell(row=r, column=1).font = font
+        if fill:
+            ws.cell(row=r, column=1).fill = FILL[fill]
+        return r
+
+    put("TrueBind Notes", font=big)
+    put("File", report.file_name)
+    put("Checked", (report.updated_at or report.created_at).strftime("%d-%b-%Y %H:%M UTC")
+        if (report.updated_at or report.created_at) else "")
+    if not layout_kept:
+        put("Converted", f"Your file was a .{kind} file. This copy is .xlsx so it can carry colours and notes; the "
+                         "values are exactly as received, but a ." + kind + " file has no formatting to keep.",
+            wrap=True)
+    put()
+    put("Counts", font=head)
+    put("Errors", f"{results['Error']:,}  (must be fixed)", fill="err")
+    put("Warnings", f"{results['Warning']:,}  (unusual values to review)", fill="warn")
+    couldnt = len(hv.get("couldnt_check") or [])
+    unchecked = results["Couldn't check"]
+    put("Couldn't check", f"{unchecked:,} values, and {couldnt} "
+                          f"check{'s' if couldnt != 1 else ''} that couldn't run (see the Health Report)",
+        fill="warn")
+    put("Sheets read", f"{summary.get('sheets_processed', len(facts))} of {summary.get('sheets_total', len(facts))}")
+    put("Columns", f"{states['alias']} mapped by alias · {states['ai']} mapped by AI · "
+                   f"{states['none']} couldn't map")
+    put()
+    put("Colours", font=head)
+    for fill, text in (
+        ("ok", "Checked: no issue found (claim cells and mapped column headings)"),
+        ("err", "Error: must be fixed before the file is sent"),
+        ("warn", "Warning, or Couldn't check this value (for example a date held as text)"),
+        ("ai", "Column heading mapped by AI (hover for the field and confidence)"),
+        ("grey", "Couldn't map (column heading), or a structural row (header, title, subtotal, blank)"),
+    ):
+        r = put("", text, fill=fill)
+        if fill == "err":
+            ws.cell(row=r, column=1).font = DARK_RED
+    put()
+    put("How to use this copy", font=head)
+    put("", "Hover over a red or amber cell to see what was found and how to fix it. Each row also has a Review "
+            "notes column. The Issues sheet lists every finding with a link to its cell; Review Summary has the "
+            "counts. Your values are unchanged.", wrap=True)
+    put()
+    url = f"{get_settings().public_app_url.rstrip('/')}/reports/{report.id}"
+    r = put("Full Health Report", "Open in TrueBind (sign-in needed), then Download Health Report (.xlsx)")
+    cell = ws.cell(row=r, column=2)
+    cell.hyperlink = Hyperlink(ref=cell.coordinate, target=url, display=cell.value)
+    cell.font = Font(color="0563C1", underline="single")
+    put("Run ID", report.id)
 
 
 def _issues_sheet(wb: openpyxl.Workbook, issues: list[tuple[Finding, str, str]]) -> None:

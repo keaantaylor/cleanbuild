@@ -6,6 +6,10 @@ pydantic>=2.9
 python-multipart>=0.0.9
 psycopg[binary]>=3.2
 reportlab>=4.2
+# Excel exports: XlsxWriter builds the Health Report; openpyxl edits the
+# customer's own workbook for the annotated copy (app/exports/README.md).
+XlsxWriter==3.2.9
+openpyxl==3.1.5
 # Also a transitive dependency of the editable bordereaux install below
 # (its AI-assisted mapping fallback), but declared here explicitly too --
 # app/services/exception_narrative_service.py imports it directly for

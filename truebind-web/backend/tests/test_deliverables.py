@@ -70,7 +70,7 @@ def test_annotated_workbook(api: Api):
     original = _book(_rows())
     rid = _run(api, original)
     wb = _xlsx(api, f"/api/v1/reports/{rid}/export/annotated.xlsx")
-    assert wb.sheetnames[0] == "Review Summary" and "Issues" in wb.sheetnames and "Claims" in wb.sheetnames
+    assert wb.sheetnames[:2] == ["TrueBind Notes", "Review Summary"] and "Issues" in wb.sheetnames and "Claims" in wb.sheetnames
     ws = wb["Claims"]
     src = openpyxl.load_workbook(io.BytesIO(original))["Claims"]
     # Source values are never altered and the layout is kept.
@@ -79,9 +79,10 @@ def test_annotated_workbook(api: Api):
             assert ws[c.coordinate].value == c.value, c.coordinate
     assert ws.column_dimensions["B"].width == 33
     assert ws["B17"].data_type == "s" and ws["B17"].value.startswith("=HYPERLINK")
-    # Colours: header and subtotal grey, clean cells green, the wrong total red with dark red text and a note.
-    assert _fill(ws["A2"]) == "E7E6E6" and _fill(ws["A21"]) == "E7E6E6"
-    assert _fill(ws["A3"]) == "E2F0D9" and _fill(ws["I3"]) == "E2F0D9"
+    # Colours: mapped headings and clean cells a quiet green, the subtotal grey, the wrong total red with
+    # dark red text and a note.
+    assert _fill(ws["A2"]) == "F0F7F2" and _fill(ws["A21"]) == "E7E6E6"
+    assert _fill(ws["A3"]) == "F0F7F2" and _fill(ws["I3"]) == "F0F7F2"
     assert _fill(ws["I15"]) == "FFC7CE" and (ws["I15"].font.color.rgb or "").endswith("9C0006")
     assert ws["I15"].comment is not None and "Fix:" in ws["I15"].comment.text
     assert _fill(ws["F16"]) == "FFF2CC" and ws["F16"].comment is not None

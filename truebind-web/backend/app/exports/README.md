@@ -66,5 +66,13 @@ cd truebind-web/backend
 .venv/Scripts/python tests/perf_health_report.py 10000 10 1.2    # heavy: 1.2 findings per row
 ```
 
-Build time scales with the number of findings, not rows. On the development machine (Python 3.14), a
-10,000-row, 10-sheet file builds in about 2 s at 0.5 findings per row and about 5 s at 1.2.
+Build time scales with the number of findings, not rows. Measured on the development machine (Python 3.14),
+10,000 rows across 10 sheets:
+
+| Findings per row | Quiet machine | Busy machine (browser using about one core) |
+|---|---|---|
+| 0.4–0.5 (realistic) | 1.8–2.2 s | 4.7–5.2 s |
+| 1.2 (heavy) | about 5.0 s | 9–12 s |
+
+The timing test takes the best of three builds at 0.5 findings per row and asserts under 5 s. Render's
+instance (Python 3.11) has not been measured yet.

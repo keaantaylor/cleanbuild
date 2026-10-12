@@ -75,7 +75,7 @@ _cors_origins = get_cors_origins()
 app.add_middleware(CORSMiddleware, allow_origins=_cors_origins, allow_credentials=True,
                    allow_methods=["GET", "POST", "PATCH", "DELETE"],
                    allow_headers=["Content-Type", "X-CSRF-Token", "Idempotency-Key", "X-Request-ID"],
-                   expose_headers=["X-Request-ID"], max_age=600)
+                   expose_headers=["X-Request-ID", "Content-Disposition"], max_age=600)
 
 _SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",

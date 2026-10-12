@@ -178,6 +178,16 @@ class LocalObjectStore:
         p = self._derived_path(key)
         return p.read_bytes() if p.exists() else None
 
+    def read_bytes(self, key: str, expected_sha256: str, db: Any = None) -> bytes:
+        """The original's bytes, in memory, after verifying its hash."""
+        p = self._path(key)
+        if not p.exists():
+            raise FileNotFoundError("stored source file is missing")
+        data = p.read_bytes()
+        if hashlib.sha256(data).hexdigest() != expected_sha256:
+            raise IntegrityError(key)
+        return data
+
     @contextlib.contextmanager
     def local_copy(self, key: str, expected_sha256: str, db: Any = None) -> Iterator[Path]:
         """Yield a readable path to the original after verifying its hash."""
@@ -259,6 +269,20 @@ class S3ObjectStore:
             return self.client.get_object(Bucket=self.bucket, Key=key)["Body"].read()
         except ClientError:
             return None
+
+    def read_bytes(self, key: str, expected_sha256: str, db: Any = None) -> bytes:
+        from botocore.exceptions import ClientError
+
+        check_key(key)
+        try:
+            data = self.client.get_object(Bucket=self.bucket, Key=key)["Body"].read()
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") in ("NoSuchKey", "404"):
+                raise FileNotFoundError("stored source file is missing") from exc
+            raise
+        if hashlib.sha256(data).hexdigest() != expected_sha256:
+            raise IntegrityError(key)
+        return data
 
     @contextlib.contextmanager
     def local_copy(self, key: str, expected_sha256: str, db: Any = None) -> Iterator[Path]:
@@ -356,6 +380,20 @@ class DbObjectStore:
         with self._session(key, db) as s:
             row = s.get(StoredBlob, key)
             return bytes(row.content) if row is not None else None
+
+    def read_bytes(self, key: str, expected_sha256: str, db: Any = None) -> bytes:
+        """The original's bytes straight from the database: no file on disk."""
+        from ..models.blobs import StoredBlob
+
+        check_key(key)
+        with self._session(key, db) as s:
+            row = s.get(StoredBlob, key)
+            content = bytes(row.content) if row is not None else None
+        if content is None:
+            return self.legacy.read_bytes(key, expected_sha256)
+        if hashlib.sha256(content).hexdigest() != expected_sha256:
+            raise IntegrityError(key)
+        return content
 
     @contextlib.contextmanager
     def local_copy(self, key: str, expected_sha256: str, db: Any = None) -> Iterator[Path]:
